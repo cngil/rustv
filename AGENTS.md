@@ -6,8 +6,8 @@ Guidance for AI coding agents working on rustv. Humans should read
 ## Project
 
 rustv is a private, open-source TV shell for Linux. The `tvd` daemon holds all
-logic (app launching, virtual input, volume, JSON API, web remote). An
-on-screen shell will be a thin client of the same API.
+logic (app launching, virtual input, audio, JSON API, web remote). The
+on-screen shell (`rustv-shell`) is a thin client of the same API.
 
 ## Layout
 
@@ -19,10 +19,15 @@ on-screen shell will be a thin client of the same API.
   - `protocol.rs` command and message types
   - `state.rs` shared daemon state
   - `input.rs`, `keymap.rs` uinput virtual keyboard and mouse
-  - `audio.rs` PipeWire volume through `wpctl`
+  - `audio.rs` PipeWire volume (`wpctl`) and outputs (`pw-dump`)
 - `crates/tvd/web/`: web remote (plain HTML, CSS, JS, PWA), no build step
+- `crates/shell/`: on-screen shell
+  - `ui/shell.slint` home screen (Slint markup), `ui/fonts/` bundled Inter
+  - `src/main.rs` window, clock, UI updates; `src/net.rs` WebSocket client;
+    `src/settings.rs` finds tvd from the shared config
 - `config/config.example.toml`: documented example config
-- `packaging/`: systemd user unit and udev rule
+- `packaging/`: systemd units (tvd user service, TV session), sway kiosk
+  config, udev rule, xdg-desktop-portal config
 - `scripts/install.sh`: build and install
 
 ## Commands

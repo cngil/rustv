@@ -196,7 +196,7 @@ fn group_alive(pgid: i32) -> bool {
 
 /// Environment that puts an app on the TV's Wayland session, even when tvd
 /// runs as a service that was started before the session.
-fn session_env() -> Result<Vec<(String, String)>> {
+pub(crate) fn session_env() -> Result<Vec<(String, String)>> {
     let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| {
         // SAFETY: getuid has no preconditions and cannot fail.
         format!("/run/user/{}", unsafe { libc::getuid() })

@@ -1,7 +1,7 @@
 //! Shared daemon state and command execution.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -14,6 +14,7 @@ use crate::audio;
 use crate::config::Config;
 use crate::input::{Input, Mods};
 use crate::keymap;
+use crate::overlay::Overlay;
 use crate::protocol::{AppInfo, AudioInfo, Command, RunningInfo, ServerMsg, StateSnapshot};
 
 /// Largest pointer move accepted in one message.
@@ -25,18 +26,33 @@ pub struct AppState {
     pub input: Input,
     pub apps: Arc<AppManager>,
     pub events: broadcast::Sender<ServerMsg>,
+    pub overlay: Overlay,
+    /// Open WebSocket connections.
+    pub clients: AtomicUsize,
     last_input: AtomicU64,
 }
 
 impl AppState {
-    pub fn new(mut config: Config, token: String, input: Input) -> Arc<Self> {
+    pub fn new(mut config: Config, config_path: PathBuf, token: String, input: Input) -> Arc<Self> {
         let (changed_tx, mut changed_rx) = mpsc::unbounded_channel();
         let apps = std::mem::take(&mut config.apps);
         let browser = std::mem::take(&mut config.browser);
         let manager = Arc::new(AppManager::new(apps, browser, changed_tx));
         let (events, _) = broadcast::channel(64);
 
-        let state = Arc::new(Self { token, config, input, apps: manager, events, last_input: AtomicU64::new(now()) });
+        let state = Arc::new(Self {
+            token,
+            config,
+            input,
+            apps: manager,
+            events,
+            overlay: Overlay::new(config_path),
+            clients: AtomicUsize::new(0),
+            last_input: AtomicU64::new(now()),
+        });
+        if state.config.overlay.enabled {
+            state.overlay.set_visible(true, Arc::downgrade(&state));
+        }
 
         let weak = Arc::downgrade(&state);
         tokio::spawn(async move {
@@ -86,6 +102,8 @@ impl AppState {
             running: self.apps.running().await.map(|(id, name)| RunningInfo { id, name }),
             volume,
             idle_seconds: now().saturating_sub(self.last_input.load(Ordering::Relaxed)),
+            overlay: self.overlay.visible(),
+            clients: self.clients.load(Ordering::Relaxed),
         }
     }
 
@@ -94,7 +112,7 @@ impl AppState {
         let _ = self.events.send(ServerMsg::State(snapshot));
     }
 
-    pub async fn execute(&self, cmd: Command) -> Result<()> {
+    pub async fn execute(self: &Arc<Self>, cmd: Command) -> Result<()> {
         if cmd.is_input() {
             self.last_input.store(now(), Ordering::Relaxed);
         }
@@ -123,6 +141,11 @@ impl AppState {
             Command::AudioOutput { id } => {
                 audio::set_output(id).await?;
                 let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
+                self.notify().await;
+            }
+            Command::Overlay { visible } => {
+                let visible = visible.unwrap_or(!self.overlay.visible());
+                self.overlay.set_visible(visible, Arc::downgrade(self));
                 self.notify().await;
             }
         }

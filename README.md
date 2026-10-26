@@ -55,6 +55,11 @@ talks to nobody but you.
   - Shows progress and the result of every action (opening an app,
     switching the output, losing the connection)
   - Installable as an app (PWA)
+- **Debug overlay**: one line of live stats on top of everything, even full
+  screen video: CPU and GPU load and temperature, RAM, network speed, Wi-Fi
+  signal, display mode, volume, connected remotes, uptime. Items turn yellow
+  or red when something runs hot. Pick the items in the config, switch it
+  from the remote or the API.
 - **Virtual keyboard and mouse** through `uinput`, so control works in every
   app without app support.
 - **Audio** through PipeWire: volume and output selection.
@@ -87,6 +92,7 @@ remote, so a crashed screen never takes the remote down.
 - Linux with [sway](https://swaywm.org) on the TV output, used as a kiosk
   (no bars, no decorations, no keybindings; see [`packaging/sway/rustv.conf`](packaging/sway/rustv.conf)).
   sway picks the output mode, which matters on 4K TVs that only do 30 Hz over HDMI 1.4.
+  The debug overlay uses swaybar, which ships with sway.
 - PipeWire (`wpctl`, `pw-dump`) for audio
 - Write access to `/dev/uinput` (see below)
 - Flatpak for Flatpak apps, Firefox (Flatpak) for web apps by default
@@ -167,7 +173,7 @@ All endpoints except `/api/v1/health` need `Authorization: Bearer <token>`
 
 | Method | Path | |
 | --- | --- | --- |
-| `GET` | `/api/v1/state` | Running app, volume, seconds since last input |
+| `GET` | `/api/v1/state` | Running app, volume, seconds since last input, overlay, connected clients |
 | `GET` | `/api/v1/apps` | Configured apps |
 | `GET` | `/api/v1/apps/{id}/icon` | App icon (SVG, PNG or JPEG) |
 | `GET` | `/api/v1/audio` | Audio outputs and volume limits |
@@ -188,6 +194,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "volume", "action": "up"}
 {"type": "volume", "action": "set", "level": 0.6}
 {"type": "audio_output", "id": 52}
+{"type": "overlay", "visible": true}
 ```
 
 Key codes follow the browser's

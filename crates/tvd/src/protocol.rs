@@ -57,6 +57,11 @@ pub enum Command {
     AudioOutput {
         id: u32,
     },
+    /// Show or hide the debug overlay; without `visible` it toggles.
+    Overlay {
+        #[serde(default)]
+        visible: Option<bool>,
+    },
 }
 
 impl Command {
@@ -105,6 +110,10 @@ pub struct StateSnapshot {
     pub volume: Option<Volume>,
     /// Seconds since the last remote input.
     pub idle_seconds: u64,
+    /// Whether the debug overlay is on screen.
+    pub overlay: bool,
+    /// Connected WebSocket clients (remotes, the shell).
+    pub clients: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -140,10 +149,18 @@ mod tests {
 
     #[test]
     fn serializes_tagged_messages() {
-        let msg = ServerMsg::State(StateSnapshot { running: None, volume: None, idle_seconds: 3 });
+        let msg = ServerMsg::State(StateSnapshot {
+            running: None,
+            volume: None,
+            idle_seconds: 3,
+            overlay: false,
+            clients: 1,
+        });
         assert_eq!(
             serde_json::to_string(&msg).unwrap(),
-            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3}"#
+            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"clients":1}"#
         );
+        let cmd: Command = serde_json::from_str(r#"{"type":"overlay"}"#).unwrap();
+        assert!(matches!(cmd, Command::Overlay { visible: None }));
     }
 }

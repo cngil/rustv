@@ -1,5 +1,6 @@
 //! HTTP routes: the web remote, the REST API and the WebSocket.
 
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use axum::body::Bytes;
@@ -115,6 +116,7 @@ async fn websocket(upgrade: WebSocketUpgrade, State(state): State<Shared>) -> Re
 }
 
 async fn client(socket: WebSocket, state: Shared) {
+    let _connected = Connected::new(state.clone());
     let (mut sink, mut stream) = socket.split();
     let mut events = state.events.subscribe();
     let (reply_tx, mut reply_rx) = mpsc::unbounded_channel::<ServerMsg>();
@@ -146,6 +148,29 @@ async fn client(socket: WebSocket, state: Shared) {
             Some(reply) = reply_rx.recv() => if send(&mut sink, &reply).await.is_err() { break },
         }
     }
+}
+
+/// Counts a WebSocket client for as long as it is connected.
+struct Connected(Shared);
+
+impl Connected {
+    fn new(state: Shared) -> Self {
+        state.clients.fetch_add(1, Ordering::Relaxed);
+        notify_soon(&state);
+        Self(state)
+    }
+}
+
+impl Drop for Connected {
+    fn drop(&mut self) {
+        self.0.clients.fetch_sub(1, Ordering::Relaxed);
+        notify_soon(&self.0);
+    }
+}
+
+fn notify_soon(state: &Shared) {
+    let state = state.clone();
+    tokio::spawn(async move { state.notify().await });
 }
 
 async fn handle(state: &Shared, text: &str, reply: &mpsc::UnboundedSender<ServerMsg>) {

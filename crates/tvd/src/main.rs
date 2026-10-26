@@ -10,8 +10,10 @@ mod audio;
 mod config;
 mod input;
 mod keymap;
+mod overlay;
 mod protocol;
 mod state;
+mod stats;
 
 use std::io::IsTerminal;
 use std::net::{SocketAddr, UdpSocket};
@@ -32,6 +34,8 @@ COMMANDS:
     serve    Run the daemon (default)
     pair     Print the pairing link for the web remote
     check    Validate the configuration and exit
+    overlay-status
+             Print the debug overlay line (run by swaybar, not by hand)
 
 OPTIONS:
     -c, --config <PATH>    Config file (default: $XDG_CONFIG_HOME/rustv/config.toml)
@@ -61,7 +65,7 @@ async fn main() -> Result<()> {
                 println!("tvd {}", env!("CARGO_PKG_VERSION"));
                 return Ok(());
             }
-            "serve" | "pair" | "check" => command = arg,
+            "serve" | "pair" | "check" | "overlay-status" => command = arg,
             other => bail!("unknown argument: {other}\n\n{HELP}"),
         }
     }
@@ -79,16 +83,20 @@ async fn main() -> Result<()> {
             println!("{}", pairing_url(&cfg.server.bind, &token));
             Ok(())
         }
-        _ => serve(cfg).await,
+        "overlay-status" => {
+            let token = config::load_or_create_token(&cfg)?;
+            overlay::status_loop(&cfg, &token)
+        }
+        _ => serve(cfg, path).await,
     }
 }
 
-async fn serve(cfg: config::Config) -> Result<()> {
+async fn serve(cfg: config::Config, path: PathBuf) -> Result<()> {
     let token = config::load_or_create_token(&cfg)?;
     let input = input::Input::new().context("creating virtual input devices (is /dev/uinput writable?)")?;
     let bind: SocketAddr = cfg.server.bind.parse().context("invalid server.bind")?;
 
-    let state = state::AppState::new(cfg, token, input);
+    let state = state::AppState::new(cfg, path, token, input);
     state.apps.adopt().await;
     let router = api::router(state);
 

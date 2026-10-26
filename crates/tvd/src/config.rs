@@ -32,6 +32,8 @@ pub struct Config {
     pub audio: Audio,
     #[serde(default)]
     pub shell: Shell,
+    #[serde(default)]
+    pub overlay: Overlay,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
 }
@@ -53,6 +55,63 @@ impl Default for Shell {
     fn default() -> Self {
         Self { greeting: true, clock: true, date: true, hints: true, volume_overlay: true }
     }
+}
+
+/// Debug overlay: a line of live stats drawn over everything on the TV.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Overlay {
+    /// Shown at start. The remote and the API can switch it at any time.
+    pub enabled: bool,
+    pub position: OverlayPosition,
+    /// Pango font description, such as "DejaVu Sans Mono 14".
+    pub font: String,
+    /// How often the numbers refresh, in milliseconds.
+    pub interval_ms: u64,
+    /// What to show, in this order.
+    pub items: Vec<OverlayItem>,
+}
+
+impl Default for Overlay {
+    fn default() -> Self {
+        use OverlayItem::*;
+        Self {
+            enabled: false,
+            position: OverlayPosition::Top,
+            font: "DejaVu Sans Mono 14".into(),
+            interval_ms: 1000,
+            items: vec![App, Cpu, Gpu, Ram, Net, Wifi, Display, Volume, Remotes, Uptime],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OverlayPosition {
+    Top,
+    Bottom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OverlayItem {
+    /// The app on screen.
+    App,
+    /// Load and temperature.
+    Cpu,
+    Gpu,
+    Ram,
+    /// Download and upload speed on the default route.
+    Net,
+    /// Wi-Fi signal strength.
+    Wifi,
+    /// Output resolution and refresh rate.
+    Display,
+    Volume,
+    /// Connected remotes and other API clients.
+    Remotes,
+    Uptime,
+    Clock,
 }
 
 #[derive(Debug, Deserialize)]
@@ -217,6 +276,13 @@ impl Config {
         }
         if !(0.0..=1.0).contains(&self.audio.step) || self.audio.max_volume <= 0.0 {
             bail!("audio.step must be within 0..1 and audio.max_volume above 0");
+        }
+        // The font ends up in a sway command, where these characters have meaning.
+        if self.overlay.font.trim().is_empty() || self.overlay.font.contains([';', ',', '"', '\'', '\n']) {
+            bail!("overlay.font must be a plain Pango font description, such as \"DejaVu Sans Mono 14\"");
+        }
+        if self.overlay.interval_ms < 250 {
+            bail!("overlay.interval_ms must be at least 250");
         }
         Ok(())
     }

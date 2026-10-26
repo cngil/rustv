@@ -26,6 +26,17 @@ date = true
 hints = true            # key hints at the bottom
 volume_overlay = true   # volume bar when the volume changes
 
+[overlay]
+# Debug overlay: one line of live stats over everything on the TV, drawn by
+# swaybar. Switch it from the remote (gauge button) or the API at any time.
+enabled = false
+position = "top"                # top or bottom
+font = "DejaVu Sans Mono 14"    # Pango font description
+interval_ms = 1000              # refresh rate, at least 250
+# Shown in this order; leave out what you do not need.
+#   app, cpu, gpu, ram, net, wifi, display, volume, remotes, uptime, clock
+items = ["app", "cpu", "gpu", "ram", "net", "wifi", "display", "volume", "remotes", "uptime"]
+
 # Apps, in the order they appear. Three kinds:
 #   flatpak: app_id (+ optional args)
 #   command: any program, as a list of arguments

@@ -5,6 +5,11 @@
 <h1 align="center">rustv</h1>
 
 <p align="center">
+  <a href="https://github.com/cngil/rustv/actions/workflows/ci.yml"><img src="https://github.com/cngil/rustv/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0"></a>
+</p>
+
+<p align="center">
   A private, open-source TV shell for Linux.<br>
   Your living room without ads, tracking or lock-in.
 </p>

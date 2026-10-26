@@ -22,8 +22,6 @@ export global Palette {
 export global Strings {
     in property <string> subtitle: "What would you like to watch?";
     in property <string> no-apps: "No apps yet. Add some to ~/.config/rustv/config.toml";
-    in property <string> hint-move: "Move";
-    in property <string> hint-open: "Open";
     in property <string> opening: "Opening…";
     in property <string> connecting: "Connecting to tvd…";
     in property <string> volume: "Volume";
@@ -139,7 +137,6 @@ export component Shell inherits Window {
     in property <bool> show-greeting: true;
     in property <bool> show-clock: true;
     in property <bool> show-date: true;
-    in property <bool> show-hints: true;
     in property <bool> show-volume-overlay: true;
 
     // Screensaver, started by the shell after a while without input on the home screen.
@@ -291,16 +288,6 @@ export component Shell inherits Window {
         text: Strings.no-apps;
         color: #8a93a8;
         font-size: 30px * s;
-    }
-
-    // Footer hints
-    if root.show-hints: HorizontalLayout {
-        y: root.height - 110px * s;
-        height: 40px * s;
-        alignment: center;
-        spacing: 56px * s;
-        Text { text: "←  →   " + Strings.hint-move; color: #6d7590; font-size: 24px * s; }
-        Text { text: "OK   " + Strings.hint-open; color: #6d7590; font-size: 24px * s; }
     }
 
     // Pairing card

@@ -25,7 +25,6 @@ per_app_volume = true   # each app (and the home screen) keeps its own volume
 greeting = true
 clock = true
 date = true
-hints = true            # key hints at the bottom
 volume_overlay = true   # volume bar when the volume changes
 pairing_qr = true       # QR code for pairing a phone, until one pairs and on request
 sounds = true           # soft sounds when moving between apps and opening one

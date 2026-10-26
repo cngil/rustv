@@ -86,7 +86,6 @@ const TRANSLATIONS = {
     Greeting: "Karşılama",
     Clock: "Saat",
     Date: "Tarih",
-    "Key hints": "Tuş ipuçları",
     "Volume bar when the volume changes": "Ses değişince ses çubuğu",
     Sounds: "Sesler",
     "Soft clicks when moving between apps and opening one.": "Uygulamalar arasında gezinirken ve açarken yumuşak tıklamalar.",
@@ -945,7 +944,6 @@ const SETTINGS = [
       { key: "shell.greeting", label: "Greeting" },
       { key: "shell.clock", label: "Clock" },
       { key: "shell.date", label: "Date" },
-      { key: "shell.hints", label: "Key hints" },
       { key: "shell.volume_overlay", label: "Volume bar when the volume changes" },
       { key: "shell.sounds", label: "Sounds", hint: "Soft clicks when moving between apps and opening one." },
       {

@@ -273,7 +273,6 @@ Everything the shell shows can be switched off:
 greeting = true
 clock = true
 date = false
-hints = false
 volume_overlay = true
 ```
 

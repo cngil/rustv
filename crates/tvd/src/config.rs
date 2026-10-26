@@ -57,8 +57,9 @@ pub struct Shell {
     pub greeting: bool,
     pub clock: bool,
     pub date: bool,
-    /// Key hints at the bottom of the home screen.
-    pub hints: bool,
+    /// The old key hints (gone from the home screen). Still read so older configs load.
+    #[serde(skip_serializing)]
+    hints: Option<bool>,
     /// Volume bar shown when the volume changes.
     pub volume_overlay: bool,
     /// QR code for pairing a phone, shown until the first remote connects and on request.
@@ -75,7 +76,7 @@ impl Default for Shell {
             greeting: true,
             clock: true,
             date: true,
-            hints: true,
+            hints: None,
             volume_overlay: true,
             pairing_qr: true,
             sounds: true,

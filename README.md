@@ -180,6 +180,17 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [ ] Agent integration (MCP) and voice commands
 - [ ] Switching between running apps
 
+### Backlog
+
+- [ ] System info on screen, each item switchable on or off in user
+  preferences: clock, date, weather, power consumption, battery, component
+  temperatures, disk space, RAM, Wi-Fi/Ethernet status, network usage, and
+  any other data the system exposes
+- [ ] UI audio feedback (navigation and selection sounds)
+- [ ] Manage Bluetooth, Wi-Fi and audio from the shell
+- [ ] Lock and unlock, set a password, configure remotely exposed ports
+- [ ] Reorder apps
+
 ## Development
 
 ```sh

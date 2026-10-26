@@ -25,6 +25,10 @@ const SCRIPT: &str = include_str!("../web/app.js");
 const STYLE: &str = include_str!("../web/style.css");
 const MANIFEST: &str = include_str!("../web/manifest.webmanifest");
 const ICON: &str = include_str!("../web/icon.svg");
+// iOS ignores SVG home screen icons, and Android wants fixed sizes.
+const TOUCH_ICON: &[u8] = include_bytes!("../web/apple-touch-icon.png");
+const ICON_192: &[u8] = include_bytes!("../web/icon-192.png");
+const ICON_512: &[u8] = include_bytes!("../web/icon-512.png");
 
 type Shared = Arc<AppState>;
 
@@ -45,12 +49,19 @@ pub fn router(state: Shared) -> Router {
         .route("/style.css", get(|| async { asset("text/css; charset=utf-8", STYLE) }))
         .route("/manifest.webmanifest", get(|| async { asset("application/manifest+json", MANIFEST) }))
         .route("/icon.svg", get(|| async { asset("image/svg+xml", ICON) }))
+        .route("/apple-touch-icon.png", get(|| async { image(TOUCH_ICON) }))
+        .route("/icon-192.png", get(|| async { image(ICON_192) }))
+        .route("/icon-512.png", get(|| async { image(ICON_512) }))
         .nest("/api/v1", api)
         .with_state(state)
 }
 
 fn asset(content_type: &'static str, body: &'static str) -> Response {
     ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "no-cache")], body).into_response()
+}
+
+fn image(png: &'static [u8]) -> Response {
+    ([(header::CONTENT_TYPE, "image/png"), (header::CACHE_CONTROL, "max-age=86400")], png).into_response()
 }
 
 /// Accepts `Authorization: Bearer <token>`, or `?token=` for WebSocket clients.

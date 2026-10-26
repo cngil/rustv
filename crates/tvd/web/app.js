@@ -6,6 +6,8 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 const TOKEN_KEY = "rustv.token";
 const TAB_KEY = "rustv.tab";
+const LAUNCH_TIMEOUT = 30000;
+const OUTPUT_TIMEOUT = 8000;
 
 let token = readToken();
 let ws = null;
@@ -13,6 +15,11 @@ let retry = 0;
 let apps = [];
 let state = null;
 let audio = { max_volume: 1.5, step: 0.05, outputs: [] };
+
+// Actions waiting for the TV to confirm them, so the remote can show progress and the result.
+let pendingLaunch = null; // { id, name, timer }
+let pendingOutput = null; // { id, timer }
+let pendingStop = false;
 
 function readToken() {
   const match = location.hash.match(/token=([A-Za-z0-9]+)/);
@@ -43,17 +50,32 @@ function connect() {
   ws = new WebSocket(`${proto}://${location.host}/api/v1/ws?token=${encodeURIComponent(token)}`);
   ws.onopen = () => {
     retry = 0;
-    $("#dot").classList.add("on");
+    setOnline(true);
   };
   ws.onmessage = (event) => handle(JSON.parse(event.data));
   ws.onclose = () => {
-    $("#dot").classList.remove("on");
+    setOnline(false);
     setTimeout(connect, Math.min(5000, 250 * 2 ** retry++));
   };
 }
 
+function setOnline(online) {
+  $("#dot").classList.toggle("on", online);
+  $("#app").classList.toggle("offline", !online);
+  $("#conn").textContent = online ? "Now on TV" : "Reconnecting…";
+}
+
+let offlineNotice = 0;
 function send(msg) {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+    return true;
+  }
+  if (Date.now() - offlineNotice > 2500) {
+    offlineNotice = Date.now();
+    toast("Not connected to the TV", "error");
+  }
+  return false;
 }
 
 function handle(msg) {
@@ -62,19 +84,24 @@ function handle(msg) {
     renderDock();
   } else if (msg.type === "audio") {
     audio = msg;
+    settleOutput();
     renderAudio();
   } else if (msg.type === "state") {
+    const before = state && state.running;
     state = msg;
+    settleApps(before);
     renderState();
   } else if (msg.type === "error") {
-    toast(msg.message);
+    clearLaunch();
+    clearOutput();
+    toast(msg.message, "error");
   }
 }
 
 function showPair(message) {
   $("#app").hidden = true;
   $("#pair").hidden = false;
-  if (message) toast(message, $("#pair"));
+  if (message) toast(message, "error");
 }
 
 $("#pair-form").addEventListener("submit", (event) => {
@@ -85,6 +112,43 @@ $("#pair-form").addEventListener("submit", (event) => {
   localStorage.setItem(TOKEN_KEY, token);
   start();
 });
+
+// ---- pending actions ----
+
+function settleApps(before) {
+  const running = state.running;
+  if (pendingLaunch && running && running.id === pendingLaunch.id) {
+    toast(`${running.name} is open on the TV`, "ok");
+    clearLaunch();
+  } else if (pendingStop && !running) {
+    pendingStop = false;
+    if (before) toast(`Closed ${before.name}`);
+  }
+}
+
+function clearLaunch() {
+  if (!pendingLaunch) return;
+  clearTimeout(pendingLaunch.timer);
+  pendingLaunch = null;
+  renderDock();
+}
+
+function settleOutput() {
+  if (!pendingOutput) return;
+  const output = audio.outputs.find((o) => o.id === pendingOutput.id);
+  if (output && output.default) {
+    toast(`Sound now plays on ${output.name}`, "ok");
+    clearOutput();
+    closeSheet();
+  }
+}
+
+function clearOutput() {
+  if (!pendingOutput) return;
+  clearTimeout(pendingOutput.timer);
+  pendingOutput = null;
+  renderAudio();
+}
 
 // ---- rendering ----
 
@@ -98,41 +162,68 @@ function renderState() {
 
 function renderVolume() {
   const volume = state && state.volume;
-  const label = !volume ? "–" : volume.muted ? "Muted" : `${Math.round(volume.level * 100)}%`;
-  for (const el of $$(".js-vol-label")) el.textContent = label;
-  $("#mute").textContent = volume && volume.muted ? "Unmute" : "Mute";
-  $("#mute").classList.toggle("active", Boolean(volume && volume.muted));
-  if (volume && !sliderBusy()) $("#vol-slider").value = Math.round(volume.level * 100);
+  const box = $("#volume");
+  box.classList.toggle("muted", Boolean(volume && volume.muted));
+  $("#mute").setAttribute("aria-label", volume && volume.muted ? "Unmute" : "Mute");
+  $("#mute use").setAttribute("href", volume && volume.muted ? "#i-muted" : "#i-speaker");
+  if (!volume) {
+    $("#vol-value").textContent = "–";
+    return;
+  }
+  if (!sliderBusy()) {
+    slider.value = Math.round(volume.level * 100);
+    paintSlider();
+  }
+  $("#vol-value").textContent = volume.muted ? "Muted" : `${Math.round((sliderBusy() ? slider.value : volume.level * 100))}%`;
 }
 
+const OUTPUT_ICONS = { hdmi: "#i-tv", analog: "#i-headphones", bluetooth: "#i-bluetooth", usb: "#i-usb", other: "#i-speaker" };
+
 function renderAudio() {
-  const max = Math.round(audio.max_volume * 100);
-  $("#vol-slider").max = max;
-  $("#vol-max").textContent = `${max}%`;
+  slider.max = Math.round(audio.max_volume * 100);
+  const current = audio.outputs.find((o) => o.default);
+  $("#output-name").textContent = current ? current.name : "No output";
+  $(".js-output-icon use").setAttribute("href", OUTPUT_ICONS[current ? current.kind : "other"] || "#i-speaker");
+  $("#output").disabled = audio.outputs.length === 0;
+
   const list = $("#outputs");
   list.replaceChildren();
   if (!audio.outputs.length) {
     const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = "No outputs found.";
+    empty.className = "empty";
+    empty.textContent = "No audio outputs found.";
     list.append(empty);
   }
   for (const output of audio.outputs) {
     const item = document.createElement("button");
-    item.className = "output" + (output.default ? " selected" : "");
-    const radio = document.createElement("span");
-    radio.className = "radio";
-    const name = document.createElement("span");
-    name.textContent = output.name;
-    item.append(radio, name);
-    item.addEventListener("click", () => {
-      if (output.default) return;
-      haptic();
-      send({ type: "audio_output", id: output.id });
-    });
+    item.className = "output";
+    if (output.default) item.classList.add("selected");
+    if (pendingOutput && pendingOutput.id === output.id) item.classList.add("pending");
+    item.innerHTML = `
+      <span class="out-icon"><svg><use href="${OUTPUT_ICONS[output.kind] || "#i-speaker"}"/></svg></span>
+      <span class="out-text"><div class="out-name"></div><div class="out-detail"></div></span>
+      <svg class="out-mark"><use href="#i-check"/></svg>`;
+    item.querySelector(".out-name").textContent = output.name;
+    item.querySelector(".out-detail").textContent = output.default ? "Playing here" : output.detail;
+    item.addEventListener("click", () => chooseOutput(output));
     list.append(item);
   }
   renderVolume();
+}
+
+function chooseOutput(output) {
+  if (output.default) return closeSheet();
+  if (pendingOutput) return;
+  haptic();
+  if (!send({ type: "audio_output", id: output.id })) return;
+  pendingOutput = {
+    id: output.id,
+    timer: setTimeout(() => {
+      clearOutput();
+      toast(`Could not switch to ${output.name}`, "error");
+    }, OUTPUT_TIMEOUT),
+  };
+  renderAudio();
 }
 
 function renderDock() {
@@ -141,21 +232,34 @@ function renderDock() {
   const runningId = state && state.running ? state.running.id : null;
   for (const app of apps) {
     const item = document.createElement("button");
-    item.className = "dock-item" + (app.id === runningId ? " running" : "");
+    item.className = "dock-item";
+    if (app.id === runningId) item.classList.add("running");
+    if (pendingLaunch && pendingLaunch.id === app.id) item.classList.add("opening");
     item.title = app.description || app.name;
     item.append(appIcon(app));
     const name = document.createElement("span");
     name.className = "dock-name";
-    name.textContent = app.name;
+    name.textContent = pendingLaunch && pendingLaunch.id === app.id ? "Opening…" : app.name;
     item.append(name);
-    item.addEventListener("click", () => {
-      haptic();
-      if (app.id === runningId) return toast(`${app.name} is already on the TV`);
-      send({ type: "launch", id: app.id });
-      item.classList.add("opening");
-    });
+    item.addEventListener("click", () => launch(app, runningId));
     dock.append(item);
   }
+}
+
+function launch(app, runningId) {
+  haptic();
+  if (app.id === runningId) return toast(`${app.name} is already on the TV`);
+  if (pendingLaunch && pendingLaunch.id === app.id) return;
+  if (!send({ type: "launch", id: app.id })) return;
+  clearLaunch();
+  pendingLaunch = {
+    id: app.id,
+    timer: setTimeout(() => {
+      clearLaunch();
+      toast(`${app.name} did not open`, "error");
+    }, LAUNCH_TIMEOUT),
+  };
+  renderDock();
 }
 
 function appIcon(app) {
@@ -180,13 +284,15 @@ function hue(text) {
 }
 
 let toastTimer = null;
-function toast(text, parent = $("#app")) {
+function toast(text, kind = "info") {
   const el = $("#toast");
-  parent.append(el);
   el.textContent = text;
+  el.className = `toast ${kind}`;
   el.hidden = false;
+  // Restart the entry animation for back-to-back messages.
+  void el.offsetWidth;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.hidden = true), 3000);
+  toastTimer = setTimeout(() => (el.hidden = true), kind === "error" ? 4500 : 2600);
 }
 
 function haptic() {
@@ -195,37 +301,44 @@ function haptic() {
 
 // ---- buttons ----
 
-function pressKey(code) {
-  haptic();
-  send({ type: "key", code });
-}
-
-for (const button of $$("[data-key]")) {
-  const code = button.dataset.key;
-  if (!("repeat" in button.dataset)) {
-    button.addEventListener("click", () => pressKey(code));
-    continue;
-  }
-  // Hold to repeat, like a real remote.
+// Hold to repeat, like a real remote.
+function holdable(button, action) {
   let delay = null;
   let interval = null;
   const release = () => {
     clearTimeout(delay);
     clearInterval(interval);
+    button.classList.remove("pressed");
   };
   button.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
     event.preventDefault();
-    pressKey(code);
-    delay = setTimeout(() => (interval = setInterval(() => send({ type: "key", code }), 110)), 400);
+    button.classList.add("pressed");
+    haptic();
+    action();
+    delay = setTimeout(() => (interval = setInterval(action, 110)), 400);
   });
   for (const ev of ["pointerup", "pointerleave", "pointercancel"]) button.addEventListener(ev, release);
+  // Keyboard activation (Enter/Space on a focused button).
+  button.addEventListener("click", (event) => {
+    if (event.detail === 0) action();
+  });
+}
+
+for (const button of $$("[data-key]")) {
+  const sendKey = () => send({ type: "key", code: button.dataset.key });
+  if ("repeat" in button.dataset) {
+    holdable(button, sendKey);
+  } else {
+    button.addEventListener("click", () => {
+      haptic();
+      sendKey();
+    });
+  }
 }
 
 for (const button of $$("[data-vol]")) {
-  button.addEventListener("click", () => {
-    haptic();
-    send({ type: "volume", action: button.dataset.vol });
-  });
+  holdable(button, () => send({ type: "volume", action: button.dataset.vol }));
 }
 
 for (const button of $$("[data-btn]")) {
@@ -235,14 +348,34 @@ for (const button of $$("[data-btn]")) {
   });
 }
 
-$("#home").addEventListener("click", () => {
+function stopApp() {
   haptic();
-  send({ type: "stop" });
-});
-$("#stop").addEventListener("click", () => send({ type: "stop" }));
+  if (send({ type: "stop" })) pendingStop = true;
+}
+
+$("#home").addEventListener("click", stopApp);
+$("#stop").addEventListener("click", stopApp);
 $("#mute").addEventListener("click", () => {
   haptic();
   send({ type: "volume", action: "mute" });
+});
+
+// ---- output sheet ----
+
+function openSheet() {
+  haptic();
+  renderAudio();
+  $("#sheet").hidden = false;
+}
+
+function closeSheet() {
+  $("#sheet").hidden = true;
+}
+
+$("#output").addEventListener("click", openSheet);
+for (const el of $$("[data-close]")) el.addEventListener("click", closeSheet);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !$("#sheet").hidden) closeSheet();
 });
 
 // ---- volume slider ----
@@ -255,9 +388,14 @@ function sliderBusy() {
   return Date.now() - sliderTouched < 800;
 }
 
+function paintSlider() {
+  slider.style.setProperty("--fill", `${(slider.value / slider.max) * 100}%`);
+}
+
 slider.addEventListener("input", () => {
   sliderTouched = Date.now();
-  for (const el of $$(".js-vol-label")) el.textContent = `${slider.value}%`;
+  paintSlider();
+  $("#vol-value").textContent = `${slider.value}%`;
   if (sliderTimer) return;
   // At most one update every 80 ms while dragging.
   sliderTimer = setTimeout(() => {
@@ -309,6 +447,7 @@ function accelerate(d, dt) {
 pad.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse") return;
   pad.setPointerCapture(event.pointerId);
+  pad.classList.add("touching");
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, t: event.timeStamp });
   if (pointers.size === 1) gesture = { moved: false, start: event.timeStamp, fingers: 1 };
   gesture.fingers = Math.max(gesture.fingers, pointers.size);
@@ -334,6 +473,7 @@ pad.addEventListener("pointermove", (event) => {
 
 function endTouch(event) {
   if (!pointers.delete(event.pointerId) || pointers.size > 0) return;
+  pad.classList.remove("touching");
   if (!gesture.moved && event.timeStamp - gesture.start < 250) {
     haptic();
     send({ type: "button", button: gesture.fingers >= 2 ? "right" : "left" });
@@ -386,17 +526,28 @@ $("#text-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = $("#text");
   if (!input.value) return send({ type: "key", code: "Enter" });
-  send({ type: "text", text: input.value });
-  input.value = "";
+  if (send({ type: "text", text: input.value })) {
+    toast("Sent to the TV", "ok");
+    input.value = "";
+  }
 });
 
 const MODIFIERS = new Set(["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight"]);
 
+// Light up the matching on-screen button when a forwarded key is pressed.
+function flash(code) {
+  const button = document.querySelector(`.dpad [data-key="${code}"]`);
+  if (!button) return;
+  button.classList.add("pressed");
+  setTimeout(() => button.classList.remove("pressed"), 140);
+}
+
 document.addEventListener("keydown", (event) => {
   const forwarding = $("#capture").checked || document.pointerLockElement === pad;
-  if (!forwarding || event.target === $("#text") || MODIFIERS.has(event.code)) return;
+  if (!forwarding || event.target === $("#text") || MODIFIERS.has(event.code) || !$("#sheet").hidden) return;
   if (event.code === "Escape" && document.pointerLockElement === pad) return; // browser releases the lock
   event.preventDefault();
+  flash(event.code);
   send({
     type: "key",
     code: event.code,
@@ -416,7 +567,13 @@ function showTab(name) {
   localStorage.setItem(TAB_KEY, name);
 }
 
-for (const tab of $$("[data-tab]")) tab.addEventListener("click", () => showTab(tab.dataset.tab));
+for (const tab of $$("[data-tab]")) {
+  tab.addEventListener("click", () => {
+    haptic();
+    showTab(tab.dataset.tab);
+  });
+}
 showTab(localStorage.getItem(TAB_KEY) || "remote");
+paintSlider();
 
 start();

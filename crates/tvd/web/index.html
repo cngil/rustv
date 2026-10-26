@@ -15,6 +15,33 @@
 </head>
 <body>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v10a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 4v16l9-8z"/><path d="M18 5v14M21.5 5v14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/></symbol>
+  <symbol id="i-muted" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9.5l5 5M22 9.5l-5 5"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M8 10l4 4 4-4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-tv" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></symbol>
+  <symbol id="i-headphones" viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0116 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></symbol>
+  <symbol id="i-bluetooth" viewBox="0 0 24 24"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></symbol>
+  <symbol id="i-usb" viewBox="0 0 24 24"><path d="M12 3v15M8 7l4-4 4 4M7 12v2l5 3 5-3v-3"/><circle cx="12" cy="20" r="1.5"/></symbol>
+  <symbol id="i-remote" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-pad" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 15h18M12 15v5"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M8 14h8"/></symbol>
+  <symbol id="i-backspace" viewBox="0 0 24 24"><path d="M9 5h11a1 1 0 011 1v12a1 1 0 01-1 1H9l-6-7z"/><path d="M12 9.5l5 5M17 9.5l-5 5"/></symbol>
+  <symbol id="i-enter" viewBox="0 0 24 24"><path d="M20 5v6a3 3 0 01-3 3H5"/><path d="M9 10l-4 4 4 4"/></symbol>
+  <symbol id="i-tab" viewBox="0 0 24 24"><path d="M3 12h14M13 8l4 4-4 4M21 6v12"/></symbol>
+</svg>
+
 <section id="pair" class="pair" hidden>
   <img src="/icon.svg" alt="" class="pair-logo">
   <h1>rustv remote</h1>
@@ -28,95 +55,101 @@
 <main id="app" hidden>
   <header class="top">
     <div class="status">
-      <span id="dot" class="dot" title="Connection"></span>
-      <div>
-        <div class="label">Now on TV</div>
+      <span id="dot" class="dot" aria-hidden="true"></span>
+      <div class="status-text">
+        <div id="conn" class="label">Connecting…</div>
         <div id="now" class="now">Home</div>
       </div>
     </div>
-    <button id="stop" class="pill danger" hidden>Close app</button>
+    <button id="stop" class="pill" hidden><svg><use href="#i-close"/></svg>Close app</button>
   </header>
 
   <div class="views">
     <section class="view card" data-view="remote">
-      <div class="dpad">
-        <button class="dp up" data-key="ArrowUp" data-repeat aria-label="Up"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
-        <button class="dp left" data-key="ArrowLeft" data-repeat aria-label="Left"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="dpad" id="dpad">
+        <button class="dp up" data-key="ArrowUp" data-repeat aria-label="Up"><svg><use href="#i-up"/></svg></button>
+        <button class="dp left" data-key="ArrowLeft" data-repeat aria-label="Left"><svg><use href="#i-left"/></svg></button>
+        <button class="dp right" data-key="ArrowRight" data-repeat aria-label="Right"><svg><use href="#i-right"/></svg></button>
+        <button class="dp down" data-key="ArrowDown" data-repeat aria-label="Down"><svg><use href="#i-down"/></svg></button>
         <button class="ok" data-key="Enter" aria-label="OK">OK</button>
-        <button class="dp right" data-key="ArrowRight" data-repeat aria-label="Right"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
-        <button class="dp down" data-key="ArrowDown" data-repeat aria-label="Down"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
       </div>
-      <div class="row">
-        <button class="round" data-key="Escape">
-          <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>Back
-        </button>
-        <button class="round" id="home">
-          <svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v10a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>Home
-        </button>
-        <button class="round" data-key="Space">
-          <svg viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>Play
-        </button>
+
+      <div class="actions">
+        <button class="action" data-key="Escape"><svg><use href="#i-back"/></svg><span>Back</span></button>
+        <button class="action" id="home"><svg><use href="#i-home"/></svg><span>Home</span></button>
+        <button class="action" data-key="Space"><svg><use href="#i-play"/></svg><span>Play</span></button>
       </div>
-      <div class="volume-quick">
-        <button data-vol="down" aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-        <button data-vol="mute" class="vol-label js-vol-label">&ndash;</button>
-        <button data-vol="up" aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+
+      <div class="volume" id="volume">
+        <div class="volume-head">
+          <button id="mute" class="icon-btn" aria-label="Mute"><svg><use href="#i-speaker"/></svg></button>
+          <div class="volume-value" id="vol-value">–</div>
+          <button id="output" class="output-chip" aria-haspopup="dialog">
+            <svg class="js-output-icon"><use href="#i-tv"/></svg>
+            <span id="output-name">Output</span>
+            <svg class="chev"><use href="#i-chevron"/></svg>
+          </button>
+        </div>
+        <div class="volume-row">
+          <button class="icon-btn" data-vol="down" data-repeat aria-label="Volume down"><svg><use href="#i-minus"/></svg></button>
+          <input id="vol-slider" class="slider" type="range" min="0" max="150" step="1" value="0" aria-label="Volume">
+          <button class="icon-btn" data-vol="up" data-repeat aria-label="Volume up"><svg><use href="#i-plus"/></svg></button>
+        </div>
       </div>
     </section>
 
     <section class="view card" data-view="pad">
       <div id="pad" class="pad">
-        <span class="hint touch-hint">Drag to move, tap to click<br>Two fingers: scroll, two-finger tap: right click</span>
-        <span class="hint mouse-hint">Click to take over the TV pointer with your mouse<br>Press Esc to release</span>
+        <span class="hint touch-hint">Drag to move · tap to click<br>Two fingers to scroll · two-finger tap for right click</span>
+        <span class="hint mouse-hint">Click to control the TV pointer with your mouse<br>Press Esc to let go</span>
       </div>
-      <div class="row">
-        <button data-btn="left">Left</button>
+      <div class="segmented">
+        <button data-btn="left">Left click</button>
         <button data-btn="middle">Middle</button>
-        <button data-btn="right">Right</button>
+        <button data-btn="right">Right click</button>
       </div>
     </section>
 
     <section class="view card" data-view="keys">
-      <h2>Keyboard</h2>
+      <h2>Type on the TV</h2>
       <form id="text-form" class="text">
-        <input id="text" placeholder="Type, then send" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <button class="primary">Send</button>
+        <input id="text" placeholder="Search, URL, password…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send">
+        <button class="primary" aria-label="Send">Send</button>
       </form>
-      <div class="row">
-        <button data-key="Backspace">Delete</button>
-        <button data-key="Tab">Tab</button>
-        <button data-key="Enter">Enter</button>
+      <div class="segmented">
+        <button data-key="Backspace"><svg><use href="#i-backspace"/></svg>Delete</button>
+        <button data-key="Tab"><svg><use href="#i-tab"/></svg>Tab</button>
+        <button data-key="Enter"><svg><use href="#i-enter"/></svg>Enter</button>
       </div>
-      <label class="toggle">
+      <label class="switch desktop-only">
         <input type="checkbox" id="capture">
-        <span>Forward this computer's keyboard to the TV</span>
+        <span class="track"></span>
+        <span>Send everything I type on this computer to the TV</span>
       </label>
-    </section>
-
-    <section class="view card" data-view="audio">
-      <h2>Audio</h2>
-      <div class="vol-head">
-        <div class="vol-big js-vol-label">&ndash;</div>
-        <button id="mute" class="pill">Mute</button>
-      </div>
-      <input id="vol-slider" class="slider" type="range" min="0" max="150" step="1" value="0" aria-label="Volume">
-      <div class="vol-scale"><span>0%</span><span id="vol-max">150%</span></div>
-      <h3>Output</h3>
-      <div id="outputs" class="outputs"></div>
     </section>
   </div>
 
   <nav class="dock" id="dock" aria-label="Apps"></nav>
 
-  <nav class="tabs">
-    <button data-tab="remote">Remote</button>
-    <button data-tab="pad">Touchpad</button>
-    <button data-tab="keys">Keyboard</button>
-    <button data-tab="audio">Audio</button>
+  <nav class="tabs" aria-label="Views">
+    <button data-tab="remote"><svg><use href="#i-remote"/></svg>Remote</button>
+    <button data-tab="pad"><svg><use href="#i-pad"/></svg>Touchpad</button>
+    <button data-tab="keys"><svg><use href="#i-keyboard"/></svg>Keyboard</button>
   </nav>
-
-  <div id="toast" class="toast" hidden></div>
 </main>
+
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-backdrop" data-close></div>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="sheet-head">
+      <h2 id="sheet-title">Play sound on</h2>
+      <button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <div id="outputs" class="outputs"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="/app.js"></script>
 </body>

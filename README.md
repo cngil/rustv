@@ -50,7 +50,10 @@ talks to nobody but you.
   - On a computer: take over the TV pointer with your mouse (pointer lock)
     and forward your keyboard
   - App dock with icons, text input
-  - Audio panel: volume slider, mute, choose the output (HDMI, headphones…)
+  - One volume control with mute, and an output picker (your TV by name,
+    headphones, Bluetooth) right under the D-pad
+  - Shows progress and the result of every action (opening an app,
+    switching the output, losing the connection)
   - Installable as an app (PWA)
 - **Virtual keyboard and mouse** through `uinput`, so control works in every
   app without app support.
@@ -204,7 +207,7 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 ## Roadmap
 
 - [x] Daemon: app launching, virtual input, volume, API
-- [x] Web remote for phone and computer, with app dock and audio panel
+- [x] Web remote for phone and computer, with app dock and audio controls
 - [x] On-screen shell (Rust + Slint): home screen, D-pad navigation, no cursor needed
 - [x] App icons
 - [ ] Screensaver with artwork from your Jellyfin library

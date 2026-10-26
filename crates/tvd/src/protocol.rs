@@ -66,6 +66,8 @@ pub enum Command {
         key: String,
         value: serde_json::Value,
     },
+    /// Turn the screen off now (and close the app if `sleep.close_apps`); any input wakes it.
+    Sleep,
     /// Show or hide the debug overlay; without `visible` it toggles.
     Overlay {
         #[serde(default)]
@@ -83,6 +85,7 @@ impl Command {
                 | Command::Volume { .. }
                 | Command::AudioOutput { .. }
                 | Command::Set { .. }
+                | Command::Sleep
         )
     }
 
@@ -122,6 +125,7 @@ pub struct SettingsInfo {
     pub shell: crate::config::Shell,
     pub screensaver: crate::config::Screensaver,
     pub audio: crate::config::Audio,
+    pub sleep: crate::config::Sleep,
     pub overlay: crate::config::Overlay,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],
@@ -144,6 +148,8 @@ pub struct StateSnapshot {
     pub idle_seconds: u64,
     /// Whether the debug overlay is on screen.
     pub overlay: bool,
+    /// Screen off after a long time without use; any input wakes it.
+    pub asleep: bool,
     /// Connected WebSocket clients (remotes, the shell).
     pub clients: usize,
 }
@@ -186,11 +192,12 @@ mod tests {
             volume: None,
             idle_seconds: 3,
             overlay: false,
+            asleep: false,
             clients: 1,
         });
         assert_eq!(
             serde_json::to_string(&msg).unwrap(),
-            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"clients":1}"#
+            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"clients":1}"#
         );
         let cmd: Command = serde_json::from_str(r#"{"type":"overlay"}"#).unwrap();
         assert!(matches!(cmd, Command::Overlay { visible: None }));

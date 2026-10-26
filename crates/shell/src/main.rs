@@ -36,6 +36,7 @@ thread_local! {
     static OPENING_TIMER: Timer = Timer::default();
     static LAST_ACTIVITY: Cell<Instant> = Cell::new(Instant::now());
     static APP_RUNNING: Cell<bool> = const { Cell::new(false) };
+    static ASLEEP: Cell<bool> = const { Cell::new(false) };
     static SCREENSAVER: RefCell<net::ScreensaverConfig> = RefCell::new(net::ScreensaverConfig::default());
     static SCREENSAVER_COUNT: Cell<usize> = const { Cell::new(0) };
     static FRAME_TIMER: Timer = Timer::default();
@@ -98,7 +99,7 @@ fn touch() {
 fn maybe_start_screensaver(ui: &Shell) {
     let cfg = SCREENSAVER.with(|cfg| cfg.borrow().clone());
     // While an app is open the shell is hidden behind it, so there is nothing to protect.
-    if !cfg.enabled || APP_RUNNING.with(Cell::get) || ui.get_screensaver_active() {
+    if !cfg.enabled || APP_RUNNING.with(Cell::get) || ASLEEP.with(Cell::get) || ui.get_screensaver_active() {
         return;
     }
     let idle = LAST_ACTIVITY.with(|last| last.get().elapsed());
@@ -137,6 +138,22 @@ fn pick_style(style: &str, count: usize) -> &str {
         .map(|d| d.as_secs() as usize / 60)
         .unwrap_or(0);
     SCREENSAVER_STYLES[(seed + count) % SCREENSAVER_STYLES.len()]
+}
+
+/// The screen is off: stop animating, nobody can see it. After waking, the
+/// screensaver waits its full time again.
+pub fn set_asleep(ui: &Weak<Shell>, asleep: bool) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        if ASLEEP.with(|a| a.replace(asleep)) == asleep {
+            return;
+        }
+        if asleep {
+            ui.set_screensaver_active(false);
+            FRAME_TIMER.with(Timer::stop);
+        } else {
+            touch();
+        }
+    });
 }
 
 pub fn set_screensaver(ui: &Weak<Shell>, cfg: net::ScreensaverConfig) {

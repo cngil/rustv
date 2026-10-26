@@ -165,7 +165,8 @@ function clearOutput() {
 
 function renderState() {
   const running = state.running;
-  $("#now").textContent = running ? running.name : "Home";
+  $("#now").textContent = state.asleep ? "Asleep" : running ? running.name : "Home";
+  $("#conn").textContent = state.asleep ? "Any button wakes the TV" : "Now on TV";
   $("#stop").hidden = !running;
   renderSettings();
   renderVolume();
@@ -571,6 +572,24 @@ const SETTINGS = [
     ],
   },
   {
+    title: "Sleep",
+    items: [
+      {
+        key: "sleep.enabled",
+        label: "Sleep when unused",
+        hint: "Screen off after no remote input and no sound. Any button wakes it.",
+      },
+      {
+        key: "sleep.after_minutes",
+        label: "After",
+        needs: "sleep.enabled",
+        options: [[15, "15 min"], [30, "30 min"], [60, "1 h"], [120, "2 h"], [240, "4 h"]],
+      },
+      { key: "sleep.close_apps", label: "Close the open app", hint: "Frees memory and CPU." },
+      { action: "sleep", label: "Put the TV to sleep now", button: "Sleep" },
+    ],
+  },
+  {
     title: "Debug overlay",
     items: [
       { live: "overlay", label: "Show on the TV now", hint: "CPU, GPU, RAM, network and more, over everything." },
@@ -646,7 +665,19 @@ function settingRow(item) {
   row.append(text);
 
   const value = item.live === "overlay" ? Boolean(state && state.overlay) : settingValue(item.key);
-  if (item.options) {
+  if (item.action) {
+    const button = document.createElement("button");
+    button.className = "chip";
+    button.textContent = item.button;
+    button.addEventListener("click", () => {
+      haptic();
+      if (send({ type: item.action })) {
+        closeSettings();
+        toast("TV is going to sleep. Any button wakes it.");
+      }
+    });
+    row.append(button);
+  } else if (item.options) {
     row.classList.add("stacked");
     const chips = document.createElement("div");
     chips.className = "chips";

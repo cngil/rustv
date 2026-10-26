@@ -22,6 +22,8 @@ enum Incoming {
     State {
         running: Option<serde_json::Value>,
         volume: Option<Volume>,
+        #[serde(default)]
+        asleep: bool,
     },
     Audio {
         max_volume: f32,
@@ -137,8 +139,9 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
             .unwrap_or_default();
             crate::set_apps(ui, entries);
         }
-        Incoming::State { running, volume: new_volume } => {
+        Incoming::State { running, volume: new_volume, asleep } => {
             crate::set_running(ui, running.is_some());
+            crate::set_asleep(ui, asleep);
             if let Some(new) = new_volume {
                 // The first value only initializes; later changes show the overlay.
                 let show = volume.is_some_and(|old| old != new);

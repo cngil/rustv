@@ -27,6 +27,9 @@ pub const EDITABLE: &[&str] = &[
     "screensaver.date",
     "audio.max_volume",
     "audio.step",
+    "sleep.enabled",
+    "sleep.after_minutes",
+    "sleep.close_apps",
     "overlay.enabled",
     "overlay.position",
 ];

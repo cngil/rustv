@@ -43,6 +43,10 @@ talks to nobody but you.
   drifts over generated animation (soft drifting lights, a turning galaxy of
   points, or just a large clock), different each time. Nothing to set up, no
   images, no network; any key wakes it.
+- **Sleep**: after an hour with no remote input and no sound, the screen
+  turns off (most TVs then go to standby) and the open app closes, freeing
+  its memory and CPU. Any button wakes it. A film playing never counts as
+  unused. The box itself stays on, so the remote can always wake it.
 - **Reorder apps** from the remote: hold an app in the dock, drag it, tap
   Done. The TV follows at once, and the order survives restarts.
 - **`tvd` daemon**: launches and closes apps, one at a time; when an app
@@ -217,6 +221,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "volume", "action": "set", "level": 0.6}
 {"type": "audio_output", "id": 52}
 {"type": "overlay", "visible": true}
+{"type": "sleep"}
 {"type": "set", "key": "screensaver.idle_minutes", "value": 10}
 {"type": "reorder", "ids": ["stremio", "jellyfin"]}
 ```

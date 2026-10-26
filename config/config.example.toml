@@ -36,6 +36,14 @@ style = "random"   # random (a different one each time), aurora, orbits or clock
 clock = true
 date = true
 
+[sleep]
+# After this long without remote input and without sound, the screen turns
+# off and the open app closes. Any button on the remote wakes the TV. The box
+# stays on (a suspended box would drop off the network, remote included).
+enabled = true
+after_minutes = 60
+close_apps = true   # frees the app's memory and CPU
+
 [overlay]
 # Debug overlay: one line of live stats over everything on the TV, drawn by
 # swaybar. Switch it in Settings in the remote or through the API at any time.

@@ -1,7 +1,7 @@
 //! Shared daemon state and command execution.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,6 +17,7 @@ use crate::keymap;
 use crate::overlay::Overlay;
 use crate::protocol::{AppInfo, AudioInfo, Command, RunningInfo, ServerMsg, SettingsInfo, StateSnapshot};
 use crate::settings;
+use crate::sleep;
 
 /// Largest pointer move accepted in one message.
 const MAX_DELTA: i32 = 1000;
@@ -33,6 +34,9 @@ pub struct AppState {
     /// Open WebSocket connections.
     pub clients: AtomicUsize,
     last_input: AtomicU64,
+    /// Last remote command or sound; what sleep waits on.
+    last_activity: AtomicU64,
+    asleep: AtomicBool,
 }
 
 impl AppState {
@@ -53,7 +57,10 @@ impl AppState {
             config_path,
             clients: AtomicUsize::new(0),
             last_input: AtomicU64::new(now()),
+            last_activity: AtomicU64::new(now()),
+            asleep: AtomicBool::new(false),
         });
+        sleep::watch(Arc::downgrade(&state));
         if state.config().overlay.enabled {
             state.overlay.set_visible(true, Arc::downgrade(&state));
         }
@@ -78,6 +85,7 @@ impl AppState {
             shell: cfg.shell.clone(),
             screensaver: cfg.screensaver.clone(),
             audio: cfg.audio.clone(),
+            sleep: cfg.sleep.clone(),
             overlay: cfg.overlay.clone(),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
@@ -110,6 +118,7 @@ impl AppState {
             cfg.shell = fresh.shell;
             cfg.screensaver = fresh.screensaver;
             cfg.audio = fresh.audio;
+            cfg.sleep = fresh.sleep;
             cfg.overlay = fresh.overlay;
             moved
         };
@@ -172,6 +181,7 @@ impl AppState {
             volume,
             idle_seconds: now().saturating_sub(self.last_input.load(Ordering::Relaxed)),
             overlay: self.overlay.visible(),
+            asleep: self.asleep.load(Ordering::Relaxed),
             clients: self.clients.load(Ordering::Relaxed),
         }
     }
@@ -181,9 +191,55 @@ impl AppState {
         let _ = self.events.send(ServerMsg::State(snapshot));
     }
 
+    /// Called every 30 s: puts the TV to sleep once it has been unused long enough.
+    pub async fn check_sleep(&self) {
+        if sleep::sound_playing() {
+            self.last_activity.store(now(), Ordering::Relaxed);
+        }
+        let cfg = self.config().sleep.clone();
+        let idle = now().saturating_sub(self.last_activity.load(Ordering::Relaxed));
+        if !cfg.enabled || self.asleep.load(Ordering::Relaxed) || (idle as f32) < cfg.after_minutes * 60.0 {
+            return;
+        }
+        info!(idle_minutes = idle / 60, "unused for a while");
+        self.go_to_sleep().await;
+    }
+
+    /// Screen off, and the open app closed if the config says so.
+    pub async fn go_to_sleep(&self) {
+        let cfg = self.config().sleep.clone();
+        info!(close_apps = cfg.close_apps, "going to sleep");
+        if cfg.close_apps {
+            self.apps.stop().await;
+        }
+        if let Err(err) = sleep::display_power(false).await {
+            warn!("turning the screen off: {err:#}");
+        }
+        self.asleep.store(true, Ordering::Relaxed);
+        self.notify().await;
+    }
+
+    /// Turns the screen back on. Returns whether the TV was asleep.
+    async fn wake(&self) -> bool {
+        if !self.asleep.swap(false, Ordering::Relaxed) {
+            return false;
+        }
+        info!("waking up");
+        if let Err(err) = sleep::display_power(true).await {
+            warn!("turning the screen on: {err:#}");
+        }
+        self.notify().await;
+        true
+    }
+
     pub async fn execute(self: &Arc<Self>, cmd: Command) -> Result<()> {
         if cmd.is_input() {
             self.last_input.store(now(), Ordering::Relaxed);
+        }
+        self.last_activity.store(now(), Ordering::Relaxed);
+        // The key that wakes the TV only wakes it, like on the screensaver.
+        if !matches!(cmd, Command::Sleep) && self.wake().await && cmd.is_input() {
+            return Ok(());
         }
         match cmd {
             Command::Key { code, shift, ctrl, alt, meta } => {
@@ -218,6 +274,7 @@ impl AppState {
                 let _ = self.events.send(ServerMsg::Apps { apps: self.app_infos() });
             }
             Command::Set { key, value } => self.change_setting(key, value).await?,
+            Command::Sleep => self.go_to_sleep().await,
             Command::Overlay { visible } => {
                 let visible = visible.unwrap_or(!self.overlay.visible());
                 self.overlay.set_visible(visible, Arc::downgrade(self));

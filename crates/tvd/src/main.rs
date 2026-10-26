@@ -13,6 +13,7 @@ mod keymap;
 mod overlay;
 mod protocol;
 mod settings;
+mod sleep;
 mod state;
 mod stats;
 

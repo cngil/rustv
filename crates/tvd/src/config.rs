@@ -35,6 +35,8 @@ pub struct Config {
     #[serde(default)]
     pub screensaver: Screensaver,
     #[serde(default)]
+    pub sleep: Sleep,
+    #[serde(default)]
     pub overlay: Overlay,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
@@ -88,6 +90,23 @@ pub enum ScreensaverStyle {
     Orbits,
     /// Only a large clock on black.
     Clock,
+}
+
+/// Sleep after a long time without use: the screen goes dark and the app closes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Sleep {
+    pub enabled: bool,
+    /// Minutes without remote input and without sound.
+    pub after_minutes: f32,
+    /// Close the open app when going to sleep, freeing its memory and CPU.
+    pub close_apps: bool,
+}
+
+impl Default for Sleep {
+    fn default() -> Self {
+        Self { enabled: true, after_minutes: 60.0, close_apps: true }
+    }
 }
 
 /// Debug overlay: a line of live stats drawn over everything on the TV.
@@ -320,6 +339,9 @@ impl Config {
         }
         if !(0.1..=1440.0).contains(&self.screensaver.idle_minutes) {
             bail!("screensaver.idle_minutes must be between 0.1 and 1440");
+        }
+        if !(1.0..=1440.0).contains(&self.sleep.after_minutes) {
+            bail!("sleep.after_minutes must be between 1 and 1440");
         }
         if self.overlay.interval_ms < 250 {
             bail!("overlay.interval_ms must be at least 250");

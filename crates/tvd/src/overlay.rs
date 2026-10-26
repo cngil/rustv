@@ -159,7 +159,7 @@ async fn swaymsg(sway: &Path, command: &str) -> Result<()> {
 
 /// The sway IPC socket of the running session. Like Wayland sockets, a crashed
 /// sway leaves its socket file behind, so only one that accepts connections counts.
-fn find_sway_socket(runtime: &Path) -> Option<PathBuf> {
+pub(crate) fn find_sway_socket(runtime: &Path) -> Option<PathBuf> {
     if let Some(socket) = std::env::var_os("SWAYSOCK").map(PathBuf::from) {
         if std::os::unix::net::UnixStream::connect(&socket).is_ok() {
             return Some(socket);

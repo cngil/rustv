@@ -7,8 +7,9 @@
 mod net;
 mod settings;
 
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use chrono::{Local, Timelike};
@@ -21,10 +22,23 @@ slint::include_modules!();
 const OSD_TIME: Duration = Duration::from_millis(2200);
 /// Clears "Opening…" if the app never shows up.
 const OPENING_TIMEOUT: Duration = Duration::from_secs(15);
+/// How often the shell checks whether it is time for the screensaver.
+const IDLE_CHECK: Duration = Duration::from_secs(2);
+/// Styles `random` cycles through.
+const SCREENSAVER_STYLES: [&str; 3] = ["aurora", "orbits", "clock"];
+/// Screensaver frame rates. Slow motion looks the same at 30 fps and costs
+/// half of 60; the plain clock only drifts, so 10 fps is plenty.
+const ANIMATION_FRAME: Duration = Duration::from_millis(33);
+const CLOCK_FRAME: Duration = Duration::from_millis(100);
 
 thread_local! {
     static OSD_TIMER: Timer = Timer::default();
     static OPENING_TIMER: Timer = Timer::default();
+    static LAST_ACTIVITY: Cell<Instant> = Cell::new(Instant::now());
+    static APP_RUNNING: Cell<bool> = const { Cell::new(false) };
+    static SCREENSAVER: RefCell<net::ScreensaverConfig> = RefCell::new(net::ScreensaverConfig::default());
+    static SCREENSAVER_COUNT: Cell<usize> = const { Cell::new(0) };
+    static FRAME_TIMER: Timer = Timer::default();
 }
 
 /// App data sent from the network thread. `Image` is not `Send`, so icons travel as paths.
@@ -49,6 +63,15 @@ fn main() -> Result<()> {
         }
     });
 
+    ui.on_activity(touch);
+    let idle = Timer::default();
+    let weak = ui.as_weak();
+    idle.start(TimerMode::Repeated, IDLE_CHECK, move || {
+        if let Some(ui) = weak.upgrade() {
+            maybe_start_screensaver(&ui);
+        }
+    });
+
     let (commands, command_rx) = mpsc::unbounded_channel::<String>();
     let weak = ui.as_weak();
     ui.on_launch(move |id| {
@@ -65,6 +88,68 @@ fn main() -> Result<()> {
 
     ui.run()?;
     Ok(())
+}
+
+/// Input or an app change: the screensaver waits again from now.
+fn touch() {
+    LAST_ACTIVITY.with(|last| last.set(Instant::now()));
+}
+
+fn maybe_start_screensaver(ui: &Shell) {
+    let cfg = SCREENSAVER.with(|cfg| cfg.borrow().clone());
+    // While an app is open the shell is hidden behind it, so there is nothing to protect.
+    if !cfg.enabled || APP_RUNNING.with(Cell::get) || ui.get_screensaver_active() {
+        return;
+    }
+    let idle = LAST_ACTIVITY.with(|last| last.get().elapsed());
+    if idle.as_secs_f32() < cfg.idle_minutes * 60.0 {
+        return;
+    }
+    let count = SCREENSAVER_COUNT.with(|n| n.replace(n.get() + 1));
+    let style = pick_style(&cfg.style, count);
+    ui.set_screensaver_style(style.into());
+    ui.set_screensaver_time(0.0);
+    ui.set_screensaver_active(true);
+
+    let started = Instant::now();
+    let frame = if style == "clock" { CLOCK_FRAME } else { ANIMATION_FRAME };
+    let weak = ui.as_weak();
+    FRAME_TIMER.with(|timer| {
+        timer.start(TimerMode::Repeated, frame, move || {
+            let Some(ui) = weak.upgrade() else { return };
+            if ui.get_screensaver_active() {
+                ui.set_screensaver_time(started.elapsed().as_secs_f32());
+            } else {
+                // Woken up from the UI side; nothing left to animate.
+                FRAME_TIMER.with(Timer::stop);
+            }
+        });
+    });
+}
+
+/// `random` takes the next style each time, starting at a different one on every boot.
+fn pick_style(style: &str, count: usize) -> &str {
+    if style != "random" {
+        return style;
+    }
+    let seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as usize / 60)
+        .unwrap_or(0);
+    SCREENSAVER_STYLES[(seed + count) % SCREENSAVER_STYLES.len()]
+}
+
+pub fn set_screensaver(ui: &Weak<Shell>, cfg: net::ScreensaverConfig) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        ui.set_screensaver_clock(cfg.clock);
+        ui.set_screensaver_date(cfg.date);
+        if !cfg.enabled {
+            ui.set_screensaver_active(false);
+        } else if cfg.style != "random" && ui.get_screensaver_active() {
+            ui.set_screensaver_style(cfg.style.clone().into());
+        }
+        SCREENSAVER.with(|current| *current.borrow_mut() = cfg);
+    });
 }
 
 fn update_clock(ui: &Shell) {
@@ -133,6 +218,10 @@ pub fn set_running(ui: &Weak<Shell>, running: bool) {
     let _ = ui.upgrade_in_event_loop(move |ui| {
         if running {
             ui.set_opening_id(SharedString::new());
+            ui.set_screensaver_active(false);
+        }
+        if APP_RUNNING.with(|r| r.replace(running)) != running {
+            touch();
         }
     });
 }
@@ -187,6 +276,15 @@ pub fn set_visibility(ui: &Weak<Shell>, v: net::Visibility) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn picks_screensaver_styles() {
+        assert_eq!(pick_style("orbits", 3), "orbits");
+        let first = pick_style("random", 0);
+        let second = pick_style("random", 1);
+        assert!(SCREENSAVER_STYLES.contains(&first) && SCREENSAVER_STYLES.contains(&second));
+        assert_ne!(first, second);
+    }
 
     #[test]
     fn colors_are_stable_and_valid() {

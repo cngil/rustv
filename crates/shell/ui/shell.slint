@@ -4,6 +4,7 @@
 import "fonts/Inter-Regular.ttf";
 import "fonts/Inter-SemiBold.ttf";
 import "fonts/Inter-Bold.ttf";
+import { Screensaver } from "screensaver.slint";
 
 export struct AppTile {
     id: string,
@@ -113,7 +114,16 @@ export component Shell inherits Window {
     in property <bool> show-hints: true;
     in property <bool> show-volume-overlay: true;
 
+    // Screensaver, started by the shell after a while without input on the home screen.
+    in-out property <bool> screensaver-active;
+    in property <string> screensaver-style: "aurora";
+    in property <bool> screensaver-clock: true;
+    in property <bool> screensaver-date: true;
+    in property <float> screensaver-time;
+
     callback launch(string);
+    // Any key or pointer movement; resets the screensaver timer.
+    callback activity();
 
     property <float> s: min(root.width / 1920px, root.height / 1080px);
     property <length> slot-width: 340px * s;
@@ -152,6 +162,7 @@ export component Shell inherits Window {
     // Hides the pointer everywhere; cards still react to clicks.
     TouchArea {
         mouse-cursor: none;
+        pointer-event(event) => { root.activity(); }
     }
 
     // Header
@@ -312,9 +323,33 @@ export component Shell inherits Window {
         }
     }
 
+    if root.screensaver-active: Screensaver {
+        style: root.screensaver-style;
+        time: root.time;
+        date: root.date;
+        show-clock: root.screensaver-clock;
+        show-date: root.screensaver-date;
+        t: root.screensaver-time;
+        s: root.s;
+        opacity: 0;
+        init => { self.opacity = 1; }
+        animate opacity { duration: 1500ms; easing: ease-in-out; }
+
+        TouchArea {
+            mouse-cursor: none;
+            pointer-event(event) => { root.screensaver-active = false; root.activity(); }
+        }
+    }
+
     FocusScope {
         init => { self.focus(); }
         key-pressed(event) => {
+            root.activity();
+            // The key that wakes the screen does nothing else.
+            if root.screensaver-active {
+                root.screensaver-active = false;
+                return accept;
+            }
             if event.text == Key.LeftArrow {
                 root.selected = max(0, root.selected - 1);
                 return accept;

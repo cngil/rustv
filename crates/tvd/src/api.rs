@@ -125,6 +125,7 @@ async fn client(socket: WebSocket, state: Shared) {
         ServerMsg::Apps { apps: state.app_infos() },
         ServerMsg::Audio(state.audio_info().await),
         ServerMsg::Shell(state.config.shell.clone()),
+        ServerMsg::Screensaver(state.config.screensaver.clone()),
         ServerMsg::State(state.snapshot().await),
     ];
     for msg in &hello {

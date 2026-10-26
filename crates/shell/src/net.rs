@@ -27,6 +27,7 @@ enum Incoming {
         max_volume: f32,
     },
     Shell(Visibility),
+    Screensaver(ScreensaverConfig),
     #[serde(other)]
     Other,
 }
@@ -45,6 +46,24 @@ pub struct Visibility {
 impl Default for Visibility {
     fn default() -> Self {
         Self { greeting: true, clock: true, date: true, hints: true, volume_overlay: true }
+    }
+}
+
+/// The `[screensaver]` section of the rustv config, as sent by tvd.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct ScreensaverConfig {
+    pub enabled: bool,
+    pub idle_minutes: f32,
+    /// "random", "aurora", "orbits" or "clock".
+    pub style: String,
+    pub clock: bool,
+    pub date: bool,
+}
+
+impl Default for ScreensaverConfig {
+    fn default() -> Self {
+        Self { enabled: true, idle_minutes: 5.0, style: "random".into(), clock: true, date: true }
     }
 }
 
@@ -129,6 +148,7 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
         }
         Incoming::Audio { max_volume } => crate::set_max_volume(ui, max_volume),
         Incoming::Shell(visibility) => crate::set_visibility(ui, visibility),
+        Incoming::Screensaver(cfg) => crate::set_screensaver(ui, cfg),
         Incoming::Other => {}
     }
 }

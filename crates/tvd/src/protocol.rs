@@ -92,6 +92,8 @@ pub enum ServerMsg {
     Audio(AudioInfo),
     /// What the on-screen shell should show (`[shell]` in the config).
     Shell(crate::config::Shell),
+    /// Screensaver settings for the shell (`[screensaver]` in the config).
+    Screensaver(crate::config::Screensaver),
     Error {
         message: String,
     },

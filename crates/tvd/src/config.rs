@@ -33,6 +33,8 @@ pub struct Config {
     #[serde(default)]
     pub shell: Shell,
     #[serde(default)]
+    pub screensaver: Screensaver,
+    #[serde(default)]
     pub overlay: Overlay,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
@@ -55,6 +57,37 @@ impl Default for Shell {
     fn default() -> Self {
         Self { greeting: true, clock: true, date: true, hints: true, volume_overlay: true }
     }
+}
+
+/// Screensaver on the home screen. Sent to the shell, which runs it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Screensaver {
+    pub enabled: bool,
+    /// Minutes on the home screen without input before it starts.
+    pub idle_minutes: f32,
+    pub style: ScreensaverStyle,
+    pub clock: bool,
+    pub date: bool,
+}
+
+impl Default for Screensaver {
+    fn default() -> Self {
+        Self { enabled: true, idle_minutes: 5.0, style: ScreensaverStyle::Random, clock: true, date: true }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScreensaverStyle {
+    /// A different style each time.
+    Random,
+    /// Soft colored lights drifting across each other.
+    Aurora,
+    /// A slowly turning galaxy of points.
+    Orbits,
+    /// Only a large clock on black.
+    Clock,
 }
 
 /// Debug overlay: a line of live stats drawn over everything on the TV.
@@ -280,6 +313,9 @@ impl Config {
         // The font ends up in a sway command, where these characters have meaning.
         if self.overlay.font.trim().is_empty() || self.overlay.font.contains([';', ',', '"', '\'', '\n']) {
             bail!("overlay.font must be a plain Pango font description, such as \"DejaVu Sans Mono 14\"");
+        }
+        if !(0.1..=1440.0).contains(&self.screensaver.idle_minutes) {
+            bail!("screensaver.idle_minutes must be between 0.1 and 1440");
         }
         if self.overlay.interval_ms < 250 {
             bail!("overlay.interval_ms must be at least 250");

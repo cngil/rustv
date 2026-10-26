@@ -39,6 +39,10 @@ talks to nobody but you.
   app cards, real app icons, a clock and a volume overlay, each switchable in
   the config. Arrow keys and OK from the remote are all you need; no pointer,
   no cursor.
+- **Screensaver**: after a few idle minutes on the home screen, the time
+  drifts over generated animation (soft drifting lights, a turning galaxy of
+  points, or just a large clock), different each time. Nothing to set up, no
+  images, no network; any key wakes it.
 - **`tvd` daemon**: launches and closes apps, one at a time; when an app
   exits you are back home.
 - **Three kinds of apps**: Flatpak apps, any command, and web apps (a URL
@@ -217,7 +221,7 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [x] Web remote for phone and computer, with app dock and audio controls
 - [x] On-screen shell (Rust + Slint): home screen, D-pad navigation, no cursor needed
 - [x] App icons
-- [ ] Screensaver with artwork from your Jellyfin library
+- [x] Screensaver: generated animation with a drifting clock
 - [ ] Now playing card, Spotify Connect through `spotifyd`
 - [ ] Themes and shell settings in the config
 - [ ] QR code pairing, mDNS discovery

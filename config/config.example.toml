@@ -22,7 +22,10 @@ max_volume = 1.5   # allow boosting up to 150%
 #   flatpak: app_id (+ optional args)
 #   command: any program, as a list of arguments
 #   web:     a URL, opened full screen in the browser above
-# Optional on every app: description, env = { NAME = "value" }
+# Optional on every app:
+#   description = "Shown in the remote"
+#   icon = "~/.local/share/icons/my-app.svg"   (SVG, PNG or JPEG; Flatpak apps use their own icon)
+#   env = { NAME = "value" }
 
 [[app]]
 id = "jellyfin"
@@ -50,6 +53,7 @@ id = "browser"
 name = "Browser"
 kind = "web"
 url = "about:home"
+icon = "/var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/org.mozilla.firefox.png"
 
 [[app]]
 id = "qbittorrent"

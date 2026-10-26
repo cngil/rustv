@@ -1,0 +1,35 @@
+# System unit for the TV screen: runs sway as a kiosk on tty1 with the
+# rustv shell (see packaging/sway/rustv.conf). Install to
+# /etc/systemd/system/, replace YOUR_USER and 1000 with your user name and
+# uid, then:
+#   sudo systemctl enable --now rustv-session
+
+[Unit]
+Description=rustv TV session (sway kiosk + rustv-shell on tty1)
+Documentation=https://github.com/cngil/rustv
+After=systemd-user-sessions.service getty@tty1.service
+Conflicts=getty@tty1.service
+
+[Service]
+User=YOUR_USER
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rustv-session
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+# Flatpak's bubblewrap refuses to run with leftover capabilities.
+CapabilityBoundingSet=
+AmbientCapabilities=
+# %h would be root's home in a system unit, so spell the path out.
+ExecStart=/usr/bin/sway -c /home/YOUR_USER/.config/rustv/sway.conf
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

@@ -66,6 +66,8 @@ pub enum Command {
         key: String,
         value: serde_json::Value,
     },
+    /// Show the pairing QR code on the TV for two minutes, to add another device.
+    ShowPairing,
     /// Turn the screen off now (and close the app if `sleep.close_apps`); any input wakes it.
     Sleep,
     /// Show or hide the debug overlay; without `visible` it toggles.
@@ -115,6 +117,12 @@ pub enum ServerMsg {
     Screensaver(crate::config::Screensaver),
     /// Everything the remote's settings panel shows.
     Settings(SettingsInfo),
+    /// Pairing link and its QR code (`modules`: rows of `size` characters, `1` = dark). Sent to the shell.
+    Pairing {
+        url: String,
+        size: usize,
+        modules: String,
+    },
     Error {
         message: String,
     },
@@ -150,6 +158,10 @@ pub struct StateSnapshot {
     pub overlay: bool,
     /// Screen off after a long time without use; any input wakes it.
     pub asleep: bool,
+    /// Whether the TV should show the pairing QR code now.
+    pub show_pairing: bool,
+    /// Connected remotes (clients other than the TV shell).
+    pub remotes: usize,
     /// Connected WebSocket clients (remotes, the shell).
     pub clients: usize,
 }
@@ -193,11 +205,13 @@ mod tests {
             idle_seconds: 3,
             overlay: false,
             asleep: false,
+            show_pairing: false,
+            remotes: 0,
             clients: 1,
         });
         assert_eq!(
             serde_json::to_string(&msg).unwrap(),
-            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"clients":1}"#
+            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"show_pairing":false,"remotes":0,"clients":1}"#
         );
         let cmd: Command = serde_json::from_str(r#"{"type":"overlay"}"#).unwrap();
         assert!(matches!(cmd, Command::Overlay { visible: None }));

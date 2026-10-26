@@ -44,6 +44,10 @@ and your phone becomes the remote.
   app cards, real app icons, a clock and a volume overlay, each switchable in
   the config. Arrow keys and OK from the remote are all you need; no pointer,
   no cursor.
+- **QR pairing**: the home screen shows a QR code until the first phone
+  connects; scan it and the phone is a remote. To add another device, tap
+  "Show code" in the remote's settings. `tvd pair` prints the same code in
+  the terminal.
 - **Screensaver**: after a few idle minutes on the home screen, the time
   drifts over generated animation (soft drifting lights, a turning galaxy of
   points, or just a large clock), different each time. Nothing to set up, no
@@ -141,8 +145,9 @@ The `portals.conf` matters: without it, a box with no desktop environment
 makes every Flatpak app wait ~25 seconds for a portal backend that never
 starts.
 
-Open the printed link (`http://<box>:8765/#token=…`) on your phone and add
-it to the home screen. Run `tvd pair` any time to see it again.
+Scan the QR code on the TV (or the one `tvd pair` prints) with your phone,
+or open the printed link (`http://<box>:8765/#token=…`), and add the page to
+the home screen. Run `tvd pair` any time to see it again.
 
 ## Configure
 
@@ -227,6 +232,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "audio_output", "id": 52}
 {"type": "overlay", "visible": true}
 {"type": "sleep"}
+{"type": "show_pairing"}
 {"type": "set", "key": "screensaver.idle_minutes", "value": 10}
 {"type": "reorder", "ids": ["stremio", "jellyfin"]}
 ```
@@ -254,7 +260,8 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [x] Screensaver: generated animation with a drifting clock
 - [ ] Now playing card, Spotify Connect through `spotifyd`
 - [ ] Themes and shell settings in the config
-- [ ] QR code pairing, mDNS discovery
+- [x] QR code pairing
+- [ ] mDNS discovery
 - [ ] Agent integration (MCP) and voice commands
 - [ ] Switching between running apps
 

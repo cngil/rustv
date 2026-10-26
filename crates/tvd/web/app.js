@@ -537,6 +537,14 @@ const SETTINGS = [
       { key: "shell.date", label: "Date" },
       { key: "shell.hints", label: "Key hints" },
       { key: "shell.volume_overlay", label: "Volume bar when the volume changes" },
+      { key: "shell.pairing_qr", label: "Pairing code", hint: "QR code on the TV until a phone pairs, and when you ask for it." },
+      {
+        action: "show_pairing",
+        label: "Pair another phone or computer",
+        button: "Show code",
+        done: "The pairing code is on the TV for 2 minutes",
+        needs: "shell.pairing_qr",
+      },
     ],
   },
   {
@@ -586,7 +594,7 @@ const SETTINGS = [
         options: [[15, "15 min"], [30, "30 min"], [60, "1 h"], [120, "2 h"], [240, "4 h"]],
       },
       { key: "sleep.close_apps", label: "Close the open app", hint: "Frees memory and CPU." },
-      { action: "sleep", label: "Put the TV to sleep now", button: "Sleep" },
+      { action: "sleep", label: "Put the TV to sleep now", button: "Sleep", done: "TV is going to sleep. Any button wakes it." },
     ],
   },
   {
@@ -669,11 +677,12 @@ function settingRow(item) {
     const button = document.createElement("button");
     button.className = "chip";
     button.textContent = item.button;
+    button.disabled = Boolean(off);
     button.addEventListener("click", () => {
       haptic();
       if (send({ type: item.action })) {
         closeSettings();
-        toast("TV is going to sleep. Any button wakes it.");
+        toast(item.done);
       }
     });
     row.append(button);

@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use tokio::sync::{broadcast, mpsc};
@@ -15,12 +15,15 @@ use crate::config::Config;
 use crate::input::{Input, Mods};
 use crate::keymap;
 use crate::overlay::Overlay;
+use crate::pairing;
 use crate::protocol::{AppInfo, AudioInfo, Command, RunningInfo, ServerMsg, SettingsInfo, StateSnapshot};
 use crate::settings;
 use crate::sleep;
 
 /// Largest pointer move accepted in one message.
 const MAX_DELTA: i32 = 1000;
+/// How long the pairing code stays on the TV when a remote asks for it.
+const PAIRING_TIME: Duration = Duration::from_secs(120);
 
 pub struct AppState {
     pub token: String,
@@ -33,6 +36,12 @@ pub struct AppState {
     pub overlay: Overlay,
     /// Open WebSocket connections.
     pub clients: AtomicUsize,
+    /// The ones that are remotes, not the TV shell.
+    pub remotes: AtomicUsize,
+    pairing: pairing::Marker,
+    paired: AtomicBool,
+    /// The pairing code shows until then (seconds since the epoch).
+    pairing_until: AtomicU64,
     last_input: AtomicU64,
     /// Last remote command or sound; what sleep waits on.
     last_activity: AtomicU64,
@@ -47,7 +56,13 @@ impl AppState {
         let manager = Arc::new(AppManager::new(apps, browser, changed_tx));
         let (events, _) = broadcast::channel(64);
 
+        let marker = pairing::Marker::new(&token);
+        let paired = AtomicBool::new(marker.is_paired());
         let state = Arc::new(Self {
+            pairing: marker,
+            paired,
+            pairing_until: AtomicU64::new(0),
+            remotes: AtomicUsize::new(0),
             token,
             config: RwLock::new(config),
             input,
@@ -73,6 +88,23 @@ impl AppState {
             }
         });
         state
+    }
+
+    pub fn pairing_url(&self) -> String {
+        pairing::url(&self.config().server.bind, &self.token)
+    }
+
+    /// A remote (not the shell) connected with the token: pairing worked.
+    pub fn remote_connected(&self) {
+        if !self.paired.swap(true, Ordering::Relaxed) {
+            info!("first remote paired, hiding the pairing code");
+            self.pairing.set_paired();
+        }
+    }
+
+    fn show_pairing(&self) -> bool {
+        self.config().shell.pairing_qr
+            && (!self.paired.load(Ordering::Relaxed) || now() < self.pairing_until.load(Ordering::Relaxed))
     }
 
     pub fn config(&self) -> std::sync::RwLockReadGuard<'_, Config> {
@@ -182,6 +214,8 @@ impl AppState {
             idle_seconds: now().saturating_sub(self.last_input.load(Ordering::Relaxed)),
             overlay: self.overlay.visible(),
             asleep: self.asleep.load(Ordering::Relaxed),
+            show_pairing: self.show_pairing(),
+            remotes: self.remotes.load(Ordering::Relaxed),
             clients: self.clients.load(Ordering::Relaxed),
         }
     }
@@ -275,6 +309,15 @@ impl AppState {
             }
             Command::Set { key, value } => self.change_setting(key, value).await?,
             Command::Sleep => self.go_to_sleep().await,
+            Command::ShowPairing => {
+                self.pairing_until.store(now() + PAIRING_TIME.as_secs(), Ordering::Relaxed);
+                self.notify().await;
+                let state = Arc::clone(self);
+                tokio::spawn(async move {
+                    tokio::time::sleep(PAIRING_TIME + Duration::from_secs(1)).await;
+                    state.notify().await;
+                });
+            }
             Command::Overlay { visible } => {
                 let visible = visible.unwrap_or(!self.overlay.visible());
                 self.overlay.set_visible(visible, Arc::downgrade(self));

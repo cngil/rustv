@@ -13,7 +13,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use chrono::{Local, Timelike};
-use slint::{Color, ComponentHandle, Image, ModelRc, SharedString, Timer, TimerMode, VecModel, Weak};
+use slint::{
+    Color, ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer, TimerMode, VecModel,
+    Weak,
+};
 use tokio::sync::mpsc;
 
 slint::include_modules!();
@@ -156,6 +159,37 @@ pub fn set_asleep(ui: &Weak<Shell>, asleep: bool) {
     });
 }
 
+/// The pairing QR code, one pixel per module; the UI scales it up without smoothing.
+pub fn set_pairing(ui: &Weak<Shell>, url: String, size: usize, modules: String) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        ui.set_pairing_url(display_url(&url).into());
+        if let Some(image) = qr_image(size, &modules) {
+            ui.set_pairing_qr(image);
+        }
+    });
+}
+
+fn qr_image(size: usize, modules: &str) -> Option<Image> {
+    if size == 0 || modules.len() != size * size {
+        return None;
+    }
+    let mut buffer = SharedPixelBuffer::<Rgba8Pixel>::new(size as u32, size as u32);
+    for (pixel, module) in buffer.make_mut_slice().iter_mut().zip(modules.bytes()) {
+        let v = if module == b'1' { 0 } else { 255 };
+        *pixel = Rgba8Pixel { r: v, g: v, b: v, a: 255 };
+    }
+    Some(Image::from_rgba8(buffer))
+}
+
+/// The link without its token, for people who would rather type the address.
+fn display_url(url: &str) -> String {
+    url.split('#').next().unwrap_or(url).trim_end_matches('/').to_string()
+}
+
+pub fn set_show_pairing(ui: &Weak<Shell>, show: bool) {
+    let _ = ui.upgrade_in_event_loop(move |ui| ui.set_show_pairing(show));
+}
+
 pub fn set_screensaver(ui: &Weak<Shell>, cfg: net::ScreensaverConfig) {
     let _ = ui.upgrade_in_event_loop(move |ui| {
         ui.set_screensaver_clock(cfg.clock);
@@ -293,6 +327,11 @@ pub fn set_visibility(ui: &Weak<Shell>, v: net::Visibility) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hides_the_token_in_the_shown_address() {
+        assert_eq!(display_url("http://192.168.1.5:8765/#token=abc"), "http://192.168.1.5:8765");
+    }
 
     #[test]
     fn picks_screensaver_styles() {

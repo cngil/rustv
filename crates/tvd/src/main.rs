@@ -11,6 +11,7 @@ mod config;
 mod input;
 mod keymap;
 mod overlay;
+mod pairing;
 mod protocol;
 mod settings;
 mod sleep;
@@ -18,7 +19,7 @@ mod state;
 mod stats;
 
 use std::io::IsTerminal;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
@@ -82,7 +83,12 @@ async fn main() -> Result<()> {
         }
         "pair" => {
             let token = config::load_or_create_token(&cfg)?;
-            println!("{}", pairing_url(&cfg.server.bind, &token));
+            let url = pairing::url(&cfg.server.bind, &token);
+            if let Some(qr) = pairing::terminal(&url) {
+                println!("{qr}");
+                println!("Scan with your phone's camera, or open:");
+            }
+            println!("{url}");
             Ok(())
         }
         "overlay-status" => {
@@ -116,18 +122,4 @@ async fn shutdown() {
         _ = tokio::signal::ctrl_c() => {}
         _ = term.recv() => {}
     }
-}
-
-fn pairing_url(bind: &str, token: &str) -> String {
-    let port = bind.rsplit(':').next().unwrap_or("8765");
-    let ip = lan_ip().unwrap_or_else(|| "<device-ip>".into());
-    format!("http://{ip}:{port}/#token={token}")
-}
-
-/// Primary LAN address. Connecting a UDP socket sends no packets; it only
-/// makes the kernel pick the outgoing interface.
-fn lan_ip() -> Option<String> {
-    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
-    socket.connect("192.0.2.1:80").ok()?;
-    Some(socket.local_addr().ok()?.ip().to_string())
 }

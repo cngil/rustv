@@ -24,6 +24,13 @@ enum Incoming {
         volume: Option<Volume>,
         #[serde(default)]
         asleep: bool,
+        #[serde(default)]
+        show_pairing: bool,
+    },
+    Pairing {
+        url: String,
+        size: usize,
+        modules: String,
     },
     Audio {
         max_volume: f32,
@@ -98,7 +105,7 @@ pub async fn run(settings: Settings, ui: Weak<Shell>, mut commands: mpsc::Unboun
 
 async fn session(settings: &Settings, ui: &Weak<Shell>, commands: &mut mpsc::UnboundedReceiver<String>) -> Result<()> {
     let token = settings.token()?;
-    let url = format!("ws://{}/api/v1/ws?token={token}", settings.addr);
+    let url = format!("ws://{}/api/v1/ws?token={token}&client=shell", settings.addr);
     let (socket, _) = tokio_tungstenite::connect_async(&url).await.context("connecting to tvd")?;
     crate::set_connected(ui, true);
 
@@ -139,9 +146,10 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
             .unwrap_or_default();
             crate::set_apps(ui, entries);
         }
-        Incoming::State { running, volume: new_volume, asleep } => {
+        Incoming::State { running, volume: new_volume, asleep, show_pairing } => {
             crate::set_running(ui, running.is_some());
             crate::set_asleep(ui, asleep);
+            crate::set_show_pairing(ui, show_pairing);
             if let Some(new) = new_volume {
                 // The first value only initializes; later changes show the overlay.
                 let show = volume.is_some_and(|old| old != new);
@@ -152,6 +160,7 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
         Incoming::Audio { max_volume } => crate::set_max_volume(ui, max_volume),
         Incoming::Shell(visibility) => crate::set_visibility(ui, visibility),
         Incoming::Screensaver(cfg) => crate::set_screensaver(ui, cfg),
+        Incoming::Pairing { url, size, modules } => crate::set_pairing(ui, url, size, modules),
         Incoming::Other => {}
     }
 }

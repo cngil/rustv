@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use axum::body::Bytes;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path, Request, State};
+use axum::extract::{Path, Query, Request, State};
 use axum::http::{header, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
@@ -111,12 +111,23 @@ async fn post_command(State(state): State<Shared>, body: Bytes) -> Response {
     }
 }
 
-async fn websocket(upgrade: WebSocketUpgrade, State(state): State<Shared>) -> Response {
-    upgrade.on_upgrade(move |socket| client(socket, state))
+#[derive(serde::Deserialize)]
+struct WsQuery {
+    /// `shell` for the TV's own home screen; anything else is a remote.
+    #[serde(default)]
+    client: String,
 }
 
-async fn client(socket: WebSocket, state: Shared) {
-    let _connected = Connected::new(state.clone());
+async fn websocket(upgrade: WebSocketUpgrade, State(state): State<Shared>, Query(query): Query<WsQuery>) -> Response {
+    let is_shell = query.client == "shell";
+    upgrade.on_upgrade(move |socket| client(socket, state, is_shell))
+}
+
+async fn client(socket: WebSocket, state: Shared, is_shell: bool) {
+    if !is_shell {
+        state.remote_connected();
+    }
+    let _connected = Connected::new(state.clone(), is_shell);
     let (mut sink, mut stream) = socket.split();
     let mut events = state.events.subscribe();
     let (reply_tx, mut reply_rx) = mpsc::unbounded_channel::<ServerMsg>();
@@ -126,6 +137,15 @@ async fn client(socket: WebSocket, state: Shared) {
         let cfg = state.config();
         (cfg.shell.clone(), cfg.screensaver.clone())
     };
+    let pairing = is_shell.then(|| {
+        let url = state.pairing_url();
+        let qr = crate::pairing::matrix(&url);
+        ServerMsg::Pairing {
+            size: qr.as_ref().map_or(0, |qr| qr.size),
+            modules: qr.map(|qr| qr.dark.iter().map(|&d| if d { '1' } else { '0' }).collect()).unwrap_or_default(),
+            url,
+        }
+    });
     let hello = [
         ServerMsg::Apps { apps: state.app_infos() },
         ServerMsg::Audio(state.audio_info().await),
@@ -134,7 +154,7 @@ async fn client(socket: WebSocket, state: Shared) {
         ServerMsg::Settings(state.settings_info()),
         ServerMsg::State(state.snapshot().await),
     ];
-    for msg in &hello {
+    for msg in hello.iter().chain(&pairing) {
         if send(&mut sink, msg).await.is_err() {
             return;
         }
@@ -158,19 +178,25 @@ async fn client(socket: WebSocket, state: Shared) {
 }
 
 /// Counts a WebSocket client for as long as it is connected.
-struct Connected(Shared);
+struct Connected(Shared, bool);
 
 impl Connected {
-    fn new(state: Shared) -> Self {
+    fn new(state: Shared, is_shell: bool) -> Self {
         state.clients.fetch_add(1, Ordering::Relaxed);
+        if !is_shell {
+            state.remotes.fetch_add(1, Ordering::Relaxed);
+        }
         notify_soon(&state);
-        Self(state)
+        Self(state, is_shell)
     }
 }
 
 impl Drop for Connected {
     fn drop(&mut self) {
         self.0.clients.fetch_sub(1, Ordering::Relaxed);
+        if !self.1 {
+            self.0.remotes.fetch_sub(1, Ordering::Relaxed);
+        }
         notify_soon(&self.0);
     }
 }

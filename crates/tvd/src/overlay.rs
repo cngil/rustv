@@ -337,7 +337,7 @@ fn fetch_state(port: &str, token: &str) -> Option<Daemon> {
     Some(Daemon {
         app: body["running"]["name"].as_str().map(String::from),
         volume: body["volume"]["level"].as_f64().map(|level| (level, body["volume"]["muted"] == true)),
-        clients: body["clients"].as_u64(),
+        clients: body["remotes"].as_u64(),
     })
 }
 

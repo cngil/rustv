@@ -20,6 +20,7 @@ pub const EDITABLE: &[&str] = &[
     "shell.date",
     "shell.hints",
     "shell.volume_overlay",
+    "shell.pairing_qr",
     "screensaver.enabled",
     "screensaver.idle_minutes",
     "screensaver.style",

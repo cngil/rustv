@@ -25,6 +25,7 @@ clock = true
 date = true
 hints = true            # key hints at the bottom
 volume_overlay = true   # volume bar when the volume changes
+pairing_qr = true       # QR code for pairing a phone, until one pairs and on request
 
 [screensaver]
 # Starts after a while on the home screen without input; any key wakes the TV.

@@ -53,11 +53,13 @@ pub struct Shell {
     pub hints: bool,
     /// Volume bar shown when the volume changes.
     pub volume_overlay: bool,
+    /// QR code for pairing a phone, shown until the first remote connects and on request.
+    pub pairing_qr: bool,
 }
 
 impl Default for Shell {
     fn default() -> Self {
-        Self { greeting: true, clock: true, date: true, hints: true, volume_overlay: true }
+        Self { greeting: true, clock: true, date: true, hints: true, volume_overlay: true, pairing_qr: true }
     }
 }
 

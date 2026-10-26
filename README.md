@@ -43,6 +43,8 @@ talks to nobody but you.
   drifts over generated animation (soft drifting lights, a turning galaxy of
   points, or just a large clock), different each time. Nothing to set up, no
   images, no network; any key wakes it.
+- **Reorder apps** from the remote: hold an app in the dock, drag it, tap
+  Done. The TV follows at once, and the order survives restarts.
 - **`tvd` daemon**: launches and closes apps, one at a time; when an app
   exits you are back home.
 - **Three kinds of apps**: Flatpak apps, any command, and web apps (a URL
@@ -167,6 +169,11 @@ hints = false
 volume_overlay = true
 ```
 
+The order you arrange apps in from the remote is kept in
+`~/.local/state/rustv/app-order`, separate from the config: the config says
+which apps exist, that file only where they go. Apps it does not list appear
+at the end in config order. Delete it to go back to the config order.
+
 Check it with `tvd check`, then `systemctl --user restart tvd`.
 
 ## API
@@ -199,6 +206,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "volume", "action": "set", "level": 0.6}
 {"type": "audio_output", "id": 52}
 {"type": "overlay", "visible": true}
+{"type": "reorder", "ids": ["stremio", "jellyfin"]}
 ```
 
 Key codes follow the browser's
@@ -237,7 +245,7 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [ ] UI audio feedback (navigation and selection sounds)
 - [ ] Manage Bluetooth, Wi-Fi and audio from the shell
 - [ ] Lock and unlock, set a password, configure remotely exposed ports
-- [ ] Reorder apps
+- [x] Reorder apps (from the remote)
 - [ ] Localization options (UI language, date and time format, units)
 
 ## Development

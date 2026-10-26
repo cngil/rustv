@@ -143,6 +143,10 @@ impl AppState {
                 let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
                 self.notify().await;
             }
+            Command::Reorder { ids } => {
+                self.apps.reorder(&ids)?;
+                let _ = self.events.send(ServerMsg::Apps { apps: self.app_infos() });
+            }
             Command::Overlay { visible } => {
                 let visible = visible.unwrap_or(!self.overlay.visible());
                 self.overlay.set_visible(visible, Arc::downgrade(self));

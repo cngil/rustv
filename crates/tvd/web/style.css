@@ -999,3 +999,52 @@ code {
     max-width: 100%;
   }
 }
+
+/* ---- dock editing: hold an app, then drag ---- */
+
+.dock {
+  position: relative;
+}
+
+.dock.editing .dock-item {
+  touch-action: none;
+  animation: wiggle 0.28s ease-in-out infinite alternate;
+}
+
+.dock.editing .dock-item:nth-child(even) {
+  animation-delay: -0.14s;
+}
+
+.dock.editing .dock-item.running::after {
+  display: none;
+}
+
+.dock-item.dragging {
+  z-index: 2;
+  animation: none !important;
+  background: var(--surface-3);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  transition: none;
+}
+
+@keyframes wiggle {
+  from { transform: rotate(-2.5deg); }
+  to { transform: rotate(2.5deg); }
+}
+
+.dock-done {
+  flex: none;
+  align-self: center;
+  height: 40px;
+  margin-left: 6px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 0;
+  font-size: 14px;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock.editing .dock-item { animation: none; outline: 1px dashed var(--line); }
+}

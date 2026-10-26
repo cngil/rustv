@@ -2,10 +2,10 @@
 //! closes the current app first, and when an app exits the shell is back.
 
 use std::os::unix::process::CommandExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -30,7 +30,9 @@ struct Running {
 }
 
 pub struct AppManager {
-    apps: Vec<App>,
+    /// In the order the user arranged them; see [`arrange`].
+    apps: RwLock<Vec<App>>,
+    order_file: Option<PathBuf>,
     browser: Browser,
     running: Mutex<Option<Running>>,
     /// Serializes launch and stop so they cannot interleave.
@@ -41,11 +43,38 @@ pub struct AppManager {
 
 impl AppManager {
     pub fn new(apps: Vec<App>, browser: Browser, changed: mpsc::UnboundedSender<()>) -> Self {
-        Self { apps, browser, running: Mutex::new(None), op: Mutex::new(()), generation: AtomicU64::new(0), changed }
+        let order_file = order_file();
+        let saved = order_file.as_deref().and_then(|path| std::fs::read_to_string(path).ok()).unwrap_or_default();
+        let saved: Vec<String> = saved.lines().map(str::trim).filter(|l| !l.is_empty()).map(String::from).collect();
+        Self {
+            apps: RwLock::new(arrange(apps, &saved)),
+            order_file,
+            browser,
+            running: Mutex::new(None),
+            op: Mutex::new(()),
+            generation: AtomicU64::new(0),
+            changed,
+        }
     }
 
-    pub fn list(&self) -> &[App] {
-        &self.apps
+    pub fn list(&self) -> Vec<App> {
+        self.apps.read().unwrap().clone()
+    }
+
+    /// Puts the apps in the given order and remembers it across restarts.
+    pub fn reorder(&self, ids: &[String]) -> Result<()> {
+        let order: Vec<String> = {
+            let mut apps = self.apps.write().unwrap();
+            *apps = arrange(std::mem::take(&mut *apps), ids);
+            apps.iter().map(|app| app.id.clone()).collect()
+        };
+        let path = self.order_file.as_deref().context("no state directory to save the app order in")?;
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+        }
+        std::fs::write(path, order.join("\n") + "\n").with_context(|| format!("writing {}", path.display()))?;
+        info!(order = ?order, "apps reordered");
+        Ok(())
     }
 
     /// ID and name of the running app.
@@ -55,7 +84,7 @@ impl AppManager {
 
     pub async fn launch(self: &Arc<Self>, id: &str) -> Result<()> {
         let _op = self.op.lock().await;
-        let app = self.apps.iter().find(|app| app.id == id).cloned().with_context(|| format!("unknown app {id:?}"))?;
+        let app = self.list().into_iter().find(|app| app.id == id).with_context(|| format!("unknown app {id:?}"))?;
         self.stop_locked().await;
 
         let argv = app.argv(&self.browser);
@@ -88,9 +117,9 @@ impl AppManager {
     /// Picks up an app that is already on screen, for example after tvd restarts.
     pub async fn adopt(self: &Arc<Self>) {
         let running = flatpak_instances().await;
-        let found = self.apps.iter().find_map(|app| {
+        let found = self.list().into_iter().find_map(|app| {
             let id = config::flatpak_id(&app.argv(&self.browser))?;
-            running.contains(&id).then(|| (app.clone(), id))
+            running.contains(&id).then_some((app, id))
         });
         let Some((app, flatpak_id)) = found else { return };
         info!(app = %app.id, "adopted running app");
@@ -171,6 +200,28 @@ impl AppManager {
     }
 }
 
+/// Where the order from the remote is kept. The config says which apps exist;
+/// this file only says where they go, so editing the config never fights it.
+fn order_file() -> Option<PathBuf> {
+    let state = std::env::var_os("XDG_STATE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))?;
+    Some(state.join("rustv/app-order"))
+}
+
+/// Apps named in `order` first, in that order; the rest keep their config order
+/// at the end, so apps added to the config later still show up.
+fn arrange(mut apps: Vec<App>, order: &[String]) -> Vec<App> {
+    let mut arranged = Vec::with_capacity(apps.len());
+    for id in order {
+        if let Some(pos) = apps.iter().position(|app| &app.id == id) {
+            arranged.push(apps.remove(pos));
+        }
+    }
+    arranged.extend(apps);
+    arranged
+}
+
 /// Application IDs of running Flatpak sandboxes.
 async fn flatpak_instances() -> Vec<String> {
     let output = tokio::process::Command::new("flatpak")
@@ -222,4 +273,25 @@ fn find_wayland_socket(runtime: &str) -> Option<String> {
 
 fn is_live(socket: &Path) -> bool {
     std::os::unix::net::UnixStream::connect(socket).is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn app(id: &str) -> App {
+        toml::from_str(&format!("id = \"{id}\"\nname = \"{id}\"\nkind = \"command\"\ncommand = [\"true\"]\n")).unwrap()
+    }
+
+    fn ids(apps: &[App]) -> Vec<&str> {
+        apps.iter().map(|app| app.id.as_str()).collect()
+    }
+
+    #[test]
+    fn arranges_apps_in_saved_order() {
+        let apps = vec![app("a"), app("b"), app("c"), app("d")];
+        let order = ["c", "gone", "a"].map(String::from);
+        // Unknown ids are ignored, apps missing from the order keep their place at the end.
+        assert_eq!(ids(&arrange(apps, &order)), ["c", "a", "b", "d"]);
+    }
 }

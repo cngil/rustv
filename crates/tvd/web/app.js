@@ -227,25 +227,146 @@ function chooseOutput(output) {
   renderAudio();
 }
 
+// Press and hold an app to rearrange the dock; the TV follows the same order.
+let editing = false;
+let drag = null; // { item, pointerId, lastX, offset }
+let dockDirty = false;
+
 function renderDock() {
+  // Re-rendering mid-drag would drop the app out from under the finger.
+  if (drag) {
+    dockDirty = true;
+    return;
+  }
   const dock = $("#dock");
   dock.replaceChildren();
+  dock.classList.toggle("editing", editing);
   const runningId = state && state.running ? state.running.id : null;
   for (const app of apps) {
     const item = document.createElement("button");
     item.className = "dock-item";
+    item.dataset.id = app.id;
     if (app.id === runningId) item.classList.add("running");
     if (pendingLaunch && pendingLaunch.id === app.id) item.classList.add("opening");
-    item.title = app.description || app.name;
+    item.title = editing ? `Drag to move ${app.name}` : app.description || app.name;
     item.append(appIcon(app));
     const name = document.createElement("span");
     name.className = "dock-name";
     name.textContent = pendingLaunch && pendingLaunch.id === app.id ? "Opening…" : app.name;
     item.append(name);
-    item.addEventListener("click", () => launch(app, runningId));
+    bindDockItem(item, app, runningId);
     dock.append(item);
   }
+  if (editing) {
+    const done = document.createElement("button");
+    done.className = "dock-done";
+    done.textContent = "Done";
+    done.addEventListener("click", finishEditing);
+    dock.append(done);
+  }
 }
+
+function bindDockItem(item, app, runningId) {
+  let hold = null;
+  let start = null;
+  let held = false;
+  const cancelHold = () => {
+    clearTimeout(hold);
+    hold = null;
+  };
+  item.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    if (editing) return startDrag(item, event);
+    held = false;
+    start = { x: event.clientX, y: event.clientY };
+    hold = setTimeout(() => {
+      held = true;
+      startEditing();
+    }, 450);
+  });
+  item.addEventListener("pointermove", (event) => {
+    if (drag && drag.item === item) return moveDrag(event);
+    // Scrolling the dock is not a long press.
+    if (hold && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) cancelHold();
+  });
+  for (const type of ["pointerup", "pointercancel"]) {
+    item.addEventListener(type, () => {
+      cancelHold();
+      if (drag && drag.item === item) endDrag();
+    });
+  }
+  item.addEventListener("pointerleave", cancelHold);
+  item.addEventListener("contextmenu", (event) => event.preventDefault());
+  item.addEventListener("click", () => {
+    if (editing || held) return;
+    launch(app, runningId);
+  });
+}
+
+function startEditing() {
+  if (navigator.vibrate) navigator.vibrate(25);
+  editing = true;
+  renderDock();
+  toast("Drag apps to reorder them, then tap Done");
+}
+
+function finishEditing() {
+  haptic();
+  editing = false;
+  renderDock();
+  toast("Order saved on the TV", "ok");
+}
+
+function startDrag(item, event) {
+  item.setPointerCapture(event.pointerId);
+  drag = { item, lastX: event.clientX, offset: 0 };
+  item.classList.add("dragging");
+}
+
+function moveDrag(event) {
+  const { item } = drag;
+  drag.offset += event.clientX - drag.lastX;
+  drag.lastX = event.clientX;
+  // Swap with a neighbour once the dragged app passes its middle, then correct
+  // the offset by how far the swap moved the app in the layout.
+  const center = item.offsetLeft + item.offsetWidth / 2 + drag.offset;
+  const next = item.nextElementSibling;
+  const prev = item.previousElementSibling;
+  let neighbour = null;
+  if (next && next.classList.contains("dock-item") && center > next.offsetLeft + next.offsetWidth / 2) {
+    neighbour = () => item.parentNode.insertBefore(next, item);
+  } else if (prev && center < prev.offsetLeft + prev.offsetWidth / 2) {
+    neighbour = () => item.parentNode.insertBefore(item, prev);
+  }
+  if (neighbour) {
+    const before = item.offsetLeft;
+    neighbour();
+    drag.offset -= item.offsetLeft - before;
+    haptic();
+  }
+  item.style.transform = `translateX(${drag.offset}px) scale(1.08)`;
+}
+
+function endDrag() {
+  const { item } = drag;
+  drag = null;
+  item.classList.remove("dragging");
+  item.style.transform = "";
+  const ids = [...$$("#dock .dock-item")].map((el) => el.dataset.id);
+  const changed = ids.some((id, i) => !apps[i] || apps[i].id !== id);
+  if (changed) {
+    apps = ids.map((id) => apps.find((app) => app.id === id)).filter(Boolean);
+    send({ type: "reorder", ids });
+  }
+  if (dockDirty) {
+    dockDirty = false;
+    renderDock();
+  }
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && editing && !drag) finishEditing();
+});
 
 function launch(app, runningId) {
   haptic();

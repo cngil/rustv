@@ -57,6 +57,10 @@ pub enum Command {
     AudioOutput {
         id: u32,
     },
+    /// Put the apps in this order (ids). Apps left out keep their place at the end.
+    Reorder {
+        ids: Vec<String>,
+    },
     /// Show or hide the debug overlay; without `visible` it toggles.
     Overlay {
         #[serde(default)]

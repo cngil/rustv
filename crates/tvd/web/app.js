@@ -12,6 +12,7 @@ let ws = null;
 let retry = 0;
 let apps = [];
 let state = null;
+let audio = { max_volume: 1.5, step: 0.05, outputs: [] };
 
 function readToken() {
   const match = location.hash.match(/token=([A-Za-z0-9]+)/);
@@ -58,7 +59,10 @@ function send(msg) {
 function handle(msg) {
   if (msg.type === "apps") {
     apps = msg.apps;
-    renderApps();
+    renderDock();
+  } else if (msg.type === "audio") {
+    audio = msg;
+    renderAudio();
   } else if (msg.type === "state") {
     state = msg;
     renderState();
@@ -88,35 +92,85 @@ function renderState() {
   const running = state.running;
   $("#now").textContent = running ? running.name : "Home";
   $("#stop").hidden = !running;
-  const volume = state.volume;
-  $("#vol-label").textContent = !volume ? "–" : volume.muted ? "Muted" : `${Math.round(volume.level * 100)}%`;
-  renderApps();
+  renderVolume();
+  renderDock();
 }
 
-function renderApps() {
-  const grid = $("#apps");
-  grid.replaceChildren();
+function renderVolume() {
+  const volume = state && state.volume;
+  const label = !volume ? "–" : volume.muted ? "Muted" : `${Math.round(volume.level * 100)}%`;
+  for (const el of $$(".js-vol-label")) el.textContent = label;
+  $("#mute").textContent = volume && volume.muted ? "Unmute" : "Mute";
+  $("#mute").classList.toggle("active", Boolean(volume && volume.muted));
+  if (volume && !sliderBusy()) $("#vol-slider").value = Math.round(volume.level * 100);
+}
+
+function renderAudio() {
+  const max = Math.round(audio.max_volume * 100);
+  $("#vol-slider").max = max;
+  $("#vol-max").textContent = `${max}%`;
+  const list = $("#outputs");
+  list.replaceChildren();
+  if (!audio.outputs.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No outputs found.";
+    list.append(empty);
+  }
+  for (const output of audio.outputs) {
+    const item = document.createElement("button");
+    item.className = "output" + (output.default ? " selected" : "");
+    const radio = document.createElement("span");
+    radio.className = "radio";
+    const name = document.createElement("span");
+    name.textContent = output.name;
+    item.append(radio, name);
+    item.addEventListener("click", () => {
+      if (output.default) return;
+      haptic();
+      send({ type: "audio_output", id: output.id });
+    });
+    list.append(item);
+  }
+  renderVolume();
+}
+
+function renderDock() {
+  const dock = $("#dock");
+  dock.replaceChildren();
   const runningId = state && state.running ? state.running.id : null;
   for (const app of apps) {
-    const card = document.createElement("button");
-    card.className = "app" + (app.id === runningId ? " running" : "");
-    const tile = document.createElement("span");
-    tile.className = "tile";
-    tile.style.setProperty("--hue", hue(app.id));
-    tile.textContent = app.name.slice(0, 1).toUpperCase();
+    const item = document.createElement("button");
+    item.className = "dock-item" + (app.id === runningId ? " running" : "");
+    item.title = app.description || app.name;
+    item.append(appIcon(app));
     const name = document.createElement("span");
-    name.className = "name";
+    name.className = "dock-name";
     name.textContent = app.name;
-    const meta = document.createElement("span");
-    meta.className = "meta";
-    meta.textContent = app.id === runningId ? "Running · tap to close" : app.description || app.kind;
-    card.append(tile, name, meta);
-    card.addEventListener("click", () => {
+    item.append(name);
+    item.addEventListener("click", () => {
       haptic();
-      send(app.id === runningId ? { type: "stop" } : { type: "launch", id: app.id });
+      if (app.id === runningId) return toast(`${app.name} is already on the TV`);
+      send({ type: "launch", id: app.id });
+      item.classList.add("opening");
     });
-    grid.append(card);
+    dock.append(item);
   }
+}
+
+function appIcon(app) {
+  if (app.icon) {
+    const img = document.createElement("img");
+    img.className = "dock-icon";
+    img.alt = "";
+    img.src = `/api/v1/apps/${encodeURIComponent(app.id)}/icon?token=${encodeURIComponent(token)}`;
+    return img;
+  }
+  const tile = document.createElement("span");
+  tile.className = "dock-icon letter";
+  tile.style.setProperty("--hue", hue(app.id));
+  tile.textContent = app.name.slice(0, 1).toUpperCase();
+  return tile;
 }
 
 function hue(text) {
@@ -132,7 +186,7 @@ function toast(text, parent = $("#app")) {
   el.textContent = text;
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.hidden = true), 3500);
+  toastTimer = setTimeout(() => (el.hidden = true), 3000);
 }
 
 function haptic() {
@@ -186,6 +240,35 @@ $("#home").addEventListener("click", () => {
   send({ type: "stop" });
 });
 $("#stop").addEventListener("click", () => send({ type: "stop" }));
+$("#mute").addEventListener("click", () => {
+  haptic();
+  send({ type: "volume", action: "mute" });
+});
+
+// ---- volume slider ----
+
+const slider = $("#vol-slider");
+let sliderTouched = 0;
+let sliderTimer = null;
+
+function sliderBusy() {
+  return Date.now() - sliderTouched < 800;
+}
+
+slider.addEventListener("input", () => {
+  sliderTouched = Date.now();
+  for (const el of $$(".js-vol-label")) el.textContent = `${slider.value}%`;
+  if (sliderTimer) return;
+  // At most one update every 80 ms while dragging.
+  sliderTimer = setTimeout(() => {
+    sliderTimer = null;
+    send({ type: "volume", action: "set", level: slider.value / 100 });
+  }, 80);
+});
+slider.addEventListener("change", () => {
+  sliderTouched = Date.now();
+  send({ type: "volume", action: "set", level: slider.value / 100 });
+});
 
 // ---- touchpad ----
 
@@ -260,11 +343,9 @@ pad.addEventListener("pointerup", endTouch);
 pad.addEventListener("pointercancel", endTouch);
 
 // Desktop: lock the mouse to the pad and drive the TV pointer directly.
-pad.addEventListener("click", (event) => {
-  if (event.pointerType === "mouse" || event.pointerType === "" || event.detail > 0) {
-    if (!matchMedia("(pointer: fine)").matches) return;
-    if (document.pointerLockElement !== pad) pad.requestPointerLock();
-  }
+pad.addEventListener("click", () => {
+  if (!matchMedia("(pointer: fine)").matches) return;
+  if (document.pointerLockElement !== pad) pad.requestPointerLock();
 });
 
 document.addEventListener("pointerlockchange", () => {
@@ -329,6 +410,7 @@ document.addEventListener("keydown", (event) => {
 // ---- tabs ----
 
 function showTab(name) {
+  if (!document.querySelector(`.view[data-view="${name}"]`)) name = "remote";
   for (const view of $$(".view")) view.classList.toggle("active", view.dataset.view === name);
   for (const tab of $$("[data-tab]")) tab.classList.toggle("active", tab.dataset.tab === name);
   localStorage.setItem(TAB_KEY, name);

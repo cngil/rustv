@@ -38,7 +38,7 @@
   </header>
 
   <div class="views">
-    <section class="view" data-view="remote">
+    <section class="view card" data-view="remote">
       <div class="dpad">
         <button class="dp up" data-key="ArrowUp" data-repeat aria-label="Up"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
         <button class="dp left" data-key="ArrowLeft" data-repeat aria-label="Left"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
@@ -47,18 +47,24 @@
         <button class="dp down" data-key="ArrowDown" data-repeat aria-label="Down"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
       </div>
       <div class="row">
-        <button class="round" data-key="Escape">Back</button>
-        <button class="round" id="home">Home</button>
-        <button class="round" data-key="Space">Play</button>
+        <button class="round" data-key="Escape">
+          <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>Back
+        </button>
+        <button class="round" id="home">
+          <svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v10a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>Home
+        </button>
+        <button class="round" data-key="Space">
+          <svg viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>Play
+        </button>
       </div>
-      <div class="volume">
-        <button data-vol="down" aria-label="Volume down">&minus;</button>
-        <button data-vol="mute" id="vol-label" class="vol-label">&ndash;</button>
-        <button data-vol="up" aria-label="Volume up">+</button>
+      <div class="volume-quick">
+        <button data-vol="down" aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        <button data-vol="mute" class="vol-label js-vol-label">&ndash;</button>
+        <button data-vol="up" aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
       </div>
     </section>
 
-    <section class="view" data-view="pad">
+    <section class="view card" data-view="pad">
       <div id="pad" class="pad">
         <span class="hint touch-hint">Drag to move, tap to click<br>Two fingers: scroll, two-finger tap: right click</span>
         <span class="hint mouse-hint">Click to take over the TV pointer with your mouse<br>Press Esc to release</span>
@@ -70,11 +76,8 @@
       </div>
     </section>
 
-    <section class="view" data-view="apps">
-      <div id="apps" class="apps"></div>
-    </section>
-
-    <section class="view" data-view="keys">
+    <section class="view card" data-view="keys">
+      <h2>Keyboard</h2>
       <form id="text-form" class="text">
         <input id="text" placeholder="Type, then send" autocomplete="off" autocapitalize="off" spellcheck="false">
         <button class="primary">Send</button>
@@ -89,13 +92,27 @@
         <span>Forward this computer's keyboard to the TV</span>
       </label>
     </section>
+
+    <section class="view card" data-view="audio">
+      <h2>Audio</h2>
+      <div class="vol-head">
+        <div class="vol-big js-vol-label">&ndash;</div>
+        <button id="mute" class="pill">Mute</button>
+      </div>
+      <input id="vol-slider" class="slider" type="range" min="0" max="150" step="1" value="0" aria-label="Volume">
+      <div class="vol-scale"><span>0%</span><span id="vol-max">150%</span></div>
+      <h3>Output</h3>
+      <div id="outputs" class="outputs"></div>
+    </section>
   </div>
+
+  <nav class="dock" id="dock" aria-label="Apps"></nav>
 
   <nav class="tabs">
     <button data-tab="remote">Remote</button>
     <button data-tab="pad">Touchpad</button>
-    <button data-tab="apps">Apps</button>
     <button data-tab="keys">Keyboard</button>
+    <button data-tab="audio">Audio</button>
   </nav>
 
   <div id="toast" class="toast" hidden></div>

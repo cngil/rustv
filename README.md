@@ -190,6 +190,7 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [ ] Manage Bluetooth, Wi-Fi and audio from the shell
 - [ ] Lock and unlock, set a password, configure remotely exposed ports
 - [ ] Reorder apps
+- [ ] Localization options (UI language, date and time format, units)
 
 ## Development
 

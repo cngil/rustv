@@ -1,0 +1,330 @@
+// rustv home screen. Designed for 1920x1080 and scaled to the real output.
+// Navigation works with arrow keys and Enter (the remote's D-pad); no pointer needed.
+
+import "fonts/Inter-Regular.ttf";
+import "fonts/Inter-SemiBold.ttf";
+import "fonts/Inter-Bold.ttf";
+
+export struct AppTile {
+    id: string,
+    name: string,
+    // First letter, shown when the app has no icon.
+    initial: string,
+    icon: image,
+    has-icon: bool,
+    color: color,
+}
+
+component Card inherits Rectangle {
+    in property <AppTile> tile;
+    in property <bool> focused;
+    in property <bool> opening;
+    in property <float> s;
+    callback activated();
+
+    property <length> grow: focused ? 20px * s : 0px;
+    animate grow { duration: 180ms; easing: ease-out; }
+
+    // The face grows around the slot when focused, so neighbours do not move.
+    face := Rectangle {
+        x: -grow / 2;
+        y: -grow / 2;
+        width: root.width + grow;
+        height: root.height + grow;
+        border-radius: 32px * s;
+        background: focused ? #ffffff24 : #ffffff0f;
+        border-width: focused ? 3px * s : 1px * s;
+        border-color: focused ? #a9b8ff : #ffffff17;
+        drop-shadow-blur: focused ? 48px * s : 0px;
+        drop-shadow-color: #6c8cff70;
+        animate background, border-color, drop-shadow-blur { duration: 180ms; easing: ease-out; }
+    }
+
+    VerticalLayout {
+        x: face.x;
+        y: face.y;
+        width: face.width;
+        height: face.height;
+        alignment: center;
+        spacing: 22px * s;
+        padding: 24px * s;
+
+        HorizontalLayout {
+            alignment: center;
+            if tile.has-icon: Image {
+                source: tile.icon;
+                width: 112px * s;
+                height: 112px * s;
+                image-fit: contain;
+            }
+            if !tile.has-icon: Rectangle {
+                width: 112px * s;
+                height: 112px * s;
+                border-radius: 30px * s;
+                background: @linear-gradient(135deg, tile.color 0%, tile.color.darker(0.45) 100%);
+                Text {
+                    text: tile.initial;
+                    color: white;
+                    font-size: 52px * s;
+                    font-weight: 700;
+                }
+            }
+        }
+
+        Text {
+            text: opening ? "Opening…" : tile.name;
+            color: focused ? white : #d6dbe8;
+            font-size: 30px * s;
+            font-weight: 600;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    TouchArea {
+        mouse-cursor: none;
+        clicked => { root.activated(); }
+    }
+}
+
+export component Shell inherits Window {
+    title: "rustv";
+    background: #0b0d12;
+    default-font-family: "Inter";
+    preferred-width: 1920px;
+    preferred-height: 1080px;
+
+    in property <[AppTile]> apps;
+    in property <string> time: "00:00";
+    in property <string> date;
+    in property <string> greeting: "Welcome";
+    in property <bool> connected;
+    in property <string> opening-id;
+    in property <float> volume;
+    in property <float> max-volume: 1.5;
+    in property <bool> muted;
+    in property <bool> osd-visible;
+    in-out property <int> selected: 0;
+
+    callback launch(string);
+
+    property <float> s: min(root.width / 1920px, root.height / 1080px);
+    property <length> slot-width: 340px * s;
+    property <length> slot-height: 250px * s;
+    property <length> gap: 44px * s;
+    property <length> margin: 96px * s;
+
+    function activate(index: int) {
+        if index >= 0 && index < apps.length {
+            root.selected = index;
+            root.launch(apps[index].id);
+        }
+    }
+
+    // Background
+    Rectangle {
+        background: @linear-gradient(165deg, #18204a 0%, #0f1426 38%, #0b0d12 75%);
+    }
+    Rectangle {
+        x: root.width * 0.62;
+        y: -root.height * 0.35;
+        width: root.width * 0.7;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: #6c8cff10;
+    }
+    Rectangle {
+        x: -root.width * 0.2;
+        y: root.height * 0.55;
+        width: root.width * 0.55;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: #9b6cff0c;
+    }
+
+    // Hides the pointer everywhere; cards still react to clicks.
+    TouchArea {
+        mouse-cursor: none;
+    }
+
+    // Header
+    Text {
+        x: margin;
+        y: 84px * s;
+        text: root.greeting;
+        color: white;
+        font-size: 56px * s;
+        font-weight: 700;
+    }
+    Text {
+        x: margin;
+        y: 156px * s;
+        text: "What would you like to watch?";
+        color: #8a93a8;
+        font-size: 30px * s;
+        font-weight: 600;
+    }
+    Text {
+        x: root.width - self.width - margin;
+        y: 66px * s;
+        text: root.time;
+        color: white;
+        font-size: 84px * s;
+        font-weight: 700;
+    }
+    Text {
+        x: root.width - self.width - margin;
+        y: 168px * s;
+        text: root.date;
+        color: #8a93a8;
+        font-size: 28px * s;
+    }
+
+    // App row: centered when it fits, otherwise it scrolls to keep the focused card visible.
+    Rectangle {
+        y: (root.height - slot-height) / 2 + 40px * s;
+        height: slot-height;
+        width: root.width;
+
+        property <length> total: apps.length * slot-width + max(0, apps.length - 1) * gap;
+        property <length> follow: root.width / 2 - (root.selected * (slot-width + gap) + slot-width / 2);
+
+        Rectangle {
+            x: parent.total <= root.width - 2 * margin
+                ? (root.width - parent.total) / 2
+                : max(min(margin, parent.follow), root.width - margin - parent.total);
+            animate x { duration: 240ms; easing: ease-out; }
+            width: parent.total;
+            height: parent.height;
+
+            for tile[index] in root.apps: Rectangle {
+                x: index * (slot-width + gap);
+                width: slot-width;
+                height: slot-height;
+                Card {
+                    tile: tile;
+                    s: root.s;
+                    focused: index == root.selected;
+                    opening: root.opening-id == tile.id;
+                    activated => { root.activate(index); }
+                }
+            }
+        }
+    }
+
+    if apps.length == 0 && root.connected: Text {
+        y: root.height / 2;
+        width: root.width;
+        horizontal-alignment: center;
+        text: "No apps yet. Add some to ~/.config/rustv/config.toml";
+        color: #8a93a8;
+        font-size: 30px * s;
+    }
+
+    // Footer hints
+    HorizontalLayout {
+        y: root.height - 110px * s;
+        height: 40px * s;
+        alignment: center;
+        spacing: 56px * s;
+        Text { text: "←  →   Move"; color: #6d7590; font-size: 24px * s; }
+        Text { text: "OK   Open"; color: #6d7590; font-size: 24px * s; }
+    }
+
+    // Connection banner
+    Rectangle {
+        visible: !root.connected;
+        x: (root.width - self.width) / 2;
+        y: 40px * s;
+        width: banner-text.preferred-width + 56px * s;
+        height: 56px * s;
+        border-radius: self.height / 2;
+        background: #2a1820;
+        border-width: 1px;
+        border-color: #ff5d7380;
+        banner-text := Text {
+            text: "Connecting to tvd…";
+            color: #ffd6dc;
+            font-size: 24px * s;
+        }
+    }
+
+    // Volume overlay
+    Rectangle {
+        opacity: root.osd-visible ? 1 : 0;
+        animate opacity { duration: 200ms; }
+        x: (root.width - self.width) / 2;
+        y: root.height - 230px * s;
+        width: 620px * s;
+        height: 96px * s;
+        border-radius: 28px * s;
+        background: #151922e6;
+        border-width: 1px;
+        border-color: #262c3b;
+
+        HorizontalLayout {
+            padding-left: 36px * s;
+            padding-right: 36px * s;
+            spacing: 28px * s;
+            Text {
+                vertical-alignment: center;
+                text: root.muted ? "Muted" : "Volume";
+                color: #d6dbe8;
+                font-size: 26px * s;
+                font-weight: 600;
+                min-width: 120px * s;
+            }
+            Rectangle {
+                Rectangle {
+                    y: (parent.height - self.height) / 2;
+                    height: 14px * s;
+                    border-radius: self.height / 2;
+                    background: #262c3b;
+                    Rectangle {
+                        x: 0;
+                        width: parent.width * clamp(root.volume / max(root.max-volume, 0.01), 0, 1);
+                        animate width { duration: 120ms; }
+                        border-radius: parent.border-radius;
+                        background: root.muted ? #4a5168 : @linear-gradient(90deg, #6c8cff 0%, #9b6cff 100%);
+                    }
+                }
+            }
+            Text {
+                vertical-alignment: center;
+                horizontal-alignment: right;
+                text: Math.round(root.volume * 100) + "%";
+                color: white;
+                font-size: 26px * s;
+                font-weight: 700;
+                min-width: 90px * s;
+            }
+        }
+    }
+
+    FocusScope {
+        init => { self.focus(); }
+        key-pressed(event) => {
+            if event.text == Key.LeftArrow {
+                root.selected = max(0, root.selected - 1);
+                return accept;
+            }
+            if event.text == Key.RightArrow {
+                root.selected = max(0, min(root.apps.length - 1, root.selected + 1));
+                return accept;
+            }
+            if event.text == Key.Return || event.text == " " {
+                root.activate(root.selected);
+                return accept;
+            }
+            if event.text == Key.Home {
+                root.selected = 0;
+                return accept;
+            }
+            if event.text == Key.End {
+                root.selected = max(0, root.apps.length - 1);
+                return accept;
+            }
+            reject
+        }
+    }
+}

@@ -161,12 +161,12 @@ impl AppManager {
 
         if let Some(flatpak_id) = &app.flatpak_id {
             // The sandbox can outlive the `flatpak run` process, so ask Flatpak directly too.
-            let _ = tokio::process::Command::new("flatpak")
-                .args(["kill", flatpak_id])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .await;
+            // Right after launch the instance may not know its pid yet, and `flatpak kill`
+            // then signals pid 0, its own process group. Give it a group of its own so
+            // that can never reach tvd.
+            let mut kill = tokio::process::Command::new("flatpak");
+            kill.as_std_mut().process_group(0);
+            let _ = kill.args(["kill", flatpak_id]).stdout(Stdio::null()).stderr(Stdio::null()).status().await;
             // Helper sandboxes (such as QtWebEngine zygotes) get their own scope and are not
             // part of the instance `flatpak kill` stops.
             let _ = tokio::process::Command::new("systemctl")

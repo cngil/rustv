@@ -318,11 +318,13 @@ pub struct Audio {
     pub step: f32,
     /// Upper limit for volume, 1.0 = 100%.
     pub max_volume: f32,
+    /// Remember the volume for each app and the home screen, and restore it on switching.
+    pub per_app_volume: bool,
 }
 
 impl Default for Audio {
     fn default() -> Self {
-        Self { step: 0.05, max_volume: 1.0 }
+        Self { step: 0.05, max_volume: 1.0, per_app_volume: true }
     }
 }
 

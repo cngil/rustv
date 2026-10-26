@@ -16,11 +16,14 @@ use crate::config::Config;
 use crate::input::{Input, Mods};
 use crate::keymap;
 use crate::lock::Lock;
+use crate::media;
+use crate::osd::Osd;
 use crate::overlay::Overlay;
 use crate::pairing;
 use crate::protocol::{AppInfo, AudioInfo, Command, LockInfo, RunningInfo, ServerMsg, SettingsInfo, StateSnapshot};
 use crate::settings;
 use crate::sleep;
+use crate::volumes::{self, Volumes};
 
 /// Largest pointer move accepted in one message.
 const MAX_DELTA: i32 = 1000;
@@ -38,6 +41,11 @@ pub struct AppState {
     pub overlay: Overlay,
     cast: Cast,
     lock: Lock,
+    osd: Osd,
+    volumes: tokio::sync::Mutex<Volumes>,
+    /// When the sleep timer fires (seconds since the epoch), and a counter that cancels older timers.
+    sleep_at: std::sync::Mutex<Option<u64>>,
+    sleep_timer: AtomicU64,
     /// One settings change at a time: each reads, edits and rewrites config.toml.
     settings_write: tokio::sync::Mutex<()>,
     /// Open WebSocket connections.
@@ -77,6 +85,10 @@ impl AppState {
             overlay: Overlay::new(config_path.clone()),
             cast: Cast::default(),
             lock: Lock::load(),
+            osd: Osd::default(),
+            volumes: tokio::sync::Mutex::new(Volumes::load()),
+            sleep_at: std::sync::Mutex::new(None),
+            sleep_timer: AtomicU64::new(0),
             settings_write: tokio::sync::Mutex::new(()),
             config_path,
             clients: AtomicUsize::new(0),
@@ -85,6 +97,7 @@ impl AppState {
             asleep: AtomicBool::new(false),
         });
         sleep::watch(Arc::downgrade(&state));
+        state.restart_osd();
         let cast = state.config().cast.clone();
         state.cast.apply(&cast, Arc::downgrade(&state));
         if state.config().overlay.enabled {
@@ -178,6 +191,8 @@ impl AppState {
             cfg.overlay = fresh.overlay;
             (moved, cast_changed)
         };
+        // Theme or volume range may have changed; the bar over apps follows both.
+        self.restart_osd();
         if cast_changed {
             let cast = self.config().cast.clone();
             self.cast.apply(&cast, Arc::downgrade(self));
@@ -250,14 +265,67 @@ impl AppState {
             asleep: self.asleep.load(Ordering::Relaxed),
             show_pairing: self.show_pairing(),
             locked: self.lock.is_locked(),
+            sleep_in: self.sleep_at.lock().unwrap().map(|at| at.saturating_sub(now())),
             remotes: self.remotes.load(Ordering::Relaxed),
             clients: self.clients.load(Ordering::Relaxed),
         }
     }
 
     pub async fn notify(&self) {
+        self.switch_volume().await;
         let snapshot = self.snapshot().await;
         let _ = self.events.send(ServerMsg::State(snapshot));
+    }
+
+    /// Starts the volume bar over apps, in the current theme and volume range.
+    fn restart_osd(self: &Arc<Self>) {
+        let (palette, max) = {
+            let cfg = self.config();
+            (crate::theme::resolve(&cfg.theme), (cfg.audio.max_volume * 100.0).round() as u32)
+        };
+        self.osd.start(palette, max, Arc::downgrade(self));
+    }
+
+    /// When another app (or the home screen) comes up, keep the volume the last
+    /// one ended at, and bring back the level the new one had.
+    async fn switch_volume(&self) {
+        let id = self.apps.running().await.map_or_else(|| volumes::HOME.to_string(), |(id, _)| id);
+        let mut saved = self.volumes.lock().await;
+        if saved.current == id {
+            return;
+        }
+        let old = std::mem::replace(&mut saved.current, id.clone());
+        let audio = self.config().audio.clone();
+        if !audio.per_app_volume {
+            return;
+        }
+        if let Ok(volume) = audio::get().await {
+            saved.set(&old, volume.level);
+        }
+        if let Some(level) = saved.get(&id) {
+            if let Err(err) = audio::apply(VolumeAction::Set, Some(level), &audio).await {
+                warn!("restoring the volume for {id}: {err:#}");
+            }
+        }
+    }
+
+    /// Sleep in `minutes`, or cancel the timer with 0.
+    async fn set_sleep_timer(self: &Arc<Self>, minutes: u32) {
+        let id = self.sleep_timer.fetch_add(1, Ordering::Relaxed) + 1;
+        *self.sleep_at.lock().unwrap() = (minutes > 0).then(|| now() + u64::from(minutes) * 60);
+        if minutes > 0 {
+            info!(minutes, "sleep timer set");
+            let state = Arc::clone(self);
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(u64::from(minutes) * 60)).await;
+                // A newer timer (or a cancel) replaced this one.
+                if state.sleep_timer.load(Ordering::Relaxed) == id {
+                    info!("sleep timer done");
+                    state.go_to_sleep().await;
+                }
+            });
+        }
+        self.notify().await;
     }
 
     /// Called every 30 s: puts the TV to sleep once it has been unused long enough.
@@ -276,6 +344,9 @@ impl AppState {
 
     /// Screen off, and the open app closed if the config says so.
     pub async fn go_to_sleep(&self) {
+        // Whatever put the TV to sleep, a pending timer has nothing left to do.
+        self.sleep_timer.fetch_add(1, Ordering::Relaxed);
+        *self.sleep_at.lock().unwrap() = None;
         let lock_on_sleep = self.config().lock.on_sleep;
         if lock_on_sleep && self.lock.has_pin() {
             let _ = self.lock.lock();
@@ -344,8 +415,28 @@ impl AppState {
             Command::Volume { action, level } => {
                 let audio = self.config().audio.clone();
                 audio::apply(action, level, &audio).await?;
+                if let Ok(volume) = audio::get().await {
+                    // The shell shows its own bar on the home screen; over an app, wob does.
+                    if self.config().shell.volume_overlay && self.apps.running().await.is_some() {
+                        self.osd.show(if volume.muted { 0 } else { (volume.level * 100.0).round() as u32 });
+                    }
+                    let mut saved = self.volumes.lock().await;
+                    if audio.per_app_volume {
+                        let current = saved.current.clone();
+                        saved.set(&current, volume.level);
+                    }
+                }
                 self.notify().await;
             }
+            Command::Media { action, seconds } => {
+                if let media::Outcome::Keys(keys) = media::control(action, seconds).await {
+                    for code in keys {
+                        let key = keymap::from_code(code).with_context(|| format!("no key {code}"))?;
+                        self.input.key(key, Mods::default())?;
+                    }
+                }
+            }
+            Command::SleepTimer { minutes } => self.set_sleep_timer(minutes).await,
             Command::AudioOutput { id } => {
                 audio::set_output(id).await?;
                 let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));

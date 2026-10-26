@@ -296,7 +296,7 @@ code {
 
 .dpad {
   /* Whatever height the other controls leave, so the screen never needs scrolling. */
-  --size: clamp(170px, calc(100dvh - 500px), min(76vw, 300px));
+  --size: clamp(170px, calc(100dvh - 560px), min(76vw, 300px));
   position: relative;
   flex: none;
   width: var(--size);
@@ -933,7 +933,8 @@ code {
 
 @media (max-height: 700px) {
   #app { gap: 8px; }
-  .dpad { --size: clamp(170px, calc(100dvh - 430px), min(76vw, 300px)); }
+  .dpad { --size: clamp(130px, calc(100dvh - 505px), min(76vw, 300px)); }
+  .media-row button { height: 38px; }
   .volume { padding: 10px; }
   .volume-head { margin-bottom: 6px; }
   .view { --gap: 10px; }
@@ -1358,4 +1359,48 @@ code {
 .color-field input::-moz-color-swatch {
   border: 0;
   border-radius: 11px;
+}
+
+/* ---- media keys and sleep timer ---- */
+
+.media-row {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: min(100%, 360px);
+  margin: 0 auto;
+}
+
+.media-row button {
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.media-row svg {
+  width: 18px;
+  height: 18px;
+  color: var(--text);
+}
+
+#timer-open.active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.timer-status {
+  margin: 0 4px 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.timer-chips {
+  padding-bottom: 6px;
 }

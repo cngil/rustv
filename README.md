@@ -88,6 +88,12 @@ and your phone becomes the remote.
 - **Themes**: six color presets (indigo, ocean, sunset, forest, rose,
   graphite) or your own accent and background, picked from the remote; the
   TV and the remote change together.
+- **Media keys** in the remote: play/pause, previous, next and ±10 s, sent
+  to the player over MPRIS (Firefox, Jellyfin, VLC…) or as keys otherwise.
+- **Sleep timer** from the remote: 15 minutes to 2 hours.
+- **Volume per app**: each app and the home screen keep their own level, and
+  a volume bar shows over apps too (with [wob](https://github.com/francma/wob)
+  installed).
 - **Languages**: English and Turkish on the TV, the remote and the overlay,
   with a 24 or 12 hour clock and °C or °F, switchable from the remote.
 - **UI sounds**: soft, generated clicks when moving between apps and opening
@@ -190,6 +196,7 @@ remote, so a crashed screen never takes the remote down.
 - PipeWire (`wpctl`, `pw-dump`) for audio
 - Write access to `/dev/uinput` (see below)
 - Flatpak for Flatpak apps, Firefox (Flatpak) for web apps by default
+- For a volume bar over apps (optional): `wob`
 - For AirPlay (optional): `uxplay` and `avahi-daemon`
   (`sudo apt install uxplay avahi-daemon gstreamer1.0-plugins-bad gstreamer1.0-libav`),
   and, behind a firewall, TCP 7000, 7001, 7100 and UDP 5353, 6000, 6001, 7011 open to your LAN
@@ -325,6 +332,9 @@ Commands are JSON objects tagged by `type`:
 {"type": "audio_output", "id": 52}
 {"type": "overlay", "visible": true}
 {"type": "sleep"}
+{"type": "sleep_timer", "minutes": 30}
+{"type": "media", "action": "play_pause"}
+{"type": "media", "action": "seek", "seconds": -10}
 {"type": "show_pairing"}
 {"type": "set_pin", "pin": "2468"}
 {"type": "lock"}

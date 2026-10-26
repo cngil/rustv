@@ -12,7 +12,9 @@ mod config;
 mod input;
 mod keymap;
 mod lock;
+mod media;
 mod network;
+mod osd;
 mod overlay;
 mod pairing;
 mod protocol;
@@ -21,6 +23,7 @@ mod sleep;
 mod state;
 mod stats;
 mod theme;
+mod volumes;
 
 use std::io::IsTerminal;
 use std::net::SocketAddr;

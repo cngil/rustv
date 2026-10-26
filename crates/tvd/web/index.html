@@ -42,6 +42,11 @@
   <symbol id="i-enter" viewBox="0 0 24 24"><path d="M20 5v6a3 3 0 01-3 3H5"/><path d="M9 10l-4 4 4 4"/></symbol>
   <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 5v14M19 5l-10 7 10 7z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M18 5v14M5 5l10 7-10 7z"/></symbol>
+  <symbol id="i-rewind" viewBox="0 0 24 24"><path d="M4 12a8 8 0 108-8H8"/><path d="M11 1L8 4l3 3"/></symbol>
+  <symbol id="i-forward" viewBox="0 0 24 24"><path d="M20 12a8 8 0 11-8-8h4"/><path d="M13 1l3 3-3 3"/></symbol>
   <symbol id="i-tab" viewBox="0 0 24 24"><path d="M3 12h14M13 8l4 4-4 4M21 6v12"/></symbol>
 </svg>
 
@@ -65,6 +70,7 @@
       </div>
     </div>
     <div class="top-actions">
+      <button id="timer-open" class="icon-btn" aria-label="Sleep timer" aria-haspopup="dialog" title="Sleep timer"><svg><use href="#i-moon"/></svg></button>
       <button id="settings-open" class="icon-btn" aria-label="Settings" aria-haspopup="dialog" title="Settings"><svg><use href="#i-gear"/></svg></button>
       <button id="stop" class="pill" hidden><svg><use href="#i-close"/></svg>Close app</button>
     </div>
@@ -83,7 +89,14 @@
       <div class="actions">
         <button class="action" data-key="Escape"><svg><use href="#i-back"/></svg><span>Back</span></button>
         <button class="action" id="home"><svg><use href="#i-home"/></svg><span>Home</span></button>
-        <button class="action" data-key="Space"><svg><use href="#i-play"/></svg><span>Play</span></button>
+        <button class="action" data-media="play_pause"><svg><use href="#i-play"/></svg><span>Play</span></button>
+      </div>
+
+      <div class="media-row">
+        <button data-media="previous" aria-label="Previous"><svg><use href="#i-prev"/></svg></button>
+        <button data-media="seek" data-seconds="-10" aria-label="Back 10 seconds"><svg><use href="#i-rewind"/></svg><span>10</span></button>
+        <button data-media="seek" data-seconds="10" aria-label="Forward 10 seconds"><span>10</span><svg><use href="#i-forward"/></svg></button>
+        <button data-media="next" aria-label="Next"><svg><use href="#i-next"/></svg></button>
       </div>
 
       <div class="volume" id="volume">
@@ -152,6 +165,18 @@
       <button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
     </div>
     <div id="outputs" class="outputs"></div>
+  </div>
+</div>
+
+<div id="timer" class="sheet" hidden>
+  <div class="sheet-backdrop" data-close-timer></div>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="timer-title">
+    <div class="sheet-head">
+      <h2 id="timer-title">Sleep timer</h2>
+      <button class="icon-btn" data-close-timer aria-label="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <p id="timer-status" class="timer-status"></p>
+    <div id="timer-chips" class="chips timer-chips"></div>
   </div>
 </div>
 

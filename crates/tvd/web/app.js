@@ -160,6 +160,22 @@ const TRANSLATIONS = {
     Position: "Konum",
     Top: "Üst",
     Bottom: "Alt",
+    // media and sleep timer
+    Previous: "Önceki",
+    Next: "Sonraki",
+    "Back 10 seconds": "10 saniye geri",
+    "Forward 10 seconds": "10 saniye ileri",
+    "Sleep timer": "Uyku zamanlayıcısı",
+    "Sleeps in {minutes} min": "{minutes} dk sonra uyuyacak",
+    "Turn the TV off after a while, like on a TV remote.": "TV'yi bir süre sonra kapat, TV kumandasındaki gibi.",
+    "The TV sleeps in {minutes} min.": "TV {minutes} dk sonra uyuyacak.",
+    "{n} min": "{n} dk",
+    "{h} h": "{h} sa",
+    "Turn the timer off": "Zamanlayıcıyı kapat",
+    "Sleep timer off": "Uyku zamanlayıcısı kapatıldı",
+    "Remember the volume for each app": "Her uygulamanın sesini hatırla",
+    "A loud game and a quiet film each come back at their own level.":
+      "Yüksek sesli bir oyun ve kısık bir film, her biri kendi seviyesinde açılır.",
     // theme
     Theme: "Tema",
     Preset: "Hazır tema",
@@ -477,7 +493,13 @@ function clearOutput() {
 function renderState() {
   const running = state.running;
   $("#now").textContent = state.asleep ? t("Asleep") : running ? running.name : t("Home");
-  $("#conn").textContent = t(state.asleep ? "Any button wakes the TV" : "Now on TV");
+  $("#conn").textContent = state.asleep
+    ? t("Any button wakes the TV")
+    : sleepLeft() !== null
+      ? t("Sleeps in {minutes} min", { minutes: Math.max(1, Math.ceil(sleepLeft() / 60)) })
+      : t("Now on TV");
+  $("#timer-open").classList.toggle("active", sleepLeft() !== null);
+  renderTimer();
   $("#stop").hidden = !running;
   renderSettings();
   syncLock();
@@ -820,6 +842,80 @@ $("#mute").addEventListener("click", () => {
   send({ type: "volume", action: "mute" });
 });
 
+// ---- media keys ----
+
+for (const button of $$("[data-media]")) {
+  button.addEventListener("click", () => {
+    haptic();
+    send({ type: "media", action: button.dataset.media, seconds: Number(button.dataset.seconds || 0) });
+  });
+}
+
+// ---- sleep timer ----
+
+let sleepInfo = null; // { at: ms when it fires } from the last state
+
+function sleepLeft() {
+  if (!state || state.sleep_in == null) return null;
+  if (!sleepInfo || sleepInfo.from !== state) sleepInfo = { from: state, at: Date.now() + state.sleep_in * 1000 };
+  return Math.max(0, Math.round((sleepInfo.at - Date.now()) / 1000));
+}
+
+// The header counts down between state updates.
+setInterval(() => {
+  if (state && state.sleep_in != null) renderState();
+}, 30000);
+
+const TIMER_CHOICES = [15, 30, 45, 60, 90, 120];
+
+function renderTimer() {
+  const chips = $("#timer-chips");
+  if (!chips || $("#timer").hidden) return;
+  const left = sleepLeft();
+  $("#timer-status").textContent =
+    left === null
+      ? t("Turn the TV off after a while, like on a TV remote.")
+      : t("The TV sleeps in {minutes} min.", { minutes: Math.max(1, Math.ceil(left / 60)) });
+  chips.replaceChildren();
+  for (const minutes of TIMER_CHOICES) {
+    const chip = document.createElement("button");
+    chip.className = "chip";
+    chip.textContent = minutes % 60 ? t("{n} min", { n: minutes }) : t("{h} h", { h: minutes / 60 });
+    chip.addEventListener("click", () => {
+      haptic();
+      if (send({ type: "sleep_timer", minutes })) {
+        closeTimer();
+        toast(t("The TV sleeps in {minutes} min.", { minutes }), "ok");
+      }
+    });
+    chips.append(chip);
+  }
+  if (left !== null) {
+    const off = document.createElement("button");
+    off.className = "chip";
+    off.textContent = t("Turn the timer off");
+    off.addEventListener("click", () => {
+      haptic();
+      if (send({ type: "sleep_timer", minutes: 0 })) {
+        closeTimer();
+        toast(t("Sleep timer off"));
+      }
+    });
+    chips.append(off);
+  }
+}
+
+function closeTimer() {
+  $("#timer").hidden = true;
+}
+
+$("#timer-open").addEventListener("click", () => {
+  haptic();
+  $("#timer").hidden = false;
+  renderTimer();
+});
+for (const el of $$("[data-close-timer]")) el.addEventListener("click", closeTimer);
+
 // ---- output sheet ----
 
 function openSheet() {
@@ -897,6 +993,11 @@ const SETTINGS = [
         label: "Volume limit",
         options: [[1, "100%"], [1.2, "120%"], [1.5, "150%"]],
         hint: "Above 100% the sound is boosted in software and can distort.",
+      },
+      {
+        key: "audio.per_app_volume",
+        label: "Remember the volume for each app",
+        hint: "A loud game and a quiet film each come back at their own level.",
       },
       { key: "audio.step", label: "Volume buttons change by", options: [[0.02, "2%"], [0.05, "5%"], [0.1, "10%"]] },
     ],
@@ -1521,7 +1622,7 @@ function flash(code) {
 
 document.addEventListener("keydown", (event) => {
   const forwarding = $("#capture").checked || document.pointerLockElement === pad;
-  if (!forwarding || event.target === $("#text") || MODIFIERS.has(event.code) || !$("#sheet").hidden || !$("#settings").hidden) return;
+  if (!forwarding || event.target === $("#text") || MODIFIERS.has(event.code) || !$("#sheet").hidden || !$("#settings").hidden || !$("#timer").hidden) return;
   if (event.code === "Escape" && document.pointerLockElement === pad) return; // browser releases the lock
   event.preventDefault();
   flash(event.code);

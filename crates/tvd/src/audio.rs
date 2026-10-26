@@ -49,7 +49,12 @@ pub async fn apply(action: VolumeAction, level: Option<f32>, cfg: &Audio) -> Res
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Output {
     pub id: u32,
+    /// Short, human name: the TV's own name over HDMI, the device name for Bluetooth.
     pub name: String,
+    /// `hdmi`, `analog`, `bluetooth`, `usb` or `other`, for picking an icon.
+    pub kind: &'static str,
+    /// The full PipeWire description.
+    pub detail: String,
     pub default: bool,
 }
 
@@ -67,7 +72,21 @@ pub async fn set_output(id: u32) -> Result<()> {
 }
 
 fn parse_outputs(json: &[u8]) -> Result<Vec<Output>> {
-    let objects: Vec<Value> = serde_json::from_slice(json).context("parsing pw-dump output")?;
+    // pw-dump prints a second array when objects change while it runs (for example right
+    // after switching outputs); later entries win.
+    let mut objects: Vec<Value> = Vec::new();
+    for batch in serde_json::Deserializer::from_slice(json).into_iter::<Vec<Value>>() {
+        for object in batch.context("parsing pw-dump output")? {
+            match objects.iter_mut().find(|o| o["id"].is_u64() && o["id"] == object["id"]) {
+                Some(existing) if object["info"].is_null() && object.get("metadata").is_none() => {
+                    // A removal ({"id": N, "info": null}).
+                    *existing = Value::Null;
+                }
+                Some(existing) => *existing = object,
+                None => objects.push(object),
+            }
+        }
+    }
 
     // The default sink is stored by node name in the "default" metadata object.
     let default_name = objects
@@ -85,16 +104,40 @@ fn parse_outputs(json: &[u8]) -> Result<Vec<Output>> {
         .filter(|o| o["type"] == "PipeWire:Interface:Node" && o["info"]["props"]["media.class"] == "Audio/Sink")
         .filter_map(|o| {
             let props = &o["info"]["props"];
-            let node_name = props["node.name"].as_str().unwrap_or_default();
-            let name = props["node.description"].as_str().or(props["node.nick"].as_str()).unwrap_or(node_name);
+            let text = |key: &str| props[key].as_str().unwrap_or_default();
+            let node_name = text("node.name");
+            let detail = [text("node.description"), text("node.nick"), node_name]
+                .into_iter()
+                .find(|s| !s.is_empty())
+                .unwrap_or_default();
+            let (kind, name) = describe(node_name, text("device.profile.name"), text("node.nick"), detail);
             Some(Output {
                 id: o["id"].as_u64()?.try_into().ok()?,
-                name: name.to_string(),
+                name,
+                kind,
+                detail: detail.to_string(),
                 default: default_name.as_deref() == Some(node_name),
             })
         })
         .collect();
     Ok(outputs)
+}
+
+/// ALSA descriptions name the chip ("Raven/Raven2/Fenghuang HDMI/DP Audio Controller"),
+/// which means nothing on a remote. HDMI sinks carry the TV's name in `node.nick`.
+fn describe(node_name: &str, profile: &str, nick: &str, detail: &str) -> (&'static str, String) {
+    if node_name.starts_with("bluez_output") {
+        ("bluetooth", detail.to_string())
+    } else if profile.contains("hdmi") || node_name.contains("hdmi") {
+        let generic = nick.is_empty() || nick.to_ascii_lowercase().contains("hdmi");
+        ("hdmi", if generic { "TV (HDMI)".to_string() } else { format!("{nick} TV") })
+    } else if node_name.contains(".usb-") {
+        ("usb", detail.to_string())
+    } else if profile.contains("analog") || node_name.contains("analog") {
+        ("analog", "Speakers and headphones".to_string())
+    } else {
+        ("other", detail.to_string())
+    }
 }
 
 async fn wpctl(args: &[String]) -> Result<String> {
@@ -130,7 +173,8 @@ mod tests {
              "metadata": [{"subject": 0, "key": "default.audio.sink", "type": "Spa:String:JSON",
                            "value": {"name": "alsa_output.hdmi"}}]},
             {"id": 52, "type": "PipeWire:Interface:Node", "info": {"props": {
-                "media.class": "Audio/Sink", "node.name": "alsa_output.hdmi", "node.description": "HDMI"}}},
+                "media.class": "Audio/Sink", "node.name": "alsa_output.hdmi", "node.description": "Raven HDMI/DP Audio Controller",
+                "node.nick": "SAMSUNG", "device.profile.name": "hdmi-stereo"}}},
             {"id": 58, "type": "PipeWire:Interface:Node", "info": {"props": {
                 "media.class": "Audio/Sink", "node.name": "alsa_output.analog", "node.description": "Headphones"}}},
             {"id": 60, "type": "PipeWire:Interface:Node", "info": {"props": {
@@ -139,9 +183,38 @@ mod tests {
         assert_eq!(
             parse_outputs(json).unwrap(),
             vec![
-                Output { id: 52, name: "HDMI".into(), default: true },
-                Output { id: 58, name: "Headphones".into(), default: false },
+                Output {
+                    id: 52,
+                    name: "SAMSUNG TV".into(),
+                    kind: "hdmi",
+                    detail: "Raven HDMI/DP Audio Controller".into(),
+                    default: true
+                },
+                Output {
+                    id: 58,
+                    name: "Speakers and headphones".into(),
+                    kind: "analog",
+                    detail: "Headphones".into(),
+                    default: false
+                },
             ]
+        );
+    }
+
+    #[test]
+    fn merges_updates_printed_as_extra_arrays() {
+        let json = br#"[
+            {"id": 30, "type": "PipeWire:Interface:Metadata", "metadata": [{"key": "default.audio.sink", "value": {"name": "a"}}]},
+            {"id": 1, "type": "PipeWire:Interface:Node", "info": {"props": {"media.class": "Audio/Sink", "node.name": "a"}}},
+            {"id": 2, "type": "PipeWire:Interface:Node", "info": {"props": {"media.class": "Audio/Sink", "node.name": "b"}}}
+        ]
+        [
+            {"id": 30, "type": "PipeWire:Interface:Metadata", "metadata": [{"key": "default.audio.sink", "value": {"name": "b"}}]},
+            {"id": 1, "info": null}
+        ]"#;
+        assert_eq!(
+            parse_outputs(json).unwrap(),
+            vec![Output { id: 2, name: "b".into(), kind: "other", detail: "b".into(), default: true }]
         );
     }
 

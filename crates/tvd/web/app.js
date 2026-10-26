@@ -156,6 +156,7 @@ function renderState() {
   const running = state.running;
   $("#now").textContent = running ? running.name : "Home";
   $("#stop").hidden = !running;
+  $("#overlay").setAttribute("aria-pressed", String(Boolean(state.overlay)));
   renderVolume();
   renderDock();
 }
@@ -352,6 +353,12 @@ function stopApp() {
   haptic();
   if (send({ type: "stop" })) pendingStop = true;
 }
+
+$("#overlay").addEventListener("click", () => {
+  haptic();
+  const visible = !(state && state.overlay);
+  if (send({ type: "overlay", visible })) toast(visible ? "Debug overlay on" : "Debug overlay off");
+});
 
 $("#home").addEventListener("click", stopApp);
 $("#stop").addEventListener("click", stopApp);

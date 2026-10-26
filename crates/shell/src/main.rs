@@ -6,6 +6,7 @@
 
 mod net;
 mod settings;
+mod sounds;
 
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
@@ -68,6 +69,7 @@ fn main() -> Result<()> {
     });
 
     ui.on_activity(touch);
+    ui.on_sound(|name| sounds::PLAYER.with(|player| player.borrow_mut().play_named(&name)));
     let idle = Timer::default();
     let weak = ui.as_weak();
     idle.start(TimerMode::Repeated, IDLE_CHECK, move || {
@@ -321,6 +323,7 @@ pub fn set_visibility(ui: &Weak<Shell>, v: net::Visibility) {
         ui.set_show_date(v.date);
         ui.set_show_hints(v.hints);
         ui.set_show_volume_overlay(v.volume_overlay);
+        sounds::PLAYER.with(|player| player.borrow_mut().configure(v.sounds, v.sound_volume));
     });
 }
 

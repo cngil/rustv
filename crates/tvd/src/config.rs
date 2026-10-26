@@ -57,11 +57,24 @@ pub struct Shell {
     pub volume_overlay: bool,
     /// QR code for pairing a phone, shown until the first remote connects and on request.
     pub pairing_qr: bool,
+    /// Short sounds when moving between apps and opening one.
+    pub sounds: bool,
+    /// Loudness of those sounds, 0..1, on top of the TV volume.
+    pub sound_volume: f32,
 }
 
 impl Default for Shell {
     fn default() -> Self {
-        Self { greeting: true, clock: true, date: true, hints: true, volume_overlay: true, pairing_qr: true }
+        Self {
+            greeting: true,
+            clock: true,
+            date: true,
+            hints: true,
+            volume_overlay: true,
+            pairing_qr: true,
+            sounds: true,
+            sound_volume: 0.5,
+        }
     }
 }
 
@@ -361,6 +374,9 @@ impl Config {
         }
         if !(0.1..=1440.0).contains(&self.screensaver.idle_minutes) {
             bail!("screensaver.idle_minutes must be between 0.1 and 1440");
+        }
+        if !(0.0..=1.0).contains(&self.shell.sound_volume) {
+            bail!("shell.sound_volume must be within 0..1");
         }
         if self.cast.name.trim().is_empty() {
             bail!("cast.name must not be empty");

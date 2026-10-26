@@ -537,6 +537,13 @@ const SETTINGS = [
       { key: "shell.date", label: "Date" },
       { key: "shell.hints", label: "Key hints" },
       { key: "shell.volume_overlay", label: "Volume bar when the volume changes" },
+      { key: "shell.sounds", label: "Sounds", hint: "Soft clicks when moving between apps and opening one." },
+      {
+        key: "shell.sound_volume",
+        label: "Sound level",
+        needs: "shell.sounds",
+        options: [[0.25, "Quiet"], [0.5, "Medium"], [1, "Loud"]],
+      },
       { key: "shell.pairing_qr", label: "Pairing code", hint: "QR code on the TV until a phone pairs, and when you ask for it." },
       {
         action: "show_pairing",

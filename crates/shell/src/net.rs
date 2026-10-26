@@ -50,11 +50,21 @@ pub struct Visibility {
     pub date: bool,
     pub hints: bool,
     pub volume_overlay: bool,
+    pub sounds: bool,
+    pub sound_volume: f32,
 }
 
 impl Default for Visibility {
     fn default() -> Self {
-        Self { greeting: true, clock: true, date: true, hints: true, volume_overlay: true }
+        Self {
+            greeting: true,
+            clock: true,
+            date: true,
+            hints: true,
+            volume_overlay: true,
+            sounds: true,
+            sound_volume: 0.5,
+        }
     }
 }
 

@@ -75,6 +75,8 @@ and your phone becomes the remote.
   app cards, real app icons, a clock and a volume overlay, each switchable in
   the config. Arrow keys and OK from the remote are all you need; no pointer,
   no cursor.
+- **UI sounds**: soft, generated clicks when moving between apps and opening
+  one (no audio files shipped). Level or off in the settings.
 - **QR pairing**: the home screen shows a QR code until the first phone
   connects; scan it and the phone is a remote. To add another device, tap
   "Show code" in the remote's settings. `tvd pair` prints the same code in
@@ -317,7 +319,7 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
   preferences: clock, date, weather, power consumption, battery, component
   temperatures, disk space, RAM, Wi-Fi/Ethernet status, network usage, and
   any other data the system exposes
-- [ ] UI audio feedback (navigation and selection sounds)
+- [x] UI audio feedback (navigation and selection sounds)
 - [ ] Manage Bluetooth, Wi-Fi and audio from the shell
 - [ ] Lock and unlock, set a password, configure remotely exposed ports
 - [x] Reorder apps (from the remote)

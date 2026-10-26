@@ -127,6 +127,8 @@ export component Shell inherits Window {
     in property <string> pairing-url;
 
     callback launch(string);
+    // UI sound: "move", "select" or "edge".
+    callback sound(string);
     // Any key or pointer movement; resets the screensaver timer.
     callback activity();
 
@@ -139,7 +141,19 @@ export component Shell inherits Window {
     function activate(index: int) {
         if index >= 0 && index < apps.length {
             root.selected = index;
+            root.sound("select");
             root.launch(apps[index].id);
+        }
+    }
+
+    // Moves the focus by `step` cards, with a sound; a softer one at either end.
+    function move(step: int) {
+        let target = max(0, min(root.apps.length - 1, root.selected + step));
+        if target == root.selected {
+            root.sound("edge");
+        } else {
+            root.selected = target;
+            root.sound("move");
         }
     }
 
@@ -408,11 +422,11 @@ export component Shell inherits Window {
                 return accept;
             }
             if event.text == Key.LeftArrow {
-                root.selected = max(0, root.selected - 1);
+                root.move(-1);
                 return accept;
             }
             if event.text == Key.RightArrow {
-                root.selected = max(0, min(root.apps.length - 1, root.selected + 1));
+                root.move(1);
                 return accept;
             }
             if event.text == Key.Return || event.text == " " {
@@ -420,11 +434,11 @@ export component Shell inherits Window {
                 return accept;
             }
             if event.text == Key.Home {
-                root.selected = 0;
+                root.move(-root.apps.length);
                 return accept;
             }
             if event.text == Key.End {
-                root.selected = max(0, root.apps.length - 1);
+                root.move(root.apps.length);
                 return accept;
             }
             reject

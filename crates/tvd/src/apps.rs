@@ -194,12 +194,14 @@ fn session_env() -> Result<Vec<(String, String)>> {
         format!("/run/user/{}", unsafe { libc::getuid() })
     });
     let display = match std::env::var("WAYLAND_DISPLAY") {
-        Ok(display) if Path::new(&runtime).join(&display).exists() => display,
+        Ok(display) if is_live(&Path::new(&runtime).join(&display)) => display,
         _ => find_wayland_socket(&runtime).context("no Wayland session found; is the TV session running?")?,
     };
     Ok(vec![("XDG_RUNTIME_DIR".into(), runtime), ("WAYLAND_DISPLAY".into(), display)])
 }
 
+/// First Wayland socket a compositor is listening on. A compositor that
+/// crashed leaves its socket file behind, so existing is not enough.
 fn find_wayland_socket(runtime: &str) -> Option<String> {
     let mut sockets: Vec<String> = std::fs::read_dir(runtime)
         .ok()?
@@ -207,5 +209,9 @@ fn find_wayland_socket(runtime: &str) -> Option<String> {
         .filter(|name| name.starts_with("wayland-") && !name.ends_with(".lock"))
         .collect();
     sockets.sort();
-    sockets.into_iter().next()
+    sockets.into_iter().find(|name| is_live(&Path::new(runtime).join(name)))
+}
+
+fn is_live(socket: &Path) -> bool {
+    std::os::unix::net::UnixStream::connect(socket).is_ok()
 }

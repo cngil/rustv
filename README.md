@@ -27,6 +27,11 @@ that runs your apps and serves the remote, and `rustv-shell`, the home
 screen. Add them to the Linux machine you already have, plug it into the TV,
 and your phone becomes the remote.
 
+> **rustv is a shell, not a streaming service.** It plays nothing by itself
+> and comes with no content, accounts or app store. It is the home screen,
+> remote and glue around the Linux apps *you* choose to put on it. See
+> [what people put on it](#what-to-put-on-it).
+
 <p align="center">
   <img src="docs/screenshots/tv-home.png" alt="The rustv home screen on a TV, with app cards and the pairing QR code" width="900">
 </p>
@@ -132,6 +137,27 @@ and your phone becomes the remote.
   app without app support.
 - **Audio** through PipeWire: volume and output selection.
 - **App icons**: Flatpak apps bring their own; any app can set one.
+
+## What to put on it
+
+Anything that runs on Linux can be a tile: a Flatpak, a command or a web
+page. Some setups that work well:
+
+| You want | Put on it | Kind |
+| --- | --- | --- |
+| Your own film and series library | [Jellyfin](https://jellyfin.org) Desktop (`org.jellyfin.JellyfinDesktop`) with a Jellyfin server at home | flatpak |
+| PC games on the TV | [Moonlight](https://moonlight-stream.org) (`com.moonlight_stream.Moonlight`) streaming from your gaming PC with Sunshine | flatpak |
+| Local files, network shares, IPTV lists | [VLC](https://www.videolan.org/vlc/) (`org.videolan.VLC`) or [mpv](https://mpv.io) (`io.mpv.Mpv`) | flatpak, or a command such as `mpv --fs list.m3u` |
+| YouTube without ads or tracking | [FreeTube](https://freetubeapp.io) (`io.freetubeapp.FreeTube`) | flatpak |
+| Steam games from another PC | [Steam Link](https://store.steampowered.com/remoteplay) (`com.valvesoftware.SteamLink`) | flatpak |
+| Plex or Kodi, if that is your library | Plex HTPC (`tv.plex.PlexHTPC`), Kodi (`tv.kodi.Kodi`) | flatpak |
+| Retro games | [RetroArch](https://www.retroarch.com) (`org.libretro.RetroArch`) or small games such as KDE's Kapman and KBlocks | flatpak |
+| Dashboards and web UIs | Home Assistant, qBittorrent, your router, any website | web |
+| Phone and Mac screens | AirPlay, built in (`[cast] airplay = true`) | built in |
+
+The author's own box runs Jellyfin for films and series and Moonlight for
+games, plus qBittorrent's web UI and a few retro games. Start with the one
+or two apps you actually use; every tile is three lines in the config.
 
 ## How it works
 

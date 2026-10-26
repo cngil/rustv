@@ -265,6 +265,8 @@ pub fn set_locale(ui: &Weak<Shell>, locale: locale::Locale) {
         let g = ui.global::<Strings>();
         g.set_subtitle(s.subtitle.into());
         g.set_no_apps(s.no_apps.into());
+        g.set_hint_move(s.hint_move.into());
+        g.set_hint_open(s.hint_open.into());
         g.set_opening(s.opening.into());
         g.set_connecting(s.connecting.into());
         g.set_volume(s.volume.into());
@@ -382,6 +384,7 @@ pub fn set_visibility(ui: &Weak<Shell>, v: net::Visibility) {
         ui.set_show_greeting(v.greeting);
         ui.set_show_clock(v.clock);
         ui.set_show_date(v.date);
+        ui.set_show_hints(v.hints);
         ui.set_show_volume_overlay(v.volume_overlay);
         sounds::PLAYER.with(|player| player.borrow_mut().configure(v.sounds, v.sound_volume));
     });

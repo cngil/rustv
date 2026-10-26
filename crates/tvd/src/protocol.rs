@@ -72,6 +72,18 @@ pub enum Command {
         #[serde(default)]
         seconds: i64,
     },
+    /// Join a Wi-Fi network; `password` only for one not saved yet.
+    WifiConnect {
+        ssid: String,
+        #[serde(default)]
+        password: Option<String>,
+    },
+    /// Bluetooth: power, scan, pair, connect, disconnect or remove (`address` for devices).
+    Bluetooth {
+        action: crate::wireless::BluetoothAction,
+        #[serde(default)]
+        address: Option<String>,
+    },
     /// Go to sleep in `minutes`; 0 cancels the timer.
     SleepTimer {
         #[serde(default)]
@@ -111,6 +123,8 @@ impl Command {
                 | Command::AudioOutput { .. }
                 | Command::Set { .. }
                 | Command::Media { .. }
+                | Command::WifiConnect { .. }
+                | Command::Bluetooth { .. }
                 | Command::Sleep
         )
     }

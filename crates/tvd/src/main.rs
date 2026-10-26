@@ -24,6 +24,7 @@ mod state;
 mod stats;
 mod theme;
 mod volumes;
+mod wireless;
 
 use std::io::IsTerminal;
 use std::net::SocketAddr;

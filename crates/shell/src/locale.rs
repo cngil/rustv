@@ -25,6 +25,8 @@ impl Default for Locale {
 pub struct Strings {
     pub subtitle: &'static str,
     pub no_apps: &'static str,
+    pub hint_move: &'static str,
+    pub hint_open: &'static str,
     pub opening: &'static str,
     pub connecting: &'static str,
     pub volume: &'static str,
@@ -42,6 +44,8 @@ pub struct Strings {
 const EN: Strings = Strings {
     subtitle: "What would you like to watch?",
     no_apps: "No apps yet. Add some to ~/.config/rustv/config.toml",
+    hint_move: "Move",
+    hint_open: "Open",
     opening: "Opening…",
     connecting: "Connecting to tvd…",
     volume: "Volume",
@@ -72,6 +76,8 @@ const EN: Strings = Strings {
 const TR: Strings = Strings {
     subtitle: "Ne izlemek istersin?",
     no_apps: "Henüz uygulama yok. ~/.config/rustv/config.toml dosyasına ekleyebilirsin",
+    hint_move: "Gez",
+    hint_open: "Aç",
     opening: "Açılıyor…",
     connecting: "tvd'ye bağlanılıyor…",
     volume: "Ses",

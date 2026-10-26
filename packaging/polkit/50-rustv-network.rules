@@ -1,0 +1,15 @@
+// Lets members of the netdev group change Wi-Fi without a password prompt, so
+// tvd (a background service, not a desktop session) can join networks for the
+// remote. Install to /etc/polkit-1/rules.d/ and: sudo usermod -aG netdev $USER
+polkit.addRule(function (action, subject) {
+    var allowed = [
+        "org.freedesktop.NetworkManager.network-control",
+        "org.freedesktop.NetworkManager.wifi.scan",
+        "org.freedesktop.NetworkManager.settings.modify.system",
+        "org.freedesktop.NetworkManager.settings.modify.own",
+        "org.freedesktop.NetworkManager.enable-disable-wifi",
+    ];
+    if (allowed.indexOf(action.id) >= 0 && subject.isInGroup("netdev")) {
+        return polkit.Result.YES;
+    }
+});

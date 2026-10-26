@@ -94,6 +94,9 @@ and your phone becomes the remote.
 - **Volume per app**: each app and the home screen keep their own level, and
   a volume bar shows over apps too (with [wob](https://github.com/francma/wob)
   installed).
+- **Wi-Fi and Bluetooth** in the remote's settings: join a network, pair
+  headphones or a gamepad. Changing Wi-Fi needs the polkit rule in
+  `packaging/polkit`.
 - **Languages**: English and Turkish on the TV, the remote and the overlay,
   with a 24 or 12 hour clock and °C or °F, switchable from the remote.
 - **UI sounds**: soft, generated clicks when moving between apps and opening
@@ -372,15 +375,14 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [x] mDNS: the remote at `http://<hostname>.local:8765`, announced on the network
 - [ ] Agent integration (MCP) and voice commands
 - [ ] Switching between running apps
+- [ ] UI redesign of the shell and the remote, once the feature set is complete
 
 ### Backlog
 
-- [ ] System info on screen, each item switchable on or off in user
-  preferences: clock, date, weather, power consumption, battery, component
-  temperatures, disk space, RAM, Wi-Fi/Ethernet status, network usage, and
-  any other data the system exposes
+- [x] System info on screen: the debug overlay (CPU, GPU, RAM, network,
+  Wi-Fi signal and more, each item switchable)
 - [x] UI audio feedback (navigation and selection sounds)
-- [ ] Manage Bluetooth, Wi-Fi and audio from the shell
+- [x] Wi-Fi and Bluetooth from the remote (audio outputs already were)
 - [x] Lock and unlock with a PIN; see the ports the box exposes
 - [ ] Change exposed ports and addresses from the remote (today: in each
   program's config)

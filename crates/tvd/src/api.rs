@@ -39,6 +39,8 @@ pub fn router(state: Shared) -> Router {
         .route("/apps/:id/icon", get(get_icon))
         .route("/audio", get(get_audio))
         .route("/network", get(get_network))
+        .route("/wifi", get(get_wifi))
+        .route("/bluetooth", get(get_bluetooth))
         .route("/command", post(post_command))
         .route("/ws", get(websocket))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_token))
@@ -112,6 +114,23 @@ async fn get_audio(State(state): State<Shared>) -> Json<AudioInfo> {
 /// Takes the body as JSON whatever the Content-Type, so a plain `curl -d` works.
 async fn get_network() -> Json<Vec<crate::network::Exposure>> {
     Json(tokio::task::spawn_blocking(crate::network::exposures).await.unwrap_or_default())
+}
+
+#[derive(serde::Deserialize)]
+struct WifiQuery {
+    #[serde(default)]
+    rescan: bool,
+}
+
+async fn get_wifi(Query(query): Query<WifiQuery>) -> Response {
+    match crate::wireless::networks(query.rescan).await {
+        Ok(networks) => Json(networks).into_response(),
+        Err(err) => (StatusCode::SERVICE_UNAVAILABLE, Json(json!({ "error": format!("{err:#}") }))).into_response(),
+    }
+}
+
+async fn get_bluetooth() -> Json<crate::wireless::Bluetooth> {
+    Json(crate::wireless::bluetooth().await)
 }
 
 async fn post_command(State(state): State<Shared>, body: Bytes) -> Response {

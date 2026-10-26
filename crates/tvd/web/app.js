@@ -175,6 +175,36 @@ const TRANSLATIONS = {
     "Remember the volume for each app": "Her uygulamanın sesini hatırla",
     "A loud game and a quiet film each come back at their own level.":
       "Yüksek sesli bir oyun ve kısık bir film, her biri kendi seviyesinde açılır.",
+    // Wi-Fi and Bluetooth
+    "Wi-Fi": "Wi-Fi",
+    "Networks nearby": "Yakındaki ağlar",
+    "Switching networks drops the remote for a moment; with a wrong password the TV returns to the old one.":
+      "Ağ değiştirince kumanda bir an kopar; şifre yanlışsa TV eski ağa döner.",
+    "Search again": "Yeniden ara",
+    "Searching…": "Aranıyor…",
+    "Wi-Fi is not available": "Wi-Fi kullanılamıyor",
+    Connected: "Bağlı",
+    Signal: "Sinyal",
+    Join: "Bağlan",
+    "Joining…": "Bağlanıyor…",
+    "Password for {name} (leave empty if the TV knows it)": "{name} şifresi (TV biliyorsa boş bırak)",
+    "Joined {name}": "{name} ağına bağlanıldı",
+    "Wrong Wi-Fi password": "Wi-Fi şifresi yanlış",
+    Bluetooth: "Bluetooth",
+    "Bluetooth is not available": "Bluetooth kullanılamıyor",
+    "No adapter, or bluetoothd is not running.": "Bluetooth donanımı yok ya da bluetoothd çalışmıyor.",
+    "Add a device": "Cihaz ekle",
+    "Put headphones or a gamepad in pairing mode, then search.":
+      "Kulaklığı ya da oyun kolunu eşleştirme moduna al, sonra ara.",
+    Search: "Ara",
+    Paired: "Eşleşmiş",
+    Nearby: "Yakında",
+    Disconnect: "Bağlantıyı kes",
+    Pair: "Eşleştir",
+    Forget: "Unut",
+    "Connected to {name}": "{name} bağlandı",
+    "Paired with {name}": "{name} eşleştirildi",
+    "Something went wrong": "Bir şeyler ters gitti",
     // theme
     Theme: "Tema",
     Preset: "Hazır tema",
@@ -1120,7 +1150,7 @@ function renderSettings() {
     for (const row of group.custom ? group.custom() : group.items.map(settingRow)) section.append(row);
     body.append(section);
   }
-  body.append(networkGroup());
+  body.append(wifiGroup(), bluetoothGroup(), networkGroup());
 
   const about = document.createElement("p");
   about.className = "settings-about";
@@ -1149,7 +1179,7 @@ function settingRow(item) {
   row.append(text);
 
   const value = item.live === "overlay" ? Boolean(state && state.overlay) : settingValue(item.key);
-  if (item.action || item.run) {
+  if ((item.action || item.run) && item.button !== null) {
     const button = document.createElement("button");
     button.className = "chip";
     button.textContent = t(typeof item.button === "function" ? item.button() : item.button);
@@ -1182,7 +1212,7 @@ function settingRow(item) {
       chips.append(chip);
     }
     row.append(chips);
-  } else {
+  } else if (item.key || item.live) {
     const toggle = document.createElement("button");
     toggle.className = "toggle";
     toggle.setAttribute("role", "switch");
@@ -1322,6 +1352,184 @@ function networkGroup() {
   return section;
 }
 
+// ---- Wi-Fi and Bluetooth ----
+
+let wifi = null; // networks, or { error }
+let bluetooth = null;
+let wirelessBusy = ""; // what is in progress, shown on its button
+
+async function api(path) {
+  const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || res.statusText);
+  return body;
+}
+
+async function loadWifi(rescan = false) {
+  try {
+    wifi = await api(`/api/v1/wifi${rescan ? "?rescan=true" : ""}`);
+  } catch (err) {
+    wifi = { error: err.message };
+  }
+  renderSettings();
+}
+
+async function loadBluetooth() {
+  try {
+    bluetooth = await api("/api/v1/bluetooth");
+  } catch {
+    bluetooth = { available: false, devices: [] };
+  }
+  renderSettings();
+}
+
+/** Runs a command that takes a while, with its button showing progress, then reloads. */
+async function wirelessCommand(busy, msg, done, reload) {
+  wirelessBusy = busy;
+  renderSettings();
+  const ok = await sendAndWait(msg);
+  wirelessBusy = "";
+  if (ok && done) toast(t(done.text, done.vars), "ok");
+  await reload();
+}
+
+// Sends a command over REST so the remote can wait for its result.
+async function sendAndWait(msg) {
+  try {
+    const res = await fetch("/api/v1/command", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(msg),
+    });
+    if (res.ok) return true;
+    const body = await res.json().catch(() => ({}));
+    toast(t(body.error || "Something went wrong"), "error");
+  } catch {
+    toast(t("Not connected to the TV"), "error");
+  }
+  return false;
+}
+
+function infoRow(label, hint) {
+  return settingRow({ label, hint });
+}
+
+function wifiGroup() {
+  const section = document.createElement("section");
+  section.className = "settings-group";
+  const title = document.createElement("h3");
+  title.textContent = t("Wi-Fi");
+  section.append(title);
+  section.append(
+    settingRow({
+      label: "Networks nearby",
+      hint: "Switching networks drops the remote for a moment; with a wrong password the TV returns to the old one.",
+      button: wirelessBusy === "wifi-scan" ? "Searching…" : "Search again",
+      run: () => {
+        wirelessBusy = "wifi-scan";
+        renderSettings();
+        loadWifi(true).then(() => (wirelessBusy = ""));
+      },
+    }),
+  );
+  if (!wifi) {
+    section.append(infoRow("Checking…"));
+  } else if (wifi.error) {
+    section.append(infoRow("Wi-Fi is not available", wifi.error));
+  } else {
+    for (const network of wifi.slice(0, 12)) {
+      const busy = wirelessBusy === `wifi:${network.ssid}`;
+      section.append(
+        settingRow({
+          label: network.ssid,
+          hint: `${network.connected ? t("Connected") + " · " : ""}${t("Signal")} ${percent(network.signal)}${network.secure ? " · 🔒" : ""}`,
+          button: network.connected ? null : busy ? "Joining…" : "Join",
+          run: network.connected
+            ? null
+            : () => {
+                let password = null;
+                if (network.secure) {
+                  password = window.prompt(t("Password for {name} (leave empty if the TV knows it)", { name: network.ssid }));
+                  if (password === null) return;
+                }
+                wirelessCommand(
+                  `wifi:${network.ssid}`,
+                  { type: "wifi_connect", ssid: network.ssid, password: password || null },
+                  { text: "Joined {name}", vars: { name: network.ssid } },
+                  () => loadWifi(),
+                );
+              },
+        }),
+      );
+    }
+  }
+  return section;
+}
+
+const BT_ICONS = { "audio-headset": "🎧", "audio-headphones": "🎧", "audio-card": "🔊", "input-gaming": "🎮", "input-keyboard": "⌨️", "input-mouse": "🖱️", phone: "📱" };
+
+function bluetoothGroup() {
+  const section = document.createElement("section");
+  section.className = "settings-group";
+  const title = document.createElement("h3");
+  title.textContent = t("Bluetooth");
+  section.append(title);
+  if (!bluetooth) {
+    section.append(infoRow("Checking…"));
+    return section;
+  }
+  if (!bluetooth.available) {
+    section.append(infoRow("Bluetooth is not available", "No adapter, or bluetoothd is not running."));
+    return section;
+  }
+  const power = settingRow({ label: "Bluetooth" });
+  const toggle = document.createElement("button");
+  toggle.className = "toggle";
+  toggle.setAttribute("role", "switch");
+  toggle.setAttribute("aria-checked", String(bluetooth.powered));
+  toggle.addEventListener("click", () =>
+    wirelessCommand("bt-power", { type: "bluetooth", action: bluetooth.powered ? "power_off" : "power_on" }, null, loadBluetooth),
+  );
+  power.append(toggle);
+  section.append(power);
+  if (!bluetooth.powered) return section;
+
+  section.append(
+    settingRow({
+      label: "Add a device",
+      hint: "Put headphones or a gamepad in pairing mode, then search.",
+      button: wirelessBusy === "bt-scan" ? "Searching…" : "Search",
+      run: () => wirelessCommand("bt-scan", { type: "bluetooth", action: "scan" }, null, loadBluetooth),
+    }),
+  );
+  for (const device of bluetooth.devices.slice(0, 15)) {
+    const busy = wirelessBusy === `bt:${device.address}`;
+    const act = (action, done) =>
+      wirelessCommand(`bt:${device.address}`, { type: "bluetooth", action, address: device.address }, done, loadBluetooth);
+    const icon = BT_ICONS[device.icon] ? `${BT_ICONS[device.icon]} ` : "";
+    const row = settingRow({
+      label: icon + device.name,
+      hint: device.connected ? "Connected" : device.paired ? "Paired" : "Nearby",
+      button: busy ? "…" : device.connected ? "Disconnect" : device.paired ? "Connect" : "Pair",
+      run: () =>
+        device.connected
+          ? act("disconnect")
+          : device.paired
+            ? act("connect", { text: "Connected to {name}", vars: { name: device.name } })
+            : act("pair", { text: "Paired with {name}", vars: { name: device.name } }),
+    });
+    if (device.paired && !busy) {
+      const forget = document.createElement("button");
+      forget.className = "chip";
+      forget.textContent = t("Forget");
+      forget.addEventListener("click", () => act("remove"));
+      row.append(forget);
+    }
+    section.append(row);
+  }
+  return section;
+}
+
 // ---- PIN keypad: unlocking, and setting / changing / removing the PIN ----
 
 let pinFlow = null; // { mode, step, current, first }
@@ -1442,6 +1650,8 @@ function openSettings() {
   $("#settings").hidden = false;
   renderSettings();
   loadNetwork();
+  loadWifi();
+  loadBluetooth();
 }
 
 function closeSettings() {

@@ -437,6 +437,15 @@ impl AppState {
                 }
             }
             Command::SleepTimer { minutes } => self.set_sleep_timer(minutes).await,
+            Command::WifiConnect { ssid, password } => {
+                info!(%ssid, "joining Wi-Fi");
+                crate::wireless::connect(&ssid, password.as_deref()).await?;
+            }
+            Command::Bluetooth { action, address } => {
+                crate::wireless::bluetooth_action(action, address.as_deref()).await?;
+                // Audio devices show up as outputs once connected.
+                let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
+            }
             Command::AudioOutput { id } => {
                 audio::set_output(id).await?;
                 let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));

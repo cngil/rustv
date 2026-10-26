@@ -1,0 +1,65 @@
+# rustv configuration
+#
+# Copy to ~/.config/rustv/config.toml and edit. Everything rustv shows and
+# does is defined here; nothing is hardcoded and nothing is fetched from the
+# internet.
+
+[server]
+# Address of the API and the web remote. Keep it on your LAN or a VPN such
+# as Tailscale; never forward this port to the internet.
+bind = "0.0.0.0:8765"
+# token_file = "/home/you/.config/rustv/token"   # default: next to this file
+
+[browser]
+# Opens "web" apps. {url} is replaced with the app URL.
+command = ["flatpak", "run", "org.mozilla.firefox", "--kiosk", "{url}"]
+
+[audio]
+step = 0.05        # 5% per volume press
+max_volume = 1.5   # allow boosting up to 150%
+
+# Apps, in the order they appear. Three kinds:
+#   flatpak: app_id (+ optional args)
+#   command: any program, as a list of arguments
+#   web:     a URL, opened full screen in the browser above
+# Optional on every app: description, env = { NAME = "value" }
+
+[[app]]
+id = "jellyfin"
+name = "Jellyfin"
+description = "Movies and shows"
+kind = "flatpak"
+app_id = "org.jellyfin.JellyfinDesktop"
+args = ["--tv", "--fullscreen"]
+
+[[app]]
+id = "stremio"
+name = "Stremio"
+kind = "flatpak"
+app_id = "com.stremio.Stremio"
+
+[[app]]
+id = "moonlight"
+name = "Moonlight"
+description = "Stream games from your PC"
+kind = "flatpak"
+app_id = "com.moonlight_stream.Moonlight"
+
+[[app]]
+id = "browser"
+name = "Browser"
+kind = "web"
+url = "about:home"
+
+[[app]]
+id = "qbittorrent"
+name = "qBittorrent"
+description = "Downloads"
+kind = "web"
+url = "http://localhost:8080"
+
+# [[app]]
+# id = "mpv-tv"
+# name = "Live TV"
+# kind = "command"
+# command = ["mpv", "--fs", "/home/you/iptv.m3u"]

@@ -1,0 +1,16 @@
+# systemd user unit: ~/.config/systemd/user/tvd.service
+# Enable with: systemctl --user enable --now tvd
+# Start at boot without logging in: loginctl enable-linger $USER
+
+[Unit]
+Description=rustv daemon (apps, remote control, API)
+Documentation=https://github.com/cngil/rustv
+After=pipewire.service wireplumber.service
+
+[Service]
+ExecStart=%h/.local/bin/tvd
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

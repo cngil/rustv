@@ -36,8 +36,9 @@ talks to nobody but you.
 ## What works today
 
 - **On-screen shell** (`rustv-shell`, Rust + Slint): a home screen with big
-  app cards, real app icons, a clock and a volume overlay. Arrow keys and OK
-  from the remote are all you need; no pointer, no cursor.
+  app cards, real app icons, a clock and a volume overlay, each switchable in
+  the config. Arrow keys and OK from the remote are all you need; no pointer,
+  no cursor.
 - **`tvd` daemon**: launches and closes apps, one at a time; when an app
   exits you are back home.
 - **Three kinds of apps**: Flatpak apps, any command, and web apps (a URL
@@ -140,6 +141,17 @@ id = "live-tv"
 name = "Live TV"
 kind = "command"
 command = ["mpv", "--fs", "/home/you/iptv.m3u"]
+```
+
+Everything the shell shows can be switched off:
+
+```toml
+[shell]
+greeting = true
+clock = true
+date = false
+hints = false
+volume_overlay = true
 ```
 
 Check it with `tvd check`, then `systemctl --user restart tvd`.

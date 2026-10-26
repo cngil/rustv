@@ -81,9 +81,15 @@ impl Command {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMsg {
     State(StateSnapshot),
-    Apps { apps: Vec<AppInfo> },
+    Apps {
+        apps: Vec<AppInfo>,
+    },
     Audio(AudioInfo),
-    Error { message: String },
+    /// What the on-screen shell should show (`[shell]` in the config).
+    Shell(crate::config::Shell),
+    Error {
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]

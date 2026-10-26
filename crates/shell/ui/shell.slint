@@ -106,6 +106,13 @@ export component Shell inherits Window {
     in property <bool> osd-visible;
     in-out property <int> selected: 0;
 
+    // Toggles from the [shell] section of the config.
+    in property <bool> show-greeting: true;
+    in property <bool> show-clock: true;
+    in property <bool> show-date: true;
+    in property <bool> show-hints: true;
+    in property <bool> show-volume-overlay: true;
+
     callback launch(string);
 
     property <float> s: min(root.width / 1920px, root.height / 1080px);
@@ -149,6 +156,7 @@ export component Shell inherits Window {
 
     // Header
     Text {
+        visible: root.show-greeting;
         x: margin;
         y: 84px * s;
         text: root.greeting;
@@ -157,6 +165,7 @@ export component Shell inherits Window {
         font-weight: 700;
     }
     Text {
+        visible: root.show-greeting;
         x: margin;
         y: 156px * s;
         text: "What would you like to watch?";
@@ -165,6 +174,7 @@ export component Shell inherits Window {
         font-weight: 600;
     }
     Text {
+        visible: root.show-clock;
         x: root.width - self.width - margin;
         y: 66px * s;
         text: root.time;
@@ -173,8 +183,9 @@ export component Shell inherits Window {
         font-weight: 700;
     }
     Text {
+        visible: root.show-date;
         x: root.width - self.width - margin;
-        y: 168px * s;
+        y: root.show-clock ? 168px * s : 84px * s;
         text: root.date;
         color: #8a93a8;
         font-size: 28px * s;
@@ -222,7 +233,7 @@ export component Shell inherits Window {
     }
 
     // Footer hints
-    HorizontalLayout {
+    if root.show-hints: HorizontalLayout {
         y: root.height - 110px * s;
         height: 40px * s;
         alignment: center;
@@ -251,7 +262,7 @@ export component Shell inherits Window {
 
     // Volume overlay
     Rectangle {
-        opacity: root.osd-visible ? 1 : 0;
+        opacity: root.osd-visible && root.show-volume-overlay ? 1 : 0;
         animate opacity { duration: 200ms; }
         x: (root.width - self.width) / 2;
         y: root.height - 230px * s;

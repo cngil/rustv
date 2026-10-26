@@ -26,8 +26,26 @@ enum Incoming {
     Audio {
         max_volume: f32,
     },
+    Shell(Visibility),
     #[serde(other)]
     Other,
+}
+
+/// The `[shell]` section of the rustv config, as sent by tvd.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(default)]
+pub struct Visibility {
+    pub greeting: bool,
+    pub clock: bool,
+    pub date: bool,
+    pub hints: bool,
+    pub volume_overlay: bool,
+}
+
+impl Default for Visibility {
+    fn default() -> Self {
+        Self { greeting: true, clock: true, date: true, hints: true, volume_overlay: true }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -110,6 +128,7 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
             }
         }
         Incoming::Audio { max_volume } => crate::set_max_volume(ui, max_volume),
+        Incoming::Shell(visibility) => crate::set_visibility(ui, visibility),
         Incoming::Other => {}
     }
 }

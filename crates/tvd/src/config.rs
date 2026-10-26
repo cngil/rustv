@@ -7,7 +7,7 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub fn config_dir() -> PathBuf {
     std::env::var_os("XDG_CONFIG_HOME")
@@ -30,8 +30,29 @@ pub struct Config {
     pub browser: Browser,
     #[serde(default)]
     pub audio: Audio,
+    #[serde(default)]
+    pub shell: Shell,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
+}
+
+/// What the on-screen shell shows. Sent to the shell, which has no config of its own.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Shell {
+    pub greeting: bool,
+    pub clock: bool,
+    pub date: bool,
+    /// Key hints at the bottom of the home screen.
+    pub hints: bool,
+    /// Volume bar shown when the volume changes.
+    pub volume_overlay: bool,
+}
+
+impl Default for Shell {
+    fn default() -> Self {
+        Self { greeting: true, clock: true, date: true, hints: true, volume_overlay: true }
+    }
 }
 
 #[derive(Debug, Deserialize)]

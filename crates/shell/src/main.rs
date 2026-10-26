@@ -174,6 +174,16 @@ pub fn set_max_volume(ui: &Weak<Shell>, max: f32) {
     let _ = ui.upgrade_in_event_loop(move |ui| ui.set_max_volume(max));
 }
 
+pub fn set_visibility(ui: &Weak<Shell>, v: net::Visibility) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        ui.set_show_greeting(v.greeting);
+        ui.set_show_clock(v.clock);
+        ui.set_show_date(v.date);
+        ui.set_show_hints(v.hints);
+        ui.set_show_volume_overlay(v.volume_overlay);
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

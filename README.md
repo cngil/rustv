@@ -264,6 +264,8 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [ ] Lock and unlock, set a password, configure remotely exposed ports
 - [x] Reorder apps (from the remote)
 - [ ] Localization options (UI language, date and time format, units)
+- [ ] Screen casting: AirPlay, Google Cast or Miracast from phones and
+  computers straight to the TV
 
 ## Development
 

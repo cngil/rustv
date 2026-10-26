@@ -188,6 +188,10 @@ fn display_url(url: &str) -> String {
     url.split('#').next().unwrap_or(url).trim_end_matches('/').to_string()
 }
 
+pub fn set_locked(ui: &Weak<Shell>, locked: bool) {
+    let _ = ui.upgrade_in_event_loop(move |ui| ui.set_locked(locked));
+}
+
 pub fn set_show_pairing(ui: &Weak<Shell>, show: bool) {
     let _ = ui.upgrade_in_event_loop(move |ui| ui.set_show_pairing(show));
 }

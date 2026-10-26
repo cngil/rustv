@@ -169,6 +169,7 @@ function renderState() {
   $("#conn").textContent = state.asleep ? "Any button wakes the TV" : "Now on TV";
   $("#stop").hidden = !running;
   renderSettings();
+  syncLock();
   renderVolume();
   renderDock();
 }
@@ -587,6 +588,33 @@ const SETTINGS = [
     ],
   },
   {
+    title: "Lock",
+    items: [
+      {
+        label: "PIN",
+        hint: "Locking needs a PIN. It is kept on the TV box, hashed, never in the config.",
+        button: () => (settingValue("lock.pin_set") ? "Change" : "Set PIN"),
+        run: () => startPinFlow(settingValue("lock.pin_set") ? "change" : "set"),
+      },
+      {
+        label: "Remove the PIN",
+        needs: "lock.pin_set",
+        button: "Remove",
+        run: () => startPinFlow("remove"),
+      },
+      {
+        label: "Lock the TV now",
+        hint: "Closes the open app; nothing works until the PIN is entered.",
+        needs: "lock.pin_set",
+        button: "Lock",
+        run: () => {
+          if (send({ type: "lock" })) closeSettings();
+        },
+      },
+      { key: "lock.on_sleep", label: "Lock when the TV goes to sleep", needs: "lock.pin_set" },
+    ],
+  },
+  {
     title: "Screen casting",
     items: [
       {
@@ -665,6 +693,8 @@ function renderSettings() {
     for (const item of group.items) section.append(settingRow(item));
     body.append(section);
   }
+  body.append(networkGroup());
+
   const about = document.createElement("p");
   about.className = "settings-about";
   about.textContent = `rustv ${settings.version} · saved to ${settings.config_path}`;
@@ -692,13 +722,14 @@ function settingRow(item) {
   row.append(text);
 
   const value = item.live === "overlay" ? Boolean(state && state.overlay) : settingValue(item.key);
-  if (item.action) {
+  if (item.action || item.run) {
     const button = document.createElement("button");
     button.className = "chip";
-    button.textContent = item.button;
+    button.textContent = typeof item.button === "function" ? item.button() : item.button;
     button.disabled = Boolean(off);
     button.addEventListener("click", () => {
       haptic();
+      if (item.run) return item.run();
       if (send({ type: item.action })) {
         closeSettings();
         toast(item.done);
@@ -744,10 +775,173 @@ function settingRow(item) {
   return row;
 }
 
+// ---- network overview (read-only) ----
+
+let exposures = null;
+
+async function loadNetwork() {
+  try {
+    const res = await fetch("/api/v1/network", { headers: { Authorization: `Bearer ${token}` } });
+    exposures = res.ok ? await res.json() : [];
+  } catch {
+    exposures = [];
+  }
+  renderSettings();
+}
+
+function networkGroup() {
+  const section = document.createElement("section");
+  section.className = "settings-group";
+  const title = document.createElement("h3");
+  title.textContent = "Network";
+  section.append(title);
+  const intro = settingRow({
+    label: "Open to the network",
+    hint: "What this TV box listens on. Ports change in each program's config; the firewall decides who can reach them.",
+  });
+  section.append(intro);
+  for (const e of exposures || []) {
+    const row = document.createElement("div");
+    row.className = "setting";
+    const text = document.createElement("div");
+    text.className = "setting-text";
+    const label = document.createElement("div");
+    label.className = "setting-label";
+    label.textContent = e.service;
+    const hint = document.createElement("div");
+    hint.className = "setting-hint";
+    hint.textContent = `${e.protocol.toUpperCase()} ${e.port} · ${e.address}`;
+    text.append(label, hint);
+    row.append(text);
+    section.append(row);
+  }
+  if (!exposures) {
+    const row = settingRow({ label: "Checking…" });
+    section.append(row);
+  }
+  return section;
+}
+
+// ---- PIN keypad: unlocking, and setting / changing / removing the PIN ----
+
+let pinFlow = null; // { mode, step, current, first }
+let pinDigits = "";
+
+const PIN_STEPS = {
+  unlock: ["unlock"],
+  set: ["new", "confirm"],
+  change: ["current", "new", "confirm"],
+  remove: ["current"],
+};
+const PIN_HINTS = {
+  unlock: "Enter the PIN",
+  current: "Enter the current PIN",
+  new: "Choose a PIN (4 to 8 digits)",
+  confirm: "Enter the new PIN again",
+};
+
+function buildPad() {
+  const pad = $("#pin-pad");
+  for (const key of ["1", "2", "3", "4", "5", "6", "7", "8", "9", "del", "0", "ok"]) {
+    const button = document.createElement("button");
+    button.className = "pin-key" + (key === "ok" ? " primary" : "");
+    button.textContent = key === "del" ? "⌫" : key === "ok" ? "OK" : key;
+    button.setAttribute("aria-label", key === "del" ? "Delete" : key === "ok" ? "Confirm" : key);
+    button.addEventListener("click", () => pinKey(key));
+    pad.append(button);
+  }
+}
+buildPad();
+
+function startPinFlow(mode) {
+  pinFlow = { mode, step: 0, current: null, first: null };
+  pinDigits = "";
+  if (mode !== "unlock") closeSettings();
+  renderPin();
+}
+
+function pinStep() {
+  return pinFlow && PIN_STEPS[pinFlow.mode][pinFlow.step];
+}
+
+function renderPin() {
+  const show = Boolean(pinFlow);
+  $("#pin").hidden = !show;
+  if (!show) return;
+  const locked = pinFlow.mode === "unlock";
+  $("#pin-title").textContent = locked ? "The TV is locked" : pinFlow.mode === "remove" ? "Remove the PIN" : "PIN";
+  $("#pin-hint").textContent = PIN_HINTS[pinStep()];
+  $("#pin-cancel").hidden = locked;
+  const dots = $("#pin-dots");
+  dots.replaceChildren();
+  for (let i = 0; i < Math.max(4, pinDigits.length); i++) {
+    const dot = document.createElement("span");
+    dot.className = "pin-dot" + (i < pinDigits.length ? " filled" : "");
+    dots.append(dot);
+  }
+}
+
+function pinKey(key) {
+  haptic();
+  if (key === "del") pinDigits = pinDigits.slice(0, -1);
+  else if (key === "ok") return submitPin();
+  else if (pinDigits.length < 8) pinDigits += key;
+  renderPin();
+}
+
+function submitPin() {
+  if (pinDigits.length < 4) return toast("At least 4 digits", "error");
+  const step = pinStep();
+  const digits = pinDigits;
+  pinDigits = "";
+  if (step === "unlock") {
+    send({ type: "unlock", pin: digits });
+  } else if (step === "current") {
+    pinFlow.current = digits;
+    if (pinFlow.mode === "remove") {
+      send({ type: "set_pin", current: digits });
+      pinFlow = null;
+      toast("PIN removed", "ok");
+    } else {
+      pinFlow.step++;
+    }
+  } else if (step === "new") {
+    pinFlow.first = digits;
+    pinFlow.step++;
+  } else if (step === "confirm") {
+    if (digits !== pinFlow.first) {
+      toast("The PINs did not match; try again", "error");
+      pinFlow.step = PIN_STEPS[pinFlow.mode].indexOf("new");
+    } else {
+      send({ type: "set_pin", current: pinFlow.current, pin: digits });
+      pinFlow = null;
+      toast("PIN saved", "ok");
+    }
+  }
+  renderPin();
+}
+
+$("#pin-cancel").addEventListener("click", () => {
+  pinFlow = null;
+  renderPin();
+});
+
+// The keypad follows the TV: it opens when the TV locks and closes when it unlocks.
+function syncLock() {
+  const locked = Boolean(state && state.locked);
+  if (locked && (!pinFlow || pinFlow.mode !== "unlock")) startPinFlow("unlock");
+  if (!locked && pinFlow && pinFlow.mode === "unlock") {
+    pinFlow = null;
+    renderPin();
+    toast("Unlocked", "ok");
+  }
+}
+
 function openSettings() {
   haptic();
   $("#settings").hidden = false;
   renderSettings();
+  loadNetwork();
 }
 
 function closeSettings() {

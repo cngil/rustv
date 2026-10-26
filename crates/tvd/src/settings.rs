@@ -31,6 +31,7 @@ pub const EDITABLE: &[&str] = &[
     "audio.max_volume",
     "audio.step",
     "cast.airplay",
+    "lock.on_sleep",
     "sleep.enabled",
     "sleep.after_minutes",
     "sleep.close_apps",

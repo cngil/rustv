@@ -26,6 +26,8 @@ enum Incoming {
         asleep: bool,
         #[serde(default)]
         show_pairing: bool,
+        #[serde(default)]
+        locked: bool,
     },
     Pairing {
         url: String,
@@ -156,7 +158,8 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
             .unwrap_or_default();
             crate::set_apps(ui, entries);
         }
-        Incoming::State { running, volume: new_volume, asleep, show_pairing } => {
+        Incoming::State { running, volume: new_volume, asleep, show_pairing, locked } => {
+            crate::set_locked(ui, locked);
             crate::set_running(ui, running.is_some());
             crate::set_asleep(ui, asleep);
             crate::set_show_pairing(ui, show_pairing);

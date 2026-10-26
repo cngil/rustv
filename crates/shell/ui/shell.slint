@@ -126,6 +126,9 @@ export component Shell inherits Window {
     in property <image> pairing-qr;
     in property <string> pairing-url;
 
+    // Locked with the PIN: the home screen is hidden and keys do nothing.
+    in property <bool> locked;
+
     callback launch(string);
     // UI sound: "move", "select" or "edge".
     callback sound(string);
@@ -394,6 +397,52 @@ export component Shell inherits Window {
         }
     }
 
+    // Lock screen
+    if root.locked: Rectangle {
+        background: #0b0d12fc;
+        TouchArea { mouse-cursor: none; }
+        VerticalLayout {
+            alignment: center;
+            spacing: 24px * s;
+            HorizontalLayout {
+                alignment: center;
+                // A padlock: shackle over a body.
+                Rectangle {
+                    width: 120px * s;
+                    height: 140px * s;
+                    Rectangle {
+                        x: 26px * s;
+                        y: 0;
+                        width: 68px * s;
+                        height: 80px * s;
+                        border-radius: 34px * s;
+                        border-width: 12px * s;
+                        border-color: #a9b8ff;
+                    }
+                    Rectangle {
+                        y: 56px * s;
+                        height: 84px * s;
+                        border-radius: 20px * s;
+                        background: @linear-gradient(135deg, #6c8cff 0%, #9b6cff 100%);
+                    }
+                }
+            }
+            Text {
+                text: "Locked";
+                color: white;
+                font-size: 56px * s;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: "Enter the PIN on your phone to unlock.";
+                color: #8a93a8;
+                font-size: 28px * s;
+                horizontal-alignment: center;
+            }
+        }
+    }
+
     if root.screensaver-active: Screensaver {
         style: root.screensaver-style;
         time: root.time;
@@ -419,6 +468,9 @@ export component Shell inherits Window {
             // The key that wakes the screen does nothing else.
             if root.screensaver-active {
                 root.screensaver-active = false;
+                return accept;
+            }
+            if root.locked {
                 return accept;
             }
             if event.text == Key.LeftArrow {

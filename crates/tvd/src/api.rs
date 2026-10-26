@@ -38,6 +38,7 @@ pub fn router(state: Shared) -> Router {
         .route("/apps", get(get_apps))
         .route("/apps/:id/icon", get(get_icon))
         .route("/audio", get(get_audio))
+        .route("/network", get(get_network))
         .route("/command", post(post_command))
         .route("/ws", get(websocket))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_token))
@@ -109,6 +110,10 @@ async fn get_audio(State(state): State<Shared>) -> Json<AudioInfo> {
 }
 
 /// Takes the body as JSON whatever the Content-Type, so a plain `curl -d` works.
+async fn get_network() -> Json<Vec<crate::network::Exposure>> {
+    Json(tokio::task::spawn_blocking(crate::network::exposures).await.unwrap_or_default())
+}
+
 async fn post_command(State(state): State<Shared>, body: Bytes) -> Response {
     let cmd: Command = match serde_json::from_slice(&body) {
         Ok(cmd) => cmd,

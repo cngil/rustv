@@ -1210,3 +1210,84 @@ code {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
 }
+
+/* ---- PIN keypad ---- */
+
+.pin {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  background: rgba(11, 13, 18, 0.96);
+  animation: fade 160ms ease;
+}
+
+.pin-panel {
+  width: min(100% - 40px, 340px);
+  text-align: center;
+}
+
+.pin-icon {
+  width: 44px;
+  height: 44px;
+  color: var(--accent);
+}
+
+.pin-panel h2 {
+  margin: 10px 0 4px;
+  font-size: 22px;
+}
+
+.pin-hint {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  height: 16px;
+  margin-bottom: 26px;
+}
+
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+}
+
+.pin-dot.filled {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.pin-key {
+  height: 64px;
+  border-radius: 20px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.pin-key.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border: 0;
+  font-size: 18px;
+}
+
+.pin-cancel {
+  margin-top: 18px;
+  height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  color: var(--muted);
+}

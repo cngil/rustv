@@ -39,6 +39,8 @@ pub struct Config {
     #[serde(default)]
     pub cast: Cast,
     #[serde(default)]
+    pub lock: LockSettings,
+    #[serde(default)]
     pub overlay: Overlay,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
@@ -124,6 +126,14 @@ impl Default for Sleep {
     fn default() -> Self {
         Self { enabled: true, after_minutes: 60.0, close_apps: true }
     }
+}
+
+/// The household lock (the PIN itself is kept in the state directory, not here).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct LockSettings {
+    /// Lock the TV when it goes to sleep, if a PIN is set.
+    pub on_sleep: bool,
 }
 
 /// Screen casting receivers.

@@ -11,6 +11,8 @@ mod cast;
 mod config;
 mod input;
 mod keymap;
+mod lock;
+mod network;
 mod overlay;
 mod pairing;
 mod protocol;

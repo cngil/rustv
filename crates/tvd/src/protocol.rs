@@ -68,6 +68,18 @@ pub enum Command {
     },
     /// Show the pairing QR code on the TV for two minutes, to add another device.
     ShowPairing,
+    /// Lock the TV (needs a PIN); until `unlock`, every other command is refused.
+    Lock,
+    Unlock {
+        pin: String,
+    },
+    /// Set, change or (without `pin`) remove the PIN. Needs `current` once a PIN is set.
+    SetPin {
+        #[serde(default)]
+        current: Option<String>,
+        #[serde(default)]
+        pin: Option<String>,
+    },
     /// Turn the screen off now (and close the app if `sleep.close_apps`); any input wakes it.
     Sleep,
     /// Show or hide the debug overlay; without `visible` it toggles.
@@ -135,11 +147,18 @@ pub struct SettingsInfo {
     pub audio: crate::config::Audio,
     pub sleep: crate::config::Sleep,
     pub cast: crate::config::Cast,
+    pub lock: LockInfo,
     pub overlay: crate::config::Overlay,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],
     pub version: &'static str,
     pub config_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LockInfo {
+    pub on_sleep: bool,
+    pub pin_set: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -161,6 +180,8 @@ pub struct StateSnapshot {
     pub asleep: bool,
     /// Whether the TV should show the pairing QR code now.
     pub show_pairing: bool,
+    /// Locked with the PIN: only `unlock` works.
+    pub locked: bool,
     /// Connected remotes (clients other than the TV shell).
     pub remotes: usize,
     /// Connected WebSocket clients (remotes, the shell).
@@ -207,12 +228,13 @@ mod tests {
             overlay: false,
             asleep: false,
             show_pairing: false,
+            locked: false,
             remotes: 0,
             clients: 1,
         });
         assert_eq!(
             serde_json::to_string(&msg).unwrap(),
-            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"show_pairing":false,"remotes":0,"clients":1}"#
+            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"show_pairing":false,"locked":false,"remotes":0,"clients":1}"#
         );
         let cmd: Command = serde_json::from_str(r#"{"type":"overlay"}"#).unwrap();
         assert!(matches!(cmd, Command::Overlay { visible: None }));

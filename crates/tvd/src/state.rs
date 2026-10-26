@@ -15,9 +15,10 @@ use crate::cast::Cast;
 use crate::config::Config;
 use crate::input::{Input, Mods};
 use crate::keymap;
+use crate::lock::Lock;
 use crate::overlay::Overlay;
 use crate::pairing;
-use crate::protocol::{AppInfo, AudioInfo, Command, RunningInfo, ServerMsg, SettingsInfo, StateSnapshot};
+use crate::protocol::{AppInfo, AudioInfo, Command, LockInfo, RunningInfo, ServerMsg, SettingsInfo, StateSnapshot};
 use crate::settings;
 use crate::sleep;
 
@@ -36,6 +37,7 @@ pub struct AppState {
     pub events: broadcast::Sender<ServerMsg>,
     pub overlay: Overlay,
     cast: Cast,
+    lock: Lock,
     /// Open WebSocket connections.
     pub clients: AtomicUsize,
     /// The ones that are remotes, not the TV shell.
@@ -72,6 +74,7 @@ impl AppState {
             events,
             overlay: Overlay::new(config_path.clone()),
             cast: Cast::default(),
+            lock: Lock::load(),
             config_path,
             clients: AtomicUsize::new(0),
             last_input: AtomicU64::new(now()),
@@ -124,6 +127,7 @@ impl AppState {
             audio: cfg.audio.clone(),
             sleep: cfg.sleep.clone(),
             cast: cfg.cast.clone(),
+            lock: LockInfo { on_sleep: cfg.lock.on_sleep, pin_set: self.lock.has_pin() },
             overlay: cfg.overlay.clone(),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
@@ -154,6 +158,7 @@ impl AppState {
             let moved = cfg.overlay.position != fresh.overlay.position;
             let cast_changed = cfg.cast != fresh.cast;
             cfg.cast = fresh.cast;
+            cfg.lock = fresh.lock;
             // Only the sections the remote can edit; apps and the server need a restart.
             cfg.shell = fresh.shell;
             cfg.screensaver = fresh.screensaver;
@@ -227,6 +232,7 @@ impl AppState {
             overlay: self.overlay.visible(),
             asleep: self.asleep.load(Ordering::Relaxed),
             show_pairing: self.show_pairing(),
+            locked: self.lock.is_locked(),
             remotes: self.remotes.load(Ordering::Relaxed),
             clients: self.clients.load(Ordering::Relaxed),
         }
@@ -253,6 +259,10 @@ impl AppState {
 
     /// Screen off, and the open app closed if the config says so.
     pub async fn go_to_sleep(&self) {
+        let lock_on_sleep = self.config().lock.on_sleep;
+        if lock_on_sleep && self.lock.has_pin() {
+            let _ = self.lock.lock();
+        }
         let cfg = self.config().sleep.clone();
         info!(close_apps = cfg.close_apps, "going to sleep");
         if cfg.close_apps {
@@ -293,6 +303,9 @@ impl AppState {
         if !matches!(cmd, Command::Sleep) && self.wake().await && cmd.is_input() {
             return Ok(());
         }
+        if self.lock.is_locked() && !matches!(cmd, Command::Unlock { .. } | Command::Sleep) {
+            anyhow::bail!("The TV is locked. Enter the PIN on a remote to unlock it.");
+        }
         match cmd {
             Command::Key { code, shift, ctrl, alt, meta } => {
                 let key = keymap::from_code(&code).with_context(|| format!("unknown key code {code:?}"))?;
@@ -327,6 +340,23 @@ impl AppState {
             }
             Command::Set { key, value } => self.change_setting(key, value).await?,
             Command::Sleep => self.go_to_sleep().await,
+            Command::Lock => {
+                self.lock.lock()?;
+                info!("locked");
+                self.apps.stop().await;
+                self.notify().await;
+            }
+            Command::Unlock { pin } => {
+                self.lock.unlock(&pin)?;
+                info!("unlocked");
+                self.notify().await;
+            }
+            Command::SetPin { current, pin } => {
+                self.lock.set_pin(current.as_deref(), pin.as_deref())?;
+                info!(pin_set = self.lock.has_pin(), "PIN changed");
+                let _ = self.events.send(ServerMsg::Settings(self.settings_info()));
+                self.notify().await;
+            }
             Command::ShowPairing => {
                 self.pairing_until.store(now() + PAIRING_TIME.as_secs(), Ordering::Relaxed);
                 self.notify().await;

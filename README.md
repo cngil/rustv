@@ -75,6 +75,11 @@ and your phone becomes the remote.
   app cards, real app icons, a clock and a volume overlay, each switchable in
   the config. Arrow keys and OK from the remote are all you need; no pointer,
   no cursor.
+- **Lock with a PIN**: lock the TV from the remote (or automatically when it
+  sleeps); until the PIN is entered on a remote, nothing works. For children
+  and guests, not a network defense: the pairing token is that.
+- **Network overview** in the remote's settings: every port the box listens
+  on, on which address, and which program owns it.
 - **UI sounds**: soft, generated clicks when moving between apps and opening
   one (no audio files shipped). Level or off in the settings.
 - **QR pairing**: the home screen shows a QR code until the first phone
@@ -260,6 +265,7 @@ All endpoints except `/api/v1/health` need `Authorization: Bearer <token>`
 | `GET` | `/api/v1/apps` | Configured apps |
 | `GET` | `/api/v1/apps/{id}/icon` | App icon (SVG, PNG or JPEG) |
 | `GET` | `/api/v1/audio` | Audio outputs and volume limits |
+| `GET` | `/api/v1/network` | Ports the box listens on, with address and program |
 | `POST` | `/api/v1/command` | Run one command (below) |
 | `GET` | `/api/v1/ws` | WebSocket: send commands, receive `apps`, `audio` and `state` updates |
 
@@ -280,6 +286,9 @@ Commands are JSON objects tagged by `type`:
 {"type": "overlay", "visible": true}
 {"type": "sleep"}
 {"type": "show_pairing"}
+{"type": "set_pin", "pin": "2468"}
+{"type": "lock"}
+{"type": "unlock", "pin": "2468"}
 {"type": "set", "key": "cast.airplay", "value": true}
 {"type": "set", "key": "screensaver.idle_minutes", "value": 10}
 {"type": "reorder", "ids": ["stremio", "jellyfin"]}
@@ -321,7 +330,9 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
   any other data the system exposes
 - [x] UI audio feedback (navigation and selection sounds)
 - [ ] Manage Bluetooth, Wi-Fi and audio from the shell
-- [ ] Lock and unlock, set a password, configure remotely exposed ports
+- [x] Lock and unlock with a PIN; see the ports the box exposes
+- [ ] Change exposed ports and addresses from the remote (today: in each
+  program's config)
 - [x] Reorder apps (from the remote)
 - [ ] Localization options (UI language, date and time format, units)
 - [x] Screen casting with AirPlay (iPhone, iPad, Mac)

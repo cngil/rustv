@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0d12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="stylesheet" href="/style.css">
+<title>rustv remote</title>
+</head>
+<body>
+
+<section id="pair" class="pair" hidden>
+  <img src="/icon.svg" alt="" class="pair-logo">
+  <h1>rustv remote</h1>
+  <p>Run <code>tvd pair</code> on the TV box and open the link it prints, or paste the token here.</p>
+  <form id="pair-form">
+    <input id="pair-token" placeholder="Pairing token" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button class="primary">Connect</button>
+  </form>
+</section>
+
+<main id="app" hidden>
+  <header class="top">
+    <div class="status">
+      <span id="dot" class="dot" title="Connection"></span>
+      <div>
+        <div class="label">Now on TV</div>
+        <div id="now" class="now">Home</div>
+      </div>
+    </div>
+    <button id="stop" class="pill danger" hidden>Close app</button>
+  </header>
+
+  <div class="views">
+    <section class="view" data-view="remote">
+      <div class="dpad">
+        <button class="dp up" data-key="ArrowUp" data-repeat aria-label="Up"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+        <button class="dp left" data-key="ArrowLeft" data-repeat aria-label="Left"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <button class="ok" data-key="Enter" aria-label="OK">OK</button>
+        <button class="dp right" data-key="ArrowRight" data-repeat aria-label="Right"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="dp down" data-key="ArrowDown" data-repeat aria-label="Down"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
+      <div class="row">
+        <button class="round" data-key="Escape">Back</button>
+        <button class="round" id="home">Home</button>
+        <button class="round" data-key="Space">Play</button>
+      </div>
+      <div class="volume">
+        <button data-vol="down" aria-label="Volume down">&minus;</button>
+        <button data-vol="mute" id="vol-label" class="vol-label">&ndash;</button>
+        <button data-vol="up" aria-label="Volume up">+</button>
+      </div>
+    </section>
+
+    <section class="view" data-view="pad">
+      <div id="pad" class="pad">
+        <span class="hint touch-hint">Drag to move, tap to click<br>Two fingers: scroll, two-finger tap: right click</span>
+        <span class="hint mouse-hint">Click to take over the TV pointer with your mouse<br>Press Esc to release</span>
+      </div>
+      <div class="row">
+        <button data-btn="left">Left</button>
+        <button data-btn="middle">Middle</button>
+        <button data-btn="right">Right</button>
+      </div>
+    </section>
+
+    <section class="view" data-view="apps">
+      <div id="apps" class="apps"></div>
+    </section>
+
+    <section class="view" data-view="keys">
+      <form id="text-form" class="text">
+        <input id="text" placeholder="Type, then send" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="primary">Send</button>
+      </form>
+      <div class="row">
+        <button data-key="Backspace">Delete</button>
+        <button data-key="Tab">Tab</button>
+        <button data-key="Enter">Enter</button>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="capture">
+        <span>Forward this computer's keyboard to the TV</span>
+      </label>
+    </section>
+  </div>
+
+  <nav class="tabs">
+    <button data-tab="remote">Remote</button>
+    <button data-tab="pad">Touchpad</button>
+    <button data-tab="apps">Apps</button>
+    <button data-tab="keys">Keyboard</button>
+  </nav>
+
+  <div id="toast" class="toast" hidden></div>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

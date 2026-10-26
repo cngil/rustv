@@ -972,8 +972,10 @@ code {
     display: none;
   }
 
+  /* Safari sizes a shrink-to-fit scroll container too narrow, so size it to its icons. */
   .dock {
     align-self: center;
+    width: max-content;
     max-width: 100%;
   }
 }

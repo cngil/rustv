@@ -17,7 +17,7 @@ use tokio::process::Command;
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
 
-use crate::config::{Config, OverlayItem, OverlayPosition};
+use crate::config::{Clock, Config, Language, Locale, OverlayItem, OverlayPosition, Temperature};
 use crate::state::AppState;
 use crate::stats::{Sample, Sampler};
 
@@ -204,8 +204,11 @@ pub fn status_loop(cfg: &Config, token: &str) -> Result<()> {
             display = display_mode();
             display_read = Some(Instant::now());
         }
-        let blocks: Vec<Value> =
-            overlay.items.iter().filter_map(|item| block(*item, &sample, &daemon, display.as_deref())).collect();
+        let blocks: Vec<Value> = overlay
+            .items
+            .iter()
+            .filter_map(|item| block(*item, &sample, &daemon, display.as_deref(), &cfg.locale))
+            .collect();
         // A closed stdout means swaybar is gone.
         if writeln!(out, "{},", Value::Array(blocks)).and_then(|_| out.flush()).is_err() {
             return Ok(());
@@ -219,24 +222,65 @@ const WARN: &str = "#ffb547";
 const BAD: &str = "#ff5d73";
 const DIM: &str = "#8a93a8";
 
-fn block(item: OverlayItem, s: &Sample, d: &Daemon, display: Option<&str>) -> Option<Value> {
+/// The few words the overlay shows, per language.
+struct Words {
+    home: &'static str,
+    volume: &'static str,
+    muted: &'static str,
+    remote: &'static str,
+    remotes: &'static str,
+    up: &'static str,
+    units: [&'static str; 3],
+}
+
+fn words(language: Language) -> Words {
+    match language {
+        Language::En => Words {
+            home: "Home",
+            volume: "Vol",
+            muted: "muted",
+            remote: "remote",
+            remotes: "remotes",
+            up: "up",
+            units: ["d", "h", "m"],
+        },
+        Language::Tr => Words {
+            home: "Ana ekran",
+            volume: "Ses",
+            muted: "sessiz",
+            remote: "kumanda",
+            remotes: "kumanda",
+            up: "açık",
+            units: ["g", "sa", "dk"],
+        },
+    }
+}
+
+fn block(item: OverlayItem, s: &Sample, d: &Daemon, display: Option<&str>, locale: &Locale) -> Option<Value> {
+    let w = words(locale.language);
+    let temp = |celsius: Option<f32>| temp(celsius, locale.temperature);
+    // "%50" in Turkish, "50%" in English.
+    let pct = |value: f32, width: usize| match locale.language {
+        Language::Tr => format!("{:>width$}", format!("%{value:.0}")),
+        Language::En => format!("{:>width$}", format!("{value:.0}%")),
+    };
     let level = |value: f32, warn: f32, bad: f32| match value {
         v if v >= bad => BAD,
         v if v >= warn => WARN,
         _ => OK,
     };
     let (text, color) = match item {
-        OverlayItem::App => (d.app.clone().unwrap_or_else(|| "Home".into()), OK),
+        OverlayItem::App => (d.app.clone().unwrap_or_else(|| w.home.into()), OK),
         OverlayItem::Cpu => {
             let load = s.cpu?;
             let color = worse(level(load, 60.0, 90.0), s.cpu_temp.map(|t| level(t, 75.0, 90.0)));
-            (format!("CPU {load:>3.0}%{}", temp(s.cpu_temp)), color)
+            (format!("CPU {}{}", pct(load, 4), temp(s.cpu_temp)), color)
         }
         OverlayItem::Gpu => {
             if s.gpu.is_none() && s.gpu_temp.is_none() {
                 return None;
             }
-            let load = s.gpu.map(|g| format!("{g:>3.0}%")).unwrap_or_default();
+            let load = s.gpu.map(|g| pct(g, 4)).unwrap_or_default();
             let color = worse(s.gpu.map_or(OK, |g| level(g, 70.0, 95.0)), s.gpu_temp.map(|t| level(t, 75.0, 90.0)));
             (format!("GPU {load}{}", temp(s.gpu_temp)), color)
         }
@@ -265,16 +309,16 @@ fn block(item: OverlayItem, s: &Sample, d: &Daemon, display: Option<&str>) -> Op
         OverlayItem::Volume => {
             let (level, muted) = d.volume?;
             if muted {
-                ("Vol muted".into(), WARN)
+                (format!("{} {}", w.volume, w.muted), WARN)
             } else {
-                (format!("Vol {:.0}%", level * 100.0), OK)
+                (format!("{} {}", w.volume, pct(level as f32 * 100.0, 0)), OK)
             }
         }
         OverlayItem::Remotes => {
             let n = d.clients?;
-            (format!("{n} remote{}", if n == 1 { "" } else { "s" }), if n == 0 { DIM } else { OK })
+            (format!("{n} {}", if n == 1 { w.remote } else { w.remotes }), if n == 0 { DIM } else { OK })
         }
-        OverlayItem::Uptime => (format!("up {}", duration(s.uptime_secs?)), DIM),
+        OverlayItem::Uptime => (format!("{} {}", w.up, duration(s.uptime_secs?, w.units)), DIM),
         OverlayItem::Clock => {
             // Local time without a time zone crate: ask the C library.
             let mut now: libc::time_t = 0;
@@ -285,7 +329,14 @@ fn block(item: OverlayItem, s: &Sample, d: &Daemon, display: Option<&str>) -> Op
                 libc::localtime_r(&now, &mut tm);
                 tm
             };
-            (format!("{:02}:{:02}:{:02}", tm.tm_hour, tm.tm_min, tm.tm_sec), OK)
+            let text = match locale.clock {
+                Clock::H24 => format!("{:02}:{:02}:{:02}", tm.tm_hour, tm.tm_min, tm.tm_sec),
+                Clock::H12 => {
+                    let hour = (tm.tm_hour + 11) % 12 + 1;
+                    format!("{hour}:{:02} {}", tm.tm_min, if tm.tm_hour < 12 { "AM" } else { "PM" })
+                }
+            };
+            (text, OK)
         }
     };
     Some(json!({ "full_text": format!(" {text} "), "color": color, "separator_block_width": 14 }))
@@ -300,8 +351,13 @@ fn worse(a: &'static str, b: Option<&'static str>) -> &'static str {
     }
 }
 
-fn temp(celsius: Option<f32>) -> String {
-    celsius.map(|t| format!(" {t:.0}°C")).unwrap_or_default()
+fn temp(celsius: Option<f32>, unit: Temperature) -> String {
+    celsius
+        .map(|t| match unit {
+            Temperature::Celsius => format!(" {t:.0}°C"),
+            Temperature::Fahrenheit => format!(" {:.0}°F", t * 9.0 / 5.0 + 32.0),
+        })
+        .unwrap_or_default()
 }
 
 fn gb(bytes: u64) -> f64 {
@@ -316,12 +372,12 @@ fn rate(bytes_per_sec: f64) -> String {
     }
 }
 
-fn duration(secs: u64) -> String {
+fn duration(secs: u64, [d, h, m]: [&str; 3]) -> String {
     let (days, hours, minutes) = (secs / 86_400, secs / 3600 % 24, secs / 60 % 60);
     match (days, hours) {
-        (0, 0) => format!("{minutes}m"),
-        (0, _) => format!("{hours}h {minutes}m"),
-        _ => format!("{days}d {hours}h"),
+        (0, 0) => format!("{minutes}{m}"),
+        (0, _) => format!("{hours}{h} {minutes}{m}"),
+        _ => format!("{days}{d} {hours}{h}"),
     }
 }
 
@@ -359,19 +415,22 @@ mod tests {
         assert_eq!(rate(512.0), "512 B/s");
         assert_eq!(rate(40.0 * 1024.0), "40 kB/s");
         assert_eq!(rate(1.5 * 1_048_576.0), "1.5 MB/s");
-        assert_eq!(duration(59 * 60), "59m");
-        assert_eq!(duration(3 * 3600 + 12 * 60), "3h 12m");
-        assert_eq!(duration(2 * 86_400 + 5 * 3600), "2d 5h");
+        let units = words(Language::En).units;
+        assert_eq!(duration(59 * 60, units), "59m");
+        assert_eq!(duration(3 * 3600 + 12 * 60, units), "3h 12m");
+        assert_eq!(duration(2 * 86_400 + 5 * 3600, units), "2d 5h");
+        assert_eq!(duration(3 * 3600 + 12 * 60, words(Language::Tr).units), "3sa 12dk");
+        assert_eq!(temp(Some(100.0), Temperature::Fahrenheit), " 212°F");
     }
 
     #[test]
     fn colors_follow_the_worst_value() {
         let sample = Sample { cpu: Some(20.0), cpu_temp: Some(95.0), ..Default::default() };
-        let cpu = block(OverlayItem::Cpu, &sample, &Daemon::default(), None).unwrap();
+        let cpu = block(OverlayItem::Cpu, &sample, &Daemon::default(), None, &Locale::default()).unwrap();
         assert_eq!(cpu["color"], BAD);
         assert_eq!(cpu["full_text"], " CPU  20% 95°C ");
         // Items without data are left out instead of showing a placeholder.
-        assert!(block(OverlayItem::Wifi, &sample, &Daemon::default(), None).is_none());
+        assert!(block(OverlayItem::Wifi, &sample, &Daemon::default(), None, &Locale::default()).is_none());
     }
 
     #[test]

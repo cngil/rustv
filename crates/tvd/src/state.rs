@@ -128,6 +128,7 @@ impl AppState {
             sleep: cfg.sleep.clone(),
             cast: cfg.cast.clone(),
             lock: LockInfo { on_sleep: cfg.lock.on_sleep, pin_set: self.lock.has_pin() },
+            locale: cfg.locale.clone(),
             overlay: cfg.overlay.clone(),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
@@ -155,7 +156,9 @@ impl AppState {
         let fresh = tokio::task::spawn_blocking(move || settings::apply(&path, &key, &value)).await??;
         let (overlay_moved, cast_changed) = {
             let mut cfg = self.config.write().unwrap();
-            let moved = cfg.overlay.position != fresh.overlay.position;
+            // The overlay reads position and locale when it starts, so either change restarts it.
+            let moved = cfg.overlay.position != fresh.overlay.position || cfg.locale != fresh.locale;
+            cfg.locale = fresh.locale;
             let cast_changed = cfg.cast != fresh.cast;
             cfg.cast = fresh.cast;
             cfg.lock = fresh.lock;
@@ -179,6 +182,8 @@ impl AppState {
         };
         let _ = self.events.send(ServerMsg::Shell(shell));
         let _ = self.events.send(ServerMsg::Screensaver(screensaver));
+        let locale = self.config().locale.clone();
+        let _ = self.events.send(ServerMsg::Locale(locale));
         let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
         let _ = self.events.send(ServerMsg::Settings(self.settings_info()));
         self.enforce_volume_limit().await;

@@ -1158,6 +1158,8 @@ code {
 .chip {
   height: 36px;
   padding: 0 14px;
+  white-space: nowrap;
+  flex: none;
   border-radius: 999px;
   font-size: 14px;
   background: var(--surface-3);

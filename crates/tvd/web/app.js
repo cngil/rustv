@@ -4,6 +4,266 @@
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
+// ---- language ----
+
+// English is the source text; other languages map English strings to their own.
+// `{name}` marks a value filled in by `t()`. Numbers in messages from tvd are
+// matched as `{n}`, so "try again in 42 s" finds "try again in {n} s".
+const TRANSLATIONS = {
+  tr: {
+    // pairing
+    "rustv remote": "rustv kumanda",
+    Run: "TV kutusunda",
+    "on the TV box and open the link it prints, or paste the token here.":
+      "komutunu çalıştırıp verdiği bağlantıyı aç ya da anahtarı buraya yapıştır.",
+    "Pairing token": "Eşleştirme anahtarı",
+    Connect: "Bağlan",
+    "That token was rejected.": "Bu anahtar kabul edilmedi.",
+    // header and remote
+    "Connecting…": "Bağlanıyor…",
+    "Now on TV": "Şimdi TV'de",
+    "Reconnecting…": "Yeniden bağlanıyor…",
+    "Not connected to the TV": "TV'ye bağlı değil",
+    Home: "Ana ekran",
+    Settings: "Ayarlar",
+    "Close app": "Uygulamayı kapat",
+    Asleep: "Uykuda",
+    "Any button wakes the TV": "Uyandırmak için bir tuşa bas",
+    Up: "Yukarı",
+    Down: "Aşağı",
+    Left: "Sol",
+    Right: "Sağ",
+    Back: "Geri",
+    Play: "Oynat",
+    Mute: "Sesi kapat",
+    Unmute: "Sesi aç",
+    Muted: "Sessiz",
+    Volume: "Ses",
+    "Volume down": "Sesi azalt",
+    "Volume up": "Sesi artır",
+    Output: "Çıkış",
+    "No output": "Çıkış yok",
+    "Play sound on": "Sesi şuradan çal",
+    "No audio outputs found.": "Ses çıkışı bulunamadı.",
+    "Playing here": "Burada çalıyor",
+    "Speakers and headphones": "Hoparlör ve kulaklık",
+    "Sound now plays on {name}": "Ses artık {name} üzerinden çalıyor",
+    "Could not switch to {name}": "{name} seçilemedi",
+    Close: "Kapat",
+    // dock and apps
+    Apps: "Uygulamalar",
+    "Opening…": "Açılıyor…",
+    Done: "Bitti",
+    "Drag to move {name}": "{name} uygulamasını taşımak için sürükle",
+    "Drag apps to reorder them, then tap Done": "Uygulamaları sürükleyip sırala, sonra Bitti'ye dokun",
+    "Order saved on the TV": "Sıra TV'ye kaydedildi",
+    "{name} is open on the TV": "{name} TV'de açıldı",
+    "{name} is already on the TV": "{name} zaten TV'de açık",
+    "{name} did not open": "{name} açılmadı",
+    "Closed {name}": "{name} kapatıldı",
+    // touchpad and keyboard
+    "Drag to move · tap to click": "Sürükle: imleci taşı · dokun: tıkla",
+    "Two fingers to scroll · two-finger tap for right click": "İki parmak: kaydır · iki parmakla dokun: sağ tık",
+    "Click to control the TV pointer with your mouse": "TV imlecini fareyle kullanmak için tıkla",
+    "Press Esc to let go": "Bırakmak için Esc'ye bas",
+    "Left click": "Sol tık",
+    Middle: "Orta",
+    "Right click": "Sağ tık",
+    "Type on the TV": "TV'ye yaz",
+    "Search, URL, password…": "Arama, adres, şifre…",
+    Send: "Gönder",
+    Delete: "Sil",
+    "Send everything I type on this computer to the TV": "Bu bilgisayarda yazdığım her şeyi TV'ye gönder",
+    "Sent to the TV": "TV'ye gönderildi",
+    Views: "Görünümler",
+    Remote: "Kumanda",
+    Touchpad: "Dokunmatik",
+    Keyboard: "Klavye",
+    // settings
+    "Waiting for the TV…": "TV bekleniyor…",
+    "rustv {version} · saved to {path}": "rustv {version} · kayıt yeri: {path}",
+    "Home screen": "Ana ekran",
+    Greeting: "Karşılama",
+    Clock: "Saat",
+    Date: "Tarih",
+    "Key hints": "Tuş ipuçları",
+    "Volume bar when the volume changes": "Ses değişince ses çubuğu",
+    Sounds: "Sesler",
+    "Soft clicks when moving between apps and opening one.": "Uygulamalar arasında gezinirken ve açarken yumuşak tıklamalar.",
+    "Sound level": "Ses düzeyi",
+    Quiet: "Kısık",
+    Medium: "Orta",
+    Loud: "Yüksek",
+    "Pairing code": "Eşleştirme kodu",
+    "QR code on the TV until a phone pairs, and when you ask for it.":
+      "Bir telefon eşleşene kadar ve sen istediğinde TV'de QR kod.",
+    "Pair another phone or computer": "Başka bir telefon ya da bilgisayar eşleştir",
+    "Show code": "Kodu göster",
+    "The pairing code is on the TV for 2 minutes": "Eşleştirme kodu 2 dakika boyunca TV'de",
+    Screensaver: "Ekran koruyucu",
+    "Start after": "Başlama süresi",
+    "1 min": "1 dk",
+    "2 min": "2 dk",
+    "5 min": "5 dk",
+    "10 min": "10 dk",
+    "15 min": "15 dk",
+    "30 min": "30 dk",
+    "1 h": "1 sa",
+    "2 h": "2 sa",
+    "4 h": "4 sa",
+    Style: "Stil",
+    Mix: "Karışık",
+    Orbits: "Yörünge",
+    "Show the time": "Saati göster",
+    "Show the date": "Tarihi göster",
+    Sound: "Ses",
+    "Volume limit": "Ses sınırı",
+    "Above 100% the sound is boosted in software and can distort.":
+      "%100'ün üstünde ses yazılımla yükseltilir ve bozulabilir.",
+    "Volume buttons change by": "Ses tuşlarının adımı",
+    "Language and format": "Dil ve biçim",
+    Language: "Dil",
+    "Time format": "Saat biçimi",
+    "24-hour": "24 saat",
+    "12-hour": "12 saat",
+    Temperature: "Sıcaklık",
+    "Used by the debug overlay.": "Hata ayıklama katmanında kullanılır.",
+    "Lock and PIN": "Kilit ve PIN",
+    "Locking needs a PIN. It is kept on the TV box, hashed, never in the config.":
+      "Kilit için PIN gerekir. PIN, TV kutusunda geri çözülemez biçimde saklanır; ayar dosyasına yazılmaz.",
+    Change: "Değiştir",
+    "Set PIN": "PIN belirle",
+    "Remove the PIN": "PIN'i kaldır",
+    Remove: "Kaldır",
+    "Lock the TV now": "TV'yi şimdi kilitle",
+    "Closes the open app; nothing works until the PIN is entered.":
+      "Açık uygulamayı kapatır; PIN girilene kadar hiçbir şey çalışmaz.",
+    Lock: "Kilitle",
+    "Lock when the TV goes to sleep": "TV uykuya geçince kilitle",
+    "Screen casting": "Ekran yansıtma",
+    "Mirror an iPhone, iPad or Mac, or play videos and music from them. Needs uxplay on the box.":
+      "iPhone, iPad ya da Mac ekranını yansıt veya onlardan video ve müzik çal. Kutuda uxplay gerekir.",
+    "Sleep mode": "Uyku modu",
+    "Sleep when unused": "Kullanılmayınca uyu",
+    "Screen off after no remote input and no sound. Any button wakes it.":
+      "Kumandaya dokunulmaz ve ses çalmazsa ekran kapanır. Herhangi bir tuş uyandırır.",
+    After: "Süre",
+    "Close the open app": "Açık uygulamayı kapat",
+    "Frees memory and CPU.": "Bellek ve işlemciyi boşaltır.",
+    "Put the TV to sleep now": "TV'yi şimdi uyut",
+    Sleep: "Uyut",
+    "TV is going to sleep. Any button wakes it.": "TV uykuya geçiyor. Herhangi bir tuş uyandırır.",
+    "Debug overlay": "Hata ayıklama katmanı",
+    "Show on the TV now": "Şimdi TV'de göster",
+    "CPU, GPU, RAM, network and more, over everything.": "CPU, GPU, RAM, ağ ve daha fazlası, her şeyin üstünde.",
+    "Show at startup": "Açılışta göster",
+    Position: "Konum",
+    Top: "Üst",
+    Bottom: "Alt",
+    // network
+    Network: "Ağ",
+    "Open to the network": "Ağa açık olanlar",
+    "What this TV box listens on. Ports change in each program's config; the firewall decides who can reach them.":
+      "Bu TV kutusunun dinlediği portlar. Portlar her programın kendi ayarından değişir; kimin erişebileceğine güvenlik duvarı karar verir.",
+    "Checking…": "Bakılıyor…",
+    "all networks": "tüm ağlar",
+    "rustv remote and API": "rustv kumanda ve API",
+    "mDNS (device discovery)": "mDNS (cihaz bulma)",
+    "DHCP (getting an address)": "DHCP (adres alma)",
+    "DHCPv6 (getting an IPv6 address)": "DHCPv6 (IPv6 adresi alma)",
+    "Printing (CUPS)": "Yazdırma (CUPS)",
+    "qBittorrent web UI": "qBittorrent web arayüzü",
+    // PIN
+    "The TV is locked": "TV kilitli",
+    "Enter the PIN": "PIN'i gir",
+    "Enter the current PIN": "Mevcut PIN'i gir",
+    "Choose a PIN (4 to 8 digits)": "Bir PIN seç (4-8 hane)",
+    "Enter the new PIN again": "Yeni PIN'i tekrar gir",
+    Confirm: "Onayla",
+    Cancel: "Vazgeç",
+    "At least 4 digits": "En az 4 hane",
+    "PIN removed": "PIN kaldırıldı",
+    "The PINs did not match; try again": "PIN'ler eşleşmedi; tekrar dene",
+    "PIN saved": "PIN kaydedildi",
+    Unlocked: "Kilit açıldı",
+    // messages from tvd
+    "Set a PIN in the settings first": "Önce ayarlardan bir PIN belirle",
+    "Wrong PIN": "Yanlış PIN",
+    "Wrong PIN. Entry is blocked for {n} s": "Yanlış PIN. Giriş {n} sn engellendi",
+    "Too many wrong PINs; try again in {n} s": "Çok fazla yanlış PIN; {n} sn sonra tekrar dene",
+    "The PIN must be 4 to 8 digits": "PIN 4-8 haneli olmalı",
+    "The TV is locked. Enter the PIN on a remote to unlock it.": "TV kilitli. Açmak için kumandadan PIN'i gir.",
+  },
+};
+
+const LANG_KEY = "rustv.lang";
+let lang = localStorage.getItem(LANG_KEY) || (navigator.language || "").slice(0, 2);
+if (!TRANSLATIONS[lang]) lang = "en";
+
+function t(text, vars = {}) {
+  if (text == null) return text;
+  const table = TRANSLATIONS[lang] || {};
+  let out = table[text];
+  if (out === undefined) {
+    // Messages with a number in them, such as "try again in 42 s".
+    const numbers = String(text).match(/\d+/g);
+    const pattern = String(text).replace(/\d+/g, "{n}");
+    if (numbers && table[pattern] !== undefined) {
+      let i = 0;
+      out = table[pattern].replace(/\{n\}/g, () => numbers[i++]);
+    } else {
+      out = text;
+    }
+  }
+  return String(out).replace(/\{(\w+)\}/g, (match, name) => (name in vars ? vars[name] : match));
+}
+
+/** "50%" in English, "%50" in Turkish. */
+function percent(value) {
+  return lang === "tr" ? `%${value}` : `${value}%`;
+}
+
+// Static text in the page, remembered in English so it can switch back and forth.
+// Elements whose text the script sets itself are left to the script.
+const DYNAMIC = "#now, #conn, #vol-value, #output-name, #pin-title, #pin-hint, #dock, #outputs, #settings-body, #pin-pad, #pin-dots, #toast, code, script, svg";
+const staticText = [];
+const staticAttrs = [];
+
+function collectStatic() {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeValue.trim() && !node.parentElement.closest(DYNAMIC)) staticText.push([node, node.nodeValue]);
+  }
+  for (const el of document.querySelectorAll("[aria-label], [placeholder], [title]")) {
+    for (const attr of ["aria-label", "placeholder", "title"]) {
+      if (el.hasAttribute(attr)) staticAttrs.push([el, attr, el.getAttribute(attr)]);
+    }
+  }
+}
+
+function applyLanguage() {
+  document.documentElement.lang = lang;
+  for (const [node, english] of staticText) {
+    // Keep the spaces around the words, they separate them from <code> and <br>.
+    const [, lead, words, trail] = english.match(/^(\s*)([\s\S]*?)(\s*)$/);
+    node.nodeValue = lead + t(words) + trail;
+  }
+  for (const [el, attr, english] of staticAttrs) el.setAttribute(attr, t(english));
+}
+
+function setLanguage(next) {
+  if (!TRANSLATIONS[next] && next !== "en") next = "en";
+  if (next === lang) return;
+  lang = next;
+  localStorage.setItem(LANG_KEY, lang);
+  applyLanguage();
+  if (state) renderState();
+  renderAudio();
+  renderDock();
+  renderSettings();
+  renderPin();
+}
+
 const TOKEN_KEY = "rustv.token";
 const TAB_KEY = "rustv.tab";
 const LAUNCH_TIMEOUT = 30000;
@@ -38,7 +298,7 @@ async function start() {
   if (!token) return showPair();
   try {
     const res = await fetch("/api/v1/state", { headers: { Authorization: `Bearer ${token}` } });
-    if (res.status === 401) return showPair("That token was rejected.");
+    if (res.status === 401) return showPair(t("That token was rejected."));
   } catch {
     // Offline for now; connect() keeps retrying.
   }
@@ -64,7 +324,7 @@ function connect() {
 function setOnline(online) {
   $("#dot").classList.toggle("on", online);
   $("#app").classList.toggle("offline", !online);
-  $("#conn").textContent = online ? "Now on TV" : "Reconnecting…";
+  $("#conn").textContent = t(online ? "Now on TV" : "Reconnecting…");
 }
 
 let offlineNotice = 0;
@@ -75,7 +335,7 @@ function send(msg) {
   }
   if (Date.now() - offlineNotice > 2500) {
     offlineNotice = Date.now();
-    toast("Not connected to the TV", "error");
+    toast(t("Not connected to the TV"), "error");
   }
   return false;
 }
@@ -96,6 +356,7 @@ function handle(msg) {
   } else if (msg.type === "settings") {
     settings = msg;
     settingsBefore = null;
+    if (settings.locale) setLanguage(settings.locale.language);
     renderSettings();
   } else if (msg.type === "error") {
     if (settingsBefore) {
@@ -105,7 +366,7 @@ function handle(msg) {
     }
     clearLaunch();
     clearOutput();
-    toast(msg.message, "error");
+    toast(t(msg.message), "error");
   }
 }
 
@@ -129,11 +390,11 @@ $("#pair-form").addEventListener("submit", (event) => {
 function settleApps(before) {
   const running = state.running;
   if (pendingLaunch && running && running.id === pendingLaunch.id) {
-    toast(`${running.name} is open on the TV`, "ok");
+    toast(t("{name} is open on the TV", { name: running.name }), "ok");
     clearLaunch();
   } else if (pendingStop && !running) {
     pendingStop = false;
-    if (before) toast(`Closed ${before.name}`);
+    if (before) toast(t("Closed {name}", { name: before.name }));
   }
 }
 
@@ -148,7 +409,7 @@ function settleOutput() {
   if (!pendingOutput) return;
   const output = audio.outputs.find((o) => o.id === pendingOutput.id);
   if (output && output.default) {
-    toast(`Sound now plays on ${output.name}`, "ok");
+    toast(t("Sound now plays on {name}", { name: t(output.name) }), "ok");
     clearOutput();
     closeSheet();
   }
@@ -165,8 +426,8 @@ function clearOutput() {
 
 function renderState() {
   const running = state.running;
-  $("#now").textContent = state.asleep ? "Asleep" : running ? running.name : "Home";
-  $("#conn").textContent = state.asleep ? "Any button wakes the TV" : "Now on TV";
+  $("#now").textContent = state.asleep ? t("Asleep") : running ? running.name : t("Home");
+  $("#conn").textContent = t(state.asleep ? "Any button wakes the TV" : "Now on TV");
   $("#stop").hidden = !running;
   renderSettings();
   syncLock();
@@ -178,7 +439,7 @@ function renderVolume() {
   const volume = state && state.volume;
   const box = $("#volume");
   box.classList.toggle("muted", Boolean(volume && volume.muted));
-  $("#mute").setAttribute("aria-label", volume && volume.muted ? "Unmute" : "Mute");
+  $("#mute").setAttribute("aria-label", t(volume && volume.muted ? "Unmute" : "Mute"));
   $("#mute use").setAttribute("href", volume && volume.muted ? "#i-muted" : "#i-speaker");
   if (!volume) {
     $("#vol-value").textContent = "–";
@@ -188,7 +449,9 @@ function renderVolume() {
     slider.value = Math.round(volume.level * 100);
     paintSlider();
   }
-  $("#vol-value").textContent = volume.muted ? "Muted" : `${Math.round((sliderBusy() ? slider.value : volume.level * 100))}%`;
+  $("#vol-value").textContent = volume.muted
+    ? t("Muted")
+    : percent(Math.round(sliderBusy() ? slider.value : volume.level * 100));
 }
 
 const OUTPUT_ICONS = { hdmi: "#i-tv", analog: "#i-headphones", bluetooth: "#i-bluetooth", usb: "#i-usb", other: "#i-speaker" };
@@ -196,7 +459,7 @@ const OUTPUT_ICONS = { hdmi: "#i-tv", analog: "#i-headphones", bluetooth: "#i-bl
 function renderAudio() {
   slider.max = Math.round(audio.max_volume * 100);
   const current = audio.outputs.find((o) => o.default);
-  $("#output-name").textContent = current ? current.name : "No output";
+  $("#output-name").textContent = current ? t(current.name) : t("No output");
   $(".js-output-icon use").setAttribute("href", OUTPUT_ICONS[current ? current.kind : "other"] || "#i-speaker");
   $("#output").disabled = audio.outputs.length === 0;
 
@@ -205,7 +468,7 @@ function renderAudio() {
   if (!audio.outputs.length) {
     const empty = document.createElement("p");
     empty.className = "empty";
-    empty.textContent = "No audio outputs found.";
+    empty.textContent = t("No audio outputs found.");
     list.append(empty);
   }
   for (const output of audio.outputs) {
@@ -217,8 +480,8 @@ function renderAudio() {
       <span class="out-icon"><svg><use href="${OUTPUT_ICONS[output.kind] || "#i-speaker"}"/></svg></span>
       <span class="out-text"><div class="out-name"></div><div class="out-detail"></div></span>
       <svg class="out-mark"><use href="#i-check"/></svg>`;
-    item.querySelector(".out-name").textContent = output.name;
-    item.querySelector(".out-detail").textContent = output.default ? "Playing here" : output.detail;
+    item.querySelector(".out-name").textContent = t(output.name);
+    item.querySelector(".out-detail").textContent = output.default ? t("Playing here") : output.detail;
     item.addEventListener("click", () => chooseOutput(output));
     list.append(item);
   }
@@ -234,7 +497,7 @@ function chooseOutput(output) {
     id: output.id,
     timer: setTimeout(() => {
       clearOutput();
-      toast(`Could not switch to ${output.name}`, "error");
+      toast(t("Could not switch to {name}", { name: t(output.name) }), "error");
     }, OUTPUT_TIMEOUT),
   };
   renderAudio();
@@ -261,11 +524,11 @@ function renderDock() {
     item.dataset.id = app.id;
     if (app.id === runningId) item.classList.add("running");
     if (pendingLaunch && pendingLaunch.id === app.id) item.classList.add("opening");
-    item.title = editing ? `Drag to move ${app.name}` : app.description || app.name;
+    item.title = editing ? t("Drag to move {name}", { name: app.name }) : app.description || app.name;
     item.append(appIcon(app));
     const name = document.createElement("span");
     name.className = "dock-name";
-    name.textContent = pendingLaunch && pendingLaunch.id === app.id ? "Opening…" : app.name;
+    name.textContent = pendingLaunch && pendingLaunch.id === app.id ? t("Opening…") : app.name;
     item.append(name);
     bindDockItem(item, app, runningId);
     dock.append(item);
@@ -273,7 +536,7 @@ function renderDock() {
   if (editing) {
     const done = document.createElement("button");
     done.className = "dock-done";
-    done.textContent = "Done";
+    done.textContent = t("Done");
     done.addEventListener("click", finishEditing);
     dock.append(done);
   }
@@ -332,14 +595,14 @@ function startEditing() {
   if (navigator.vibrate) navigator.vibrate(25);
   editing = true;
   renderDock();
-  toast("Drag apps to reorder them, then tap Done");
+  toast(t("Drag apps to reorder them, then tap Done"));
 }
 
 function finishEditing() {
   haptic();
   editing = false;
   renderDock();
-  toast("Order saved on the TV", "ok");
+  toast(t("Order saved on the TV"), "ok");
 }
 
 function startDrag(item, event) {
@@ -395,7 +658,7 @@ document.addEventListener("keydown", (event) => {
 
 function launch(app, runningId) {
   haptic();
-  if (app.id === runningId) return toast(`${app.name} is already on the TV`);
+  if (app.id === runningId) return toast(t("{name} is already on the TV", { name: app.name }));
   if (pendingLaunch && pendingLaunch.id === app.id) return;
   if (!send({ type: "launch", id: app.id })) return;
   clearLaunch();
@@ -403,7 +666,7 @@ function launch(app, runningId) {
     id: app.id,
     timer: setTimeout(() => {
       clearLaunch();
-      toast(`${app.name} did not open`, "error");
+      toast(t("{name} did not open", { name: app.name }), "error");
     }, LAUNCH_TIMEOUT),
   };
   renderDock();
@@ -588,7 +851,20 @@ const SETTINGS = [
     ],
   },
   {
-    title: "Lock",
+    title: "Language and format",
+    items: [
+      { key: "locale.language", label: "Language", options: [["en", "English"], ["tr", "Türkçe"]] },
+      { key: "locale.clock", label: "Time format", options: [["24h", "24-hour"], ["12h", "12-hour"]] },
+      {
+        key: "locale.temperature",
+        label: "Temperature",
+        hint: "Used by the debug overlay.",
+        options: [["celsius", "°C"], ["fahrenheit", "°F"]],
+      },
+    ],
+  },
+  {
+    title: "Lock and PIN",
     items: [
       {
         label: "PIN",
@@ -625,7 +901,7 @@ const SETTINGS = [
     ],
   },
   {
-    title: "Sleep",
+    title: "Sleep mode",
     items: [
       {
         key: "sleep.enabled",
@@ -670,6 +946,7 @@ function changeSetting(key, value) {
   if (!settingsBefore) settingsBefore = structuredClone(settings);
   const [section, name] = key.split(".");
   settings[section][name] = value;
+  if (key === "locale.language") setLanguage(value);
   renderSettings();
 }
 
@@ -680,7 +957,7 @@ function renderSettings() {
   if (!settings) {
     const empty = document.createElement("p");
     empty.className = "empty";
-    empty.textContent = "Waiting for the TV…";
+    empty.textContent = t("Waiting for the TV…");
     body.append(empty);
     return;
   }
@@ -688,7 +965,7 @@ function renderSettings() {
     const section = document.createElement("section");
     section.className = "settings-group";
     const title = document.createElement("h3");
-    title.textContent = group.title;
+    title.textContent = t(group.title);
     section.append(title);
     for (const item of group.items) section.append(settingRow(item));
     body.append(section);
@@ -697,7 +974,7 @@ function renderSettings() {
 
   const about = document.createElement("p");
   about.className = "settings-about";
-  about.textContent = `rustv ${settings.version} · saved to ${settings.config_path}`;
+  about.textContent = t("rustv {version} · saved to {path}", { version: settings.version, path: settings.config_path });
   body.append(about);
 }
 
@@ -711,12 +988,12 @@ function settingRow(item) {
   text.className = "setting-text";
   const label = document.createElement("div");
   label.className = "setting-label";
-  label.textContent = item.label;
+  label.textContent = t(item.label);
   text.append(label);
   if (item.hint) {
     const hint = document.createElement("div");
     hint.className = "setting-hint";
-    hint.textContent = item.hint;
+    hint.textContent = t(item.hint);
     text.append(hint);
   }
   row.append(text);
@@ -725,14 +1002,14 @@ function settingRow(item) {
   if (item.action || item.run) {
     const button = document.createElement("button");
     button.className = "chip";
-    button.textContent = typeof item.button === "function" ? item.button() : item.button;
+    button.textContent = t(typeof item.button === "function" ? item.button() : item.button);
     button.disabled = Boolean(off);
     button.addEventListener("click", () => {
       haptic();
       if (item.run) return item.run();
       if (send({ type: item.action })) {
         closeSettings();
-        toast(item.done);
+        toast(t(item.done));
       }
     });
     row.append(button);
@@ -746,7 +1023,7 @@ function settingRow(item) {
     for (const [optionValue, optionLabel] of options) {
       const chip = document.createElement("button");
       chip.className = "chip";
-      chip.textContent = optionLabel;
+      chip.textContent = /^\d+(\.\d+)?%$/.test(optionLabel) ? percent(optionLabel.slice(0, -1)) : t(optionLabel);
       chip.disabled = Boolean(off);
       chip.setAttribute("aria-pressed", String(sameValue(optionValue, value)));
       chip.addEventListener("click", () => {
@@ -760,7 +1037,7 @@ function settingRow(item) {
     toggle.className = "toggle";
     toggle.setAttribute("role", "switch");
     toggle.setAttribute("aria-checked", String(Boolean(value)));
-    toggle.setAttribute("aria-label", item.label);
+    toggle.setAttribute("aria-label", t(item.label));
     toggle.disabled = Boolean(off);
     toggle.addEventListener("click", () => {
       if (item.live === "overlay") {
@@ -793,7 +1070,7 @@ function networkGroup() {
   const section = document.createElement("section");
   section.className = "settings-group";
   const title = document.createElement("h3");
-  title.textContent = "Network";
+  title.textContent = t("Network");
   section.append(title);
   const intro = settingRow({
     label: "Open to the network",
@@ -807,10 +1084,12 @@ function networkGroup() {
     text.className = "setting-text";
     const label = document.createElement("div");
     label.className = "setting-label";
-    label.textContent = e.service;
+    label.textContent = t(e.service);
     const hint = document.createElement("div");
     hint.className = "setting-hint";
-    hint.textContent = `${e.protocol.toUpperCase()} ${e.port} · ${e.address}`;
+    const more = e.address.match(/^(.*) and (\d+) more addresses$/);
+    const address = more ? (lang === "tr" ? `${more[1]} ve ${more[2]} adres daha` : e.address) : t(e.address);
+    hint.textContent = `${e.protocol.toUpperCase()} ${e.port} · ${address}`;
     text.append(label, hint);
     row.append(text);
     section.append(row);
@@ -846,7 +1125,7 @@ function buildPad() {
     const button = document.createElement("button");
     button.className = "pin-key" + (key === "ok" ? " primary" : "");
     button.textContent = key === "del" ? "⌫" : key === "ok" ? "OK" : key;
-    button.setAttribute("aria-label", key === "del" ? "Delete" : key === "ok" ? "Confirm" : key);
+    button.setAttribute("aria-label", key === "del" ? t("Delete") : key === "ok" ? t("Confirm") : key);
     button.addEventListener("click", () => pinKey(key));
     pad.append(button);
   }
@@ -869,8 +1148,8 @@ function renderPin() {
   $("#pin").hidden = !show;
   if (!show) return;
   const locked = pinFlow.mode === "unlock";
-  $("#pin-title").textContent = locked ? "The TV is locked" : pinFlow.mode === "remove" ? "Remove the PIN" : "PIN";
-  $("#pin-hint").textContent = PIN_HINTS[pinStep()];
+  $("#pin-title").textContent = t(locked ? "The TV is locked" : pinFlow.mode === "remove" ? "Remove the PIN" : "PIN");
+  $("#pin-hint").textContent = t(PIN_HINTS[pinStep()]);
   $("#pin-cancel").hidden = locked;
   const dots = $("#pin-dots");
   dots.replaceChildren();
@@ -890,7 +1169,7 @@ function pinKey(key) {
 }
 
 function submitPin() {
-  if (pinDigits.length < 4) return toast("At least 4 digits", "error");
+  if (pinDigits.length < 4) return toast(t("At least 4 digits"), "error");
   const step = pinStep();
   const digits = pinDigits;
   pinDigits = "";
@@ -901,7 +1180,7 @@ function submitPin() {
     if (pinFlow.mode === "remove") {
       send({ type: "set_pin", current: digits });
       pinFlow = null;
-      toast("PIN removed", "ok");
+      toast(t("PIN removed"), "ok");
     } else {
       pinFlow.step++;
     }
@@ -910,12 +1189,12 @@ function submitPin() {
     pinFlow.step++;
   } else if (step === "confirm") {
     if (digits !== pinFlow.first) {
-      toast("The PINs did not match; try again", "error");
+      toast(t("The PINs did not match; try again"), "error");
       pinFlow.step = PIN_STEPS[pinFlow.mode].indexOf("new");
     } else {
       send({ type: "set_pin", current: pinFlow.current, pin: digits });
       pinFlow = null;
-      toast("PIN saved", "ok");
+      toast(t("PIN saved"), "ok");
     }
   }
   renderPin();
@@ -933,7 +1212,7 @@ function syncLock() {
   if (!locked && pinFlow && pinFlow.mode === "unlock") {
     pinFlow = null;
     renderPin();
-    toast("Unlocked", "ok");
+    toast(t("Unlocked"), "ok");
   }
 }
 
@@ -971,7 +1250,7 @@ function paintSlider() {
 slider.addEventListener("input", () => {
   sliderTouched = Date.now();
   paintSlider();
-  $("#vol-value").textContent = `${slider.value}%`;
+  $("#vol-value").textContent = percent(slider.value);
   if (sliderTimer) return;
   // At most one update every 80 ms while dragging.
   sliderTimer = setTimeout(() => {
@@ -1103,7 +1382,7 @@ $("#text-form").addEventListener("submit", (event) => {
   const input = $("#text");
   if (!input.value) return send({ type: "key", code: "Enter" });
   if (send({ type: "text", text: input.value })) {
-    toast("Sent to the TV", "ok");
+    toast(t("Sent to the TV"), "ok");
     input.value = "";
   }
 });
@@ -1152,4 +1431,6 @@ for (const tab of $$("[data-tab]")) {
 showTab(localStorage.getItem(TAB_KEY) || "remote");
 paintSlider();
 
+collectStatic();
+applyLanguage();
 start();

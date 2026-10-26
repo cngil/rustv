@@ -41,6 +41,8 @@ pub struct Config {
     #[serde(default)]
     pub lock: LockSettings,
     #[serde(default)]
+    pub locale: Locale,
+    #[serde(default)]
     pub overlay: Overlay,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
@@ -126,6 +128,43 @@ impl Default for Sleep {
     fn default() -> Self {
         Self { enabled: true, after_minutes: 60.0, close_apps: true }
     }
+}
+
+/// Language and formats, for the shell, the remote and the overlay.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Locale {
+    pub language: Language,
+    pub clock: Clock,
+    pub temperature: Temperature,
+}
+
+impl Default for Locale {
+    fn default() -> Self {
+        Self { language: Language::En, clock: Clock::H24, temperature: Temperature::Celsius }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Language {
+    En,
+    Tr,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum Clock {
+    #[serde(rename = "24h")]
+    H24,
+    #[serde(rename = "12h")]
+    H12,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Temperature {
+    Celsius,
+    Fahrenheit,
 }
 
 /// The household lock (the PIN itself is kept in the state directory, not here).

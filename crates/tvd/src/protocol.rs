@@ -129,6 +129,8 @@ pub enum ServerMsg {
     Screensaver(crate::config::Screensaver),
     /// Everything the remote's settings panel shows.
     Settings(SettingsInfo),
+    /// Language and formats (`[locale]` in the config).
+    Locale(crate::config::Locale),
     /// Pairing link and its QR code (`modules`: rows of `size` characters, `1` = dark). Sent to the shell.
     Pairing {
         url: String,
@@ -148,6 +150,7 @@ pub struct SettingsInfo {
     pub sleep: crate::config::Sleep,
     pub cast: crate::config::Cast,
     pub lock: LockInfo,
+    pub locale: crate::config::Locale,
     pub overlay: crate::config::Overlay,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],

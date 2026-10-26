@@ -4,6 +4,7 @@
 //! commands over the same WebSocket the web remote uses. All state lives in
 //! the daemon, so the shell can crash or restart without losing anything.
 
+mod locale;
 mod net;
 mod settings;
 mod sounds;
@@ -13,7 +14,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use chrono::{Local, Timelike};
+use chrono::Local;
 use slint::{
     Color, ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer, TimerMode, VecModel,
     Weak,
@@ -44,6 +45,7 @@ thread_local! {
     static SCREENSAVER: RefCell<net::ScreensaverConfig> = RefCell::new(net::ScreensaverConfig::default());
     static SCREENSAVER_COUNT: Cell<usize> = const { Cell::new(0) };
     static FRAME_TIMER: Timer = Timer::default();
+    static LOCALE: RefCell<locale::Locale> = RefCell::new(locale::Locale::default());
 }
 
 /// App data sent from the network thread. `Image` is not `Send`, so icons travel as paths.
@@ -211,14 +213,33 @@ pub fn set_screensaver(ui: &Weak<Shell>, cfg: net::ScreensaverConfig) {
 
 fn update_clock(ui: &Shell) {
     let now = Local::now();
-    ui.set_time(now.format("%H:%M").to_string().into());
-    ui.set_date(now.format("%A, %-d %B").to_string().into());
-    let greeting = match now.hour() {
-        5..=11 => "Good morning",
-        12..=17 => "Good afternoon",
-        _ => "Good evening",
-    };
-    ui.set_greeting(greeting.into());
+    LOCALE.with(|locale| {
+        let locale = locale.borrow();
+        ui.set_time(locale.time(&now).into());
+        ui.set_date(locale.date(&now).into());
+        ui.set_greeting(locale.greeting(&now).into());
+    });
+}
+
+pub fn set_locale(ui: &Weak<Shell>, locale: locale::Locale) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        let s = locale.strings();
+        let g = ui.global::<Strings>();
+        g.set_subtitle(s.subtitle.into());
+        g.set_no_apps(s.no_apps.into());
+        g.set_hint_move(s.hint_move.into());
+        g.set_hint_open(s.hint_open.into());
+        g.set_opening(s.opening.into());
+        g.set_connecting(s.connecting.into());
+        g.set_volume(s.volume.into());
+        g.set_muted(s.muted.into());
+        g.set_pair_title(s.pair_title.into());
+        g.set_pair_body(s.pair_body.into());
+        g.set_locked(s.locked.into());
+        g.set_unlock_hint(s.unlock_hint.into());
+        LOCALE.with(|current| *current.borrow_mut() = locale);
+        update_clock(&ui);
+    });
 }
 
 pub fn set_connected(ui: &Weak<Shell>, connected: bool) {

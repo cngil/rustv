@@ -46,6 +46,12 @@ airplay = false
 name = "rustv"      # shown in the sender's Screen Mirroring list
 # extra_args = ["-vd", "avdec_h264"]   # more UxPlay options, here: software decoding
 
+[locale]
+# Language of the TV, the remote and the overlay, and how numbers look.
+language = "en"            # en or tr
+clock = "24h"              # 24h or 12h
+temperature = "celsius"    # celsius or fahrenheit (debug overlay)
+
 [lock]
 # Household lock: with a PIN set (in the remote's settings), the TV can be
 # locked so nothing works until the PIN is entered on a remote. The PIN is

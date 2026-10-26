@@ -80,6 +80,8 @@ and your phone becomes the remote.
   and guests, not a network defense: the pairing token is that.
 - **Network overview** in the remote's settings: every port the box listens
   on, on which address, and which program owns it.
+- **Languages**: English and Turkish on the TV, the remote and the overlay,
+  with a 24 or 12 hour clock and °C or °F, switchable from the remote.
 - **UI sounds**: soft, generated clicks when moving between apps and opening
   one (no audio files shipped). Level or off in the settings.
 - **QR pairing**: the home screen shows a QR code until the first phone
@@ -334,7 +336,8 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [ ] Change exposed ports and addresses from the remote (today: in each
   program's config)
 - [x] Reorder apps (from the remote)
-- [ ] Localization options (UI language, date and time format, units)
+- [x] Localization: English and Turkish, 24 or 12 hour clock, °C or °F
+- [ ] More languages (one table each in the shell, the remote and the overlay)
 - [x] Screen casting with AirPlay (iPhone, iPad, Mac)
 - [ ] Screen casting from Android and Windows (Google Cast, Miracast); there
   is no dependable open-source receiver yet

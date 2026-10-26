@@ -6,6 +6,22 @@ import "fonts/Inter-SemiBold.ttf";
 import "fonts/Inter-Bold.ttf";
 import { Screensaver } from "screensaver.slint";
 
+// Every piece of text on the home screen; the shell fills these in per language.
+export global Strings {
+    in property <string> subtitle: "What would you like to watch?";
+    in property <string> no-apps: "No apps yet. Add some to ~/.config/rustv/config.toml";
+    in property <string> hint-move: "Move";
+    in property <string> hint-open: "Open";
+    in property <string> opening: "Opening…";
+    in property <string> connecting: "Connecting to tvd…";
+    in property <string> volume: "Volume";
+    in property <string> muted: "Muted";
+    in property <string> pair-title: "Use your phone as the remote";
+    in property <string> pair-body: "Scan the code with the camera, then add the page to your home screen.";
+    in property <string> locked: "Locked";
+    in property <string> unlock-hint: "Enter the PIN on your phone to unlock.";
+}
+
 export struct AppTile {
     id: string,
     name: string,
@@ -73,7 +89,7 @@ component Card inherits Rectangle {
         }
 
         Text {
-            text: opening ? "Opening…" : tile.name;
+            text: opening ? Strings.opening : tile.name;
             color: focused ? white : #d6dbe8;
             font-size: 30px * s;
             font-weight: 600;
@@ -201,7 +217,7 @@ export component Shell inherits Window {
         visible: root.show-greeting;
         x: margin;
         y: 156px * s;
-        text: "What would you like to watch?";
+        text: Strings.subtitle;
         color: #8a93a8;
         font-size: 30px * s;
         font-weight: 600;
@@ -260,7 +276,7 @@ export component Shell inherits Window {
         y: root.height / 2;
         width: root.width;
         horizontal-alignment: center;
-        text: "No apps yet. Add some to ~/.config/rustv/config.toml";
+        text: Strings.no-apps;
         color: #8a93a8;
         font-size: 30px * s;
     }
@@ -271,8 +287,8 @@ export component Shell inherits Window {
         height: 40px * s;
         alignment: center;
         spacing: 56px * s;
-        Text { text: "←  →   Move"; color: #6d7590; font-size: 24px * s; }
-        Text { text: "OK   Open"; color: #6d7590; font-size: 24px * s; }
+        Text { text: "←  →   " + Strings.hint-move; color: #6d7590; font-size: 24px * s; }
+        Text { text: "OK   " + Strings.hint-open; color: #6d7590; font-size: 24px * s; }
     }
 
     // Pairing card
@@ -306,14 +322,14 @@ export component Shell inherits Window {
                 alignment: center;
                 spacing: 10px * s;
                 Text {
-                    text: "Use your phone as the remote";
+                    text: Strings.pair-title;
                     color: white;
                     font-size: 30px * s;
                     font-weight: 700;
                     wrap: word-wrap;
                 }
                 Text {
-                    text: "Scan the code with the camera, then add the page to your home screen.";
+                    text: Strings.pair-body;
                     color: #aab2c5;
                     font-size: 21px * s;
                     wrap: word-wrap;
@@ -339,7 +355,7 @@ export component Shell inherits Window {
         border-width: 1px;
         border-color: #ff5d7380;
         banner-text := Text {
-            text: "Connecting to tvd…";
+            text: Strings.connecting;
             color: #ffd6dc;
             font-size: 24px * s;
         }
@@ -364,7 +380,7 @@ export component Shell inherits Window {
             spacing: 28px * s;
             Text {
                 vertical-alignment: center;
-                text: root.muted ? "Muted" : "Volume";
+                text: root.muted ? Strings.muted : Strings.volume;
                 color: #d6dbe8;
                 font-size: 26px * s;
                 font-weight: 600;
@@ -428,14 +444,14 @@ export component Shell inherits Window {
                 }
             }
             Text {
-                text: "Locked";
+                text: Strings.locked;
                 color: white;
                 font-size: 56px * s;
                 font-weight: 700;
                 horizontal-alignment: center;
             }
             Text {
-                text: "Enter the PIN on your phone to unlock.";
+                text: Strings.unlock-hint;
                 color: #8a93a8;
                 font-size: 28px * s;
                 horizontal-alignment: center;

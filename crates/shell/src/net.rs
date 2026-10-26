@@ -39,6 +39,7 @@ enum Incoming {
     },
     Shell(Visibility),
     Screensaver(ScreensaverConfig),
+    Locale(crate::locale::Locale),
     #[serde(other)]
     Other,
 }
@@ -173,6 +174,7 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
         Incoming::Audio { max_volume } => crate::set_max_volume(ui, max_volume),
         Incoming::Shell(visibility) => crate::set_visibility(ui, visibility),
         Incoming::Screensaver(cfg) => crate::set_screensaver(ui, cfg),
+        Incoming::Locale(locale) => crate::set_locale(ui, locale),
         Incoming::Pairing { url, size, modules } => crate::set_pairing(ui, url, size, modules),
         Incoming::Other => {}
     }

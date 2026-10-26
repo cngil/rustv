@@ -138,6 +138,14 @@ impl AppManager {
                 .stderr(Stdio::null())
                 .status()
                 .await;
+            // Helper sandboxes (such as QtWebEngine zygotes) get their own scope and are not
+            // part of the instance `flatpak kill` stops.
+            let _ = tokio::process::Command::new("systemctl")
+                .args(["--user", "stop", &format!("app-flatpak-{flatpak_id}-*.scope")])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .await;
         }
         if let Some(pgid) = app.pgid {
             signal_group(pgid, libc::SIGTERM);

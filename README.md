@@ -199,6 +199,14 @@ still passes `tvd check`.
 The volume stops at 100% unless you raise `audio.max_volume`; above 100%
 PipeWire boosts the signal in software, which can distort.
 
+Web apps are ordinary websites, often made for a desk, not a couch. To make
+them all larger, add this to the kiosk browser's `user.js` (for Flatpak
+Firefox, in its profile under `~/.var/app/org.mozilla.firefox/`):
+
+```js
+user_pref("layout.css.devPixelsPerPx", "1.5");
+```
+
 Check it with `tvd check`, then `systemctl --user restart tvd`.
 
 ## API

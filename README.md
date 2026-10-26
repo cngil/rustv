@@ -27,6 +27,32 @@ that runs your apps and serves the remote, and `rustv-shell`, the home
 screen. Add them to the Linux machine you already have, plug it into the TV,
 and your phone becomes the remote.
 
+<p align="center">
+  <img src="docs/screenshots/tv-home.png" alt="The rustv home screen on a TV, with app cards and the pairing QR code" width="900">
+</p>
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/remote-phone.png" alt="The web remote on a phone: D-pad, volume, app dock"></td>
+    <td width="33%"><img src="docs/screenshots/remote-settings.png" alt="The remote's settings panel"></td>
+    <td width="33%">
+      <img src="docs/screenshots/tv-screensaver-aurora.jpg" alt="Aurora screensaver with a drifting clock"><br><br>
+      <img src="docs/screenshots/tv-screensaver-orbits.png" alt="Orbits screensaver"><br><br>
+      <img src="docs/screenshots/tv-overlay.png" alt="Debug overlay with live system stats over the home screen">
+    </td>
+  </tr>
+  <tr>
+    <td align="center">Phone remote</td>
+    <td align="center">Settings, saved to your config</td>
+    <td align="center">Screensavers and the debug overlay</td>
+  </tr>
+</table>
+
+<details>
+<summary>The remote on a computer</summary>
+<img src="docs/screenshots/remote-desktop.png" alt="The web remote in a desktop browser: D-pad, touchpad, keyboard and app dock side by side">
+</details>
+
 > **Status:** early development. The daemon, the web remote and a first
 > on-screen shell work today. See the [roadmap](#roadmap).
 

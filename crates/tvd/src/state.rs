@@ -98,8 +98,7 @@ impl AppState {
         });
         sleep::watch(Arc::downgrade(&state));
         state.restart_osd();
-        let cast = state.config().cast.clone();
-        state.cast.apply(&cast, Arc::downgrade(&state));
+        state.apply_cast();
         if state.config().overlay.enabled {
             state.overlay.set_visible(true, Arc::downgrade(&state));
         }
@@ -174,8 +173,9 @@ impl AppState {
         let path = self.config_path.clone();
         let log_key = key.clone();
         let fresh = tokio::task::spawn_blocking(move || settings::apply(&path, &key, &value)).await??;
-        let (overlay_moved, cast_changed) = {
+        let (overlay_moved, cast_changed, osd_changed) = {
             let mut cfg = self.config.write().unwrap();
+            let osd_changed = cfg.theme != fresh.theme || cfg.audio.max_volume != fresh.audio.max_volume;
             // The overlay reads position and locale when it starts, so either change restarts it.
             let moved = cfg.overlay.position != fresh.overlay.position || cfg.locale != fresh.locale;
             cfg.locale = fresh.locale;
@@ -189,13 +189,14 @@ impl AppState {
             cfg.audio = fresh.audio;
             cfg.sleep = fresh.sleep;
             cfg.overlay = fresh.overlay;
-            (moved, cast_changed)
+            (moved, cast_changed, osd_changed)
         };
-        // Theme or volume range may have changed; the bar over apps follows both.
-        self.restart_osd();
+        // The bar over apps is drawn in the theme colors, scaled to the volume limit.
+        if osd_changed {
+            self.restart_osd();
+        }
         if cast_changed {
-            let cast = self.config().cast.clone();
-            self.cast.apply(&cast, Arc::downgrade(self));
+            self.apply_cast();
         }
         info!(key = %log_key, "setting changed");
 
@@ -277,6 +278,27 @@ impl AppState {
         let _ = self.events.send(ServerMsg::State(snapshot));
     }
 
+    /// After startup: the screen may still be off if tvd stopped while the TV slept,
+    /// and an app adopted at startup is the one whose volume counts.
+    pub async fn after_start(&self) {
+        if let Err(err) = sleep::display_power(true).await {
+            tracing::debug!("turning the screen on at start: {err:#}");
+        }
+        if let Some((id, _)) = self.apps.running().await {
+            self.volumes.lock().await.current = id;
+        }
+    }
+
+    /// AirPlay as configured, but never while locked: a mirrored phone would
+    /// show over the lock screen.
+    fn apply_cast(self: &Arc<Self>) {
+        let mut cast = self.config().cast.clone();
+        if self.lock.is_locked() {
+            cast.airplay = false;
+        }
+        self.cast.apply(&cast, Arc::downgrade(self));
+    }
+
     /// Starts the volume bar over apps, in the current theme and volume range.
     fn restart_osd(self: &Arc<Self>) {
         let (palette, max) = {
@@ -329,7 +351,7 @@ impl AppState {
     }
 
     /// Called every 30 s: puts the TV to sleep once it has been unused long enough.
-    pub async fn check_sleep(&self) {
+    pub async fn check_sleep(self: &Arc<Self>) {
         if sleep::sound_playing() {
             self.last_activity.store(now(), Ordering::Relaxed);
         }
@@ -343,13 +365,13 @@ impl AppState {
     }
 
     /// Screen off, and the open app closed if the config says so.
-    pub async fn go_to_sleep(&self) {
+    pub async fn go_to_sleep(self: &Arc<Self>) {
         // Whatever put the TV to sleep, a pending timer has nothing left to do.
         self.sleep_timer.fetch_add(1, Ordering::Relaxed);
         *self.sleep_at.lock().unwrap() = None;
         let lock_on_sleep = self.config().lock.on_sleep;
-        if lock_on_sleep && self.lock.has_pin() {
-            let _ = self.lock.lock();
+        if lock_on_sleep && self.lock.has_pin() && self.lock.lock().is_ok() {
+            self.apply_cast();
         }
         let cfg = self.config().sleep.clone();
         info!(close_apps = cfg.close_apps, "going to sleep");
@@ -461,11 +483,13 @@ impl AppState {
                 self.lock.lock()?;
                 info!("locked");
                 self.apps.stop().await;
+                self.apply_cast();
                 self.notify().await;
             }
             Command::Unlock { pin } => {
                 self.lock.unlock(&pin)?;
                 info!("unlocked");
+                self.apply_cast();
                 self.notify().await;
             }
             Command::SetPin { current, pin } => {

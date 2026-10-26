@@ -91,7 +91,7 @@ pub enum ScreensaverStyle {
 }
 
 /// Debug overlay: a line of live stats drawn over everything on the TV.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Overlay {
     /// Shown at start. The remote and the API can switch it at any time.
@@ -118,14 +118,14 @@ impl Default for Overlay {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OverlayPosition {
     Top,
     Bottom,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OverlayItem {
     /// The app on screen.
@@ -175,7 +175,7 @@ impl Default for Browser {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Audio {
     /// Volume change per step, 0.05 = 5%.
@@ -186,7 +186,7 @@ pub struct Audio {
 
 impl Default for Audio {
     fn default() -> Self {
-        Self { step: 0.05, max_volume: 1.5 }
+        Self { step: 0.05, max_volume: 1.0 }
     }
 }
 
@@ -284,7 +284,11 @@ impl Config {
         let text = fs::read_to_string(path).with_context(|| {
             format!("reading {} (copy config/config.example.toml there to get started)", path.display())
         })?;
-        let cfg: Config = toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
+        Self::parse(&text).with_context(|| format!("in {}", path.display()))
+    }
+
+    pub fn parse(text: &str) -> Result<Self> {
+        let cfg: Config = toml::from_str(text)?;
         cfg.validate()?;
         Ok(cfg)
     }

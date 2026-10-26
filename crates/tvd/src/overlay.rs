@@ -54,7 +54,7 @@ impl Overlay {
 async fn supervise(config_path: PathBuf, state: Weak<AppState>) {
     let mut failing = false;
     loop {
-        let Some(cfg) = state.upgrade().map(|state| state.config.overlay.clone()) else { return };
+        let Some(cfg) = state.upgrade().map(|state| state.config().overlay.clone()) else { return };
         match run_bar(&cfg, &config_path).await {
             Ok(()) => {
                 failing = false;

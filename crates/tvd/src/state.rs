@@ -2,27 +2,30 @@
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use tokio::sync::{broadcast, mpsc};
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::apps::AppManager;
-use crate::audio;
+use crate::audio::{self, VolumeAction};
 use crate::config::Config;
 use crate::input::{Input, Mods};
 use crate::keymap;
 use crate::overlay::Overlay;
-use crate::protocol::{AppInfo, AudioInfo, Command, RunningInfo, ServerMsg, StateSnapshot};
+use crate::protocol::{AppInfo, AudioInfo, Command, RunningInfo, ServerMsg, SettingsInfo, StateSnapshot};
+use crate::settings;
 
 /// Largest pointer move accepted in one message.
 const MAX_DELTA: i32 = 1000;
 
 pub struct AppState {
     pub token: String,
-    pub config: Config,
+    /// Live configuration. The remote can change parts of it, see [`settings`].
+    pub config: RwLock<Config>,
+    config_path: PathBuf,
     pub input: Input,
     pub apps: Arc<AppManager>,
     pub events: broadcast::Sender<ServerMsg>,
@@ -42,15 +45,16 @@ impl AppState {
 
         let state = Arc::new(Self {
             token,
-            config,
+            config: RwLock::new(config),
             input,
             apps: manager,
             events,
-            overlay: Overlay::new(config_path),
+            overlay: Overlay::new(config_path.clone()),
+            config_path,
             clients: AtomicUsize::new(0),
             last_input: AtomicU64::new(now()),
         });
-        if state.config.overlay.enabled {
+        if state.config().overlay.enabled {
             state.overlay.set_visible(true, Arc::downgrade(&state));
         }
 
@@ -62,6 +66,70 @@ impl AppState {
             }
         });
         state
+    }
+
+    pub fn config(&self) -> std::sync::RwLockReadGuard<'_, Config> {
+        self.config.read().unwrap()
+    }
+
+    pub fn settings_info(&self) -> SettingsInfo {
+        let cfg = self.config();
+        SettingsInfo {
+            shell: cfg.shell.clone(),
+            screensaver: cfg.screensaver.clone(),
+            audio: cfg.audio.clone(),
+            overlay: cfg.overlay.clone(),
+            editable: settings::EDITABLE,
+            version: env!("CARGO_PKG_VERSION"),
+            config_path: self.config_path.display().to_string(),
+        }
+    }
+
+    /// Lowers the volume if it is above the configured limit.
+    pub async fn enforce_volume_limit(&self) {
+        let audio = self.config().audio.clone();
+        match audio::get().await {
+            Ok(volume) if volume.level > audio.max_volume + 0.005 => {
+                info!(from = volume.level, to = audio.max_volume, "volume above the limit, lowering it");
+                if let Err(err) = audio::apply(VolumeAction::Set, Some(audio.max_volume), &audio).await {
+                    warn!("lowering volume: {err:#}");
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn change_setting(self: &Arc<Self>, key: String, value: serde_json::Value) -> Result<()> {
+        let path = self.config_path.clone();
+        let log_key = key.clone();
+        let fresh = tokio::task::spawn_blocking(move || settings::apply(&path, &key, &value)).await??;
+        let overlay_moved = {
+            let mut cfg = self.config.write().unwrap();
+            let moved = cfg.overlay.position != fresh.overlay.position;
+            // Only the sections the remote can edit; apps and the server need a restart.
+            cfg.shell = fresh.shell;
+            cfg.screensaver = fresh.screensaver;
+            cfg.audio = fresh.audio;
+            cfg.overlay = fresh.overlay;
+            moved
+        };
+        info!(key = %log_key, "setting changed");
+
+        let (shell, screensaver) = {
+            let cfg = self.config();
+            (cfg.shell.clone(), cfg.screensaver.clone())
+        };
+        let _ = self.events.send(ServerMsg::Shell(shell));
+        let _ = self.events.send(ServerMsg::Screensaver(screensaver));
+        let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
+        let _ = self.events.send(ServerMsg::Settings(self.settings_info()));
+        self.enforce_volume_limit().await;
+        if overlay_moved && self.overlay.visible() {
+            self.overlay.set_visible(false, Arc::downgrade(self));
+            self.overlay.set_visible(true, Arc::downgrade(self));
+        }
+        self.notify().await;
+        Ok(())
     }
 
     pub fn app_infos(&self) -> Vec<AppInfo> {
@@ -87,7 +155,8 @@ impl AppState {
             warn!("listing audio outputs: {err:#}");
             Vec::new()
         });
-        AudioInfo { max_volume: self.config.audio.max_volume, step: self.config.audio.step, outputs }
+        let audio = self.config().audio.clone();
+        AudioInfo { max_volume: audio.max_volume, step: audio.step, outputs }
     }
 
     pub async fn snapshot(&self) -> StateSnapshot {
@@ -135,7 +204,8 @@ impl AppState {
             Command::Launch { id } => self.apps.launch(&id).await?,
             Command::Stop => self.apps.stop().await,
             Command::Volume { action, level } => {
-                audio::apply(action, level, &self.config.audio).await?;
+                let audio = self.config().audio.clone();
+                audio::apply(action, level, &audio).await?;
                 self.notify().await;
             }
             Command::AudioOutput { id } => {
@@ -147,6 +217,7 @@ impl AppState {
                 self.apps.reorder(&ids)?;
                 let _ = self.events.send(ServerMsg::Apps { apps: self.app_infos() });
             }
+            Command::Set { key, value } => self.change_setting(key, value).await?,
             Command::Overlay { visible } => {
                 let visible = visible.unwrap_or(!self.overlay.visible());
                 self.overlay.set_visible(visible, Arc::downgrade(self));

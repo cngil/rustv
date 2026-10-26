@@ -60,6 +60,9 @@ talks to nobody but you.
     headphones, Bluetooth) right under the D-pad
   - Shows progress and the result of every action (opening an app,
     switching the output, losing the connection)
+  - Settings panel (gear button): home screen items, screensaver, volume
+    limit and step, debug overlay. Changes apply at once and are written
+    into your `config.toml`, comments and all
   - Installable as an app (PWA)
 - **Debug overlay**: one line of live stats on top of everything, even full
   screen video: CPU and GPU load and temperature, RAM, network speed, Wi-Fi
@@ -174,6 +177,14 @@ The order you arrange apps in from the remote is kept in
 which apps exist, that file only where they go. Apps it does not list appear
 at the end in config order. Delete it to go back to the config order.
 
+The remote's settings panel edits the same file. It can only change the
+home screen, screensaver, audio and overlay sections; apps, the server and
+the browser stay in your hands. A change is saved only if the whole file
+still passes `tvd check`.
+
+The volume stops at 100% unless you raise `audio.max_volume`; above 100%
+PipeWire boosts the signal in software, which can distort.
+
 Check it with `tvd check`, then `systemctl --user restart tvd`.
 
 ## API
@@ -206,6 +217,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "volume", "action": "set", "level": 0.6}
 {"type": "audio_output", "id": 52}
 {"type": "overlay", "visible": true}
+{"type": "set", "key": "screensaver.idle_minutes", "value": 10}
 {"type": "reorder", "ids": ["stremio", "jellyfin"]}
 ```
 

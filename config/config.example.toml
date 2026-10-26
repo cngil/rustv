@@ -16,7 +16,7 @@ command = ["flatpak", "run", "org.mozilla.firefox", "--kiosk", "{url}"]
 
 [audio]
 step = 0.05        # 5% per volume press
-max_volume = 1.5   # allow boosting up to 150%
+max_volume = 1.0   # 100%; above that PipeWire boosts in software, which can distort
 
 [shell]
 # What the on-screen home screen shows. Everything is on by default.
@@ -38,7 +38,7 @@ date = true
 
 [overlay]
 # Debug overlay: one line of live stats over everything on the TV, drawn by
-# swaybar. Switch it from the remote (gauge button) or the API at any time.
+# swaybar. Switch it in Settings in the remote or through the API at any time.
 enabled = false
 position = "top"                # top or bottom
 font = "DejaVu Sans Mono 14"    # Pango font description

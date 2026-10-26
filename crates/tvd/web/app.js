@@ -14,7 +14,9 @@ let ws = null;
 let retry = 0;
 let apps = [];
 let state = null;
-let audio = { max_volume: 1.5, step: 0.05, outputs: [] };
+let audio = { max_volume: 1.0, step: 0.05, outputs: [] };
+let settings = null;
+let settingsBefore = null; // restored if tvd rejects a change
 
 // Actions waiting for the TV to confirm them, so the remote can show progress and the result.
 let pendingLaunch = null; // { id, name, timer }
@@ -91,7 +93,16 @@ function handle(msg) {
     state = msg;
     settleApps(before);
     renderState();
+  } else if (msg.type === "settings") {
+    settings = msg;
+    settingsBefore = null;
+    renderSettings();
   } else if (msg.type === "error") {
+    if (settingsBefore) {
+      settings = settingsBefore;
+      settingsBefore = null;
+      renderSettings();
+    }
     clearLaunch();
     clearOutput();
     toast(msg.message, "error");
@@ -156,7 +167,7 @@ function renderState() {
   const running = state.running;
   $("#now").textContent = running ? running.name : "Home";
   $("#stop").hidden = !running;
-  $("#overlay").setAttribute("aria-pressed", String(Boolean(state.overlay)));
+  renderSettings();
   renderVolume();
   renderDock();
 }
@@ -264,7 +275,19 @@ function renderDock() {
     done.addEventListener("click", finishEditing);
     dock.append(done);
   }
+  updateDockFade();
 }
+
+// Fade the edge that has more apps behind it, so a cut-off icon reads as "scroll".
+function updateDockFade() {
+  const dock = $("#dock");
+  const more = dock.scrollWidth - dock.clientWidth;
+  dock.classList.toggle("more-left", more > 2 && dock.scrollLeft > 2);
+  dock.classList.toggle("more-right", more > 2 && dock.scrollLeft < more - 2);
+}
+
+$("#dock").addEventListener("scroll", updateDockFade, { passive: true });
+addEventListener("resize", updateDockFade);
 
 function bindDockItem(item, app, runningId) {
   let hold = null;
@@ -475,12 +498,6 @@ function stopApp() {
   if (send({ type: "stop" })) pendingStop = true;
 }
 
-$("#overlay").addEventListener("click", () => {
-  haptic();
-  const visible = !(state && state.overlay);
-  if (send({ type: "overlay", visible })) toast(visible ? "Debug overlay on" : "Debug overlay off");
-});
-
 $("#home").addEventListener("click", stopApp);
 $("#stop").addEventListener("click", stopApp);
 $("#mute").addEventListener("click", () => {
@@ -504,6 +521,184 @@ $("#output").addEventListener("click", openSheet);
 for (const el of $$("[data-close]")) el.addEventListener("click", closeSheet);
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !$("#sheet").hidden) closeSheet();
+});
+
+// ---- settings ----
+
+// Each `key` is a config value (`section.name`) that tvd saves to config.toml.
+// `live` items change the TV right now without touching the config.
+const SETTINGS = [
+  {
+    title: "Home screen",
+    items: [
+      { key: "shell.greeting", label: "Greeting" },
+      { key: "shell.clock", label: "Clock" },
+      { key: "shell.date", label: "Date" },
+      { key: "shell.hints", label: "Key hints" },
+      { key: "shell.volume_overlay", label: "Volume bar when the volume changes" },
+    ],
+  },
+  {
+    title: "Screensaver",
+    items: [
+      { key: "screensaver.enabled", label: "Screensaver" },
+      {
+        key: "screensaver.idle_minutes",
+        label: "Start after",
+        needs: "screensaver.enabled",
+        options: [[1, "1 min"], [2, "2 min"], [5, "5 min"], [10, "10 min"], [15, "15 min"], [30, "30 min"], [60, "1 h"]],
+      },
+      {
+        key: "screensaver.style",
+        label: "Style",
+        needs: "screensaver.enabled",
+        options: [["random", "Mix"], ["aurora", "Aurora"], ["orbits", "Orbits"], ["clock", "Clock"]],
+      },
+      { key: "screensaver.clock", label: "Show the time", needs: "screensaver.enabled" },
+      { key: "screensaver.date", label: "Show the date", needs: "screensaver.enabled" },
+    ],
+  },
+  {
+    title: "Sound",
+    items: [
+      {
+        key: "audio.max_volume",
+        label: "Volume limit",
+        options: [[1, "100%"], [1.2, "120%"], [1.5, "150%"]],
+        hint: "Above 100% the sound is boosted in software and can distort.",
+      },
+      { key: "audio.step", label: "Volume buttons change by", options: [[0.02, "2%"], [0.05, "5%"], [0.1, "10%"]] },
+    ],
+  },
+  {
+    title: "Debug overlay",
+    items: [
+      { live: "overlay", label: "Show on the TV now", hint: "CPU, GPU, RAM, network and more, over everything." },
+      { key: "overlay.enabled", label: "Show at startup" },
+      { key: "overlay.position", label: "Position", options: [["top", "Top"], ["bottom", "Bottom"]] },
+    ],
+  },
+];
+
+function settingValue(key) {
+  const [section, name] = key.split(".");
+  return settings && settings[section] ? settings[section][name] : undefined;
+}
+
+function sameValue(a, b) {
+  return typeof a === "number" && typeof b === "number" ? Math.abs(a - b) < 1e-6 : a === b;
+}
+
+function changeSetting(key, value) {
+  haptic();
+  if (!send({ type: "set", key, value })) return;
+  // Show the change at once; the next `settings` message confirms it (or an error puts it back).
+  if (!settingsBefore) settingsBefore = structuredClone(settings);
+  const [section, name] = key.split(".");
+  settings[section][name] = value;
+  renderSettings();
+}
+
+function renderSettings() {
+  const body = $("#settings-body");
+  if (!body || $("#settings").hidden) return;
+  body.replaceChildren();
+  if (!settings) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "Waiting for the TV…";
+    body.append(empty);
+    return;
+  }
+  for (const group of SETTINGS) {
+    const section = document.createElement("section");
+    section.className = "settings-group";
+    const title = document.createElement("h3");
+    title.textContent = group.title;
+    section.append(title);
+    for (const item of group.items) section.append(settingRow(item));
+    body.append(section);
+  }
+  const about = document.createElement("p");
+  about.className = "settings-about";
+  about.textContent = `rustv ${settings.version} · saved to ${settings.config_path}`;
+  body.append(about);
+}
+
+function settingRow(item) {
+  const row = document.createElement("div");
+  row.className = "setting";
+  const off = item.needs && !settingValue(item.needs);
+  row.classList.toggle("disabled", Boolean(off));
+
+  const text = document.createElement("div");
+  text.className = "setting-text";
+  const label = document.createElement("div");
+  label.className = "setting-label";
+  label.textContent = item.label;
+  text.append(label);
+  if (item.hint) {
+    const hint = document.createElement("div");
+    hint.className = "setting-hint";
+    hint.textContent = item.hint;
+    text.append(hint);
+  }
+  row.append(text);
+
+  const value = item.live === "overlay" ? Boolean(state && state.overlay) : settingValue(item.key);
+  if (item.options) {
+    row.classList.add("stacked");
+    const chips = document.createElement("div");
+    chips.className = "chips";
+    const options = [...item.options];
+    // A value set in the config file that is not one of the presets.
+    if (value !== undefined && !options.some(([v]) => sameValue(v, value))) options.push([value, String(value)]);
+    for (const [optionValue, optionLabel] of options) {
+      const chip = document.createElement("button");
+      chip.className = "chip";
+      chip.textContent = optionLabel;
+      chip.disabled = Boolean(off);
+      chip.setAttribute("aria-pressed", String(sameValue(optionValue, value)));
+      chip.addEventListener("click", () => {
+        if (!sameValue(optionValue, value)) changeSetting(item.key, optionValue);
+      });
+      chips.append(chip);
+    }
+    row.append(chips);
+  } else {
+    const toggle = document.createElement("button");
+    toggle.className = "toggle";
+    toggle.setAttribute("role", "switch");
+    toggle.setAttribute("aria-checked", String(Boolean(value)));
+    toggle.setAttribute("aria-label", item.label);
+    toggle.disabled = Boolean(off);
+    toggle.addEventListener("click", () => {
+      if (item.live === "overlay") {
+        haptic();
+        send({ type: "overlay", visible: !value });
+      } else {
+        changeSetting(item.key, !value);
+      }
+    });
+    row.append(toggle);
+  }
+  return row;
+}
+
+function openSettings() {
+  haptic();
+  $("#settings").hidden = false;
+  renderSettings();
+}
+
+function closeSettings() {
+  $("#settings").hidden = true;
+}
+
+$("#settings-open").addEventListener("click", openSettings);
+for (const el of $$("[data-close-settings]")) el.addEventListener("click", closeSettings);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !$("#settings").hidden) closeSettings();
 });
 
 // ---- volume slider ----
@@ -672,7 +867,7 @@ function flash(code) {
 
 document.addEventListener("keydown", (event) => {
   const forwarding = $("#capture").checked || document.pointerLockElement === pad;
-  if (!forwarding || event.target === $("#text") || MODIFIERS.has(event.code) || !$("#sheet").hidden) return;
+  if (!forwarding || event.target === $("#text") || MODIFIERS.has(event.code) || !$("#sheet").hidden || !$("#settings").hidden) return;
   if (event.code === "Escape" && document.pointerLockElement === pad) return; // browser releases the lock
   event.preventDefault();
   flash(event.code);

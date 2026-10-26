@@ -121,11 +121,17 @@ async fn client(socket: WebSocket, state: Shared) {
     let mut events = state.events.subscribe();
     let (reply_tx, mut reply_rx) = mpsc::unbounded_channel::<ServerMsg>();
 
+    // Read the config before awaiting anything: its lock must not be held across an await.
+    let (shell, screensaver) = {
+        let cfg = state.config();
+        (cfg.shell.clone(), cfg.screensaver.clone())
+    };
     let hello = [
         ServerMsg::Apps { apps: state.app_infos() },
         ServerMsg::Audio(state.audio_info().await),
-        ServerMsg::Shell(state.config.shell.clone()),
-        ServerMsg::Screensaver(state.config.screensaver.clone()),
+        ServerMsg::Shell(shell),
+        ServerMsg::Screensaver(screensaver),
+        ServerMsg::Settings(state.settings_info()),
         ServerMsg::State(state.snapshot().await),
     ];
     for msg in &hello {

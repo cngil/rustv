@@ -12,6 +12,7 @@ mod input;
 mod keymap;
 mod overlay;
 mod protocol;
+mod settings;
 mod state;
 mod stats;
 
@@ -98,6 +99,7 @@ async fn serve(cfg: config::Config, path: PathBuf) -> Result<()> {
 
     let state = state::AppState::new(cfg, path, token, input);
     state.apps.adopt().await;
+    state.enforce_volume_limit().await;
     let router = api::router(state);
 
     let listener = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("binding {bind}"))?;

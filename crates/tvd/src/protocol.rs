@@ -61,6 +61,11 @@ pub enum Command {
     Reorder {
         ids: Vec<String>,
     },
+    /// Change one setting, such as `screensaver.idle_minutes`; saved to the config file.
+    Set {
+        key: String,
+        value: serde_json::Value,
+    },
     /// Show or hide the debug overlay; without `visible` it toggles.
     Overlay {
         #[serde(default)]
@@ -71,7 +76,14 @@ pub enum Command {
 impl Command {
     /// Commands that can take seconds and must not hold up input handling.
     pub fn is_slow(&self) -> bool {
-        matches!(self, Command::Launch { .. } | Command::Stop | Command::Volume { .. } | Command::AudioOutput { .. })
+        matches!(
+            self,
+            Command::Launch { .. }
+                | Command::Stop
+                | Command::Volume { .. }
+                | Command::AudioOutput { .. }
+                | Command::Set { .. }
+        )
     }
 
     pub fn is_input(&self) -> bool {
@@ -98,9 +110,23 @@ pub enum ServerMsg {
     Shell(crate::config::Shell),
     /// Screensaver settings for the shell (`[screensaver]` in the config).
     Screensaver(crate::config::Screensaver),
+    /// Everything the remote's settings panel shows.
+    Settings(SettingsInfo),
     Error {
         message: String,
     },
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SettingsInfo {
+    pub shell: crate::config::Shell,
+    pub screensaver: crate::config::Screensaver,
+    pub audio: crate::config::Audio,
+    pub overlay: crate::config::Overlay,
+    /// Keys `set` accepts.
+    pub editable: &'static [&'static str],
+    pub version: &'static str,
+    pub config_path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

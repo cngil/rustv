@@ -618,6 +618,8 @@ const SETTINGS = [
 ];
 
 function settingValue(key) {
+  // Action rows (Sleep now, Show code) have no value.
+  if (!key) return undefined;
   const [section, name] = key.split(".");
   return settings && settings[section] ? settings[section][name] : undefined;
 }

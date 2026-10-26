@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::audio::{Volume, VolumeAction};
+use crate::audio::{Output, Volume, VolumeAction};
 use crate::input::{Button, ButtonAction};
 
 #[derive(Debug, Deserialize)]
@@ -53,12 +53,16 @@ pub enum Command {
         #[serde(default)]
         level: Option<f32>,
     },
+    /// Make an output (from the `audio` message) the default one.
+    AudioOutput {
+        id: u32,
+    },
 }
 
 impl Command {
     /// Commands that can take seconds and must not hold up input handling.
     pub fn is_slow(&self) -> bool {
-        matches!(self, Command::Launch { .. } | Command::Stop | Command::Volume { .. })
+        matches!(self, Command::Launch { .. } | Command::Stop | Command::Volume { .. } | Command::AudioOutput { .. })
     }
 
     pub fn is_input(&self) -> bool {
@@ -78,7 +82,15 @@ impl Command {
 pub enum ServerMsg {
     State(StateSnapshot),
     Apps { apps: Vec<AppInfo> },
+    Audio(AudioInfo),
     Error { message: String },
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AudioInfo {
+    pub max_volume: f32,
+    pub step: f32,
+    pub outputs: Vec<Output>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -101,6 +113,8 @@ pub struct AppInfo {
     pub name: String,
     pub kind: &'static str,
     pub description: Option<String>,
+    /// Whether `/api/v1/apps/{id}/icon` has an image.
+    pub icon: bool,
 }
 
 #[cfg(test)]

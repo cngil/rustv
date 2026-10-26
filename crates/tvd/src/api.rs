@@ -2,8 +2,9 @@
 
 use std::sync::Arc;
 
+use axum::body::Bytes;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Request, State};
+use axum::extract::{Path, Request, State};
 use axum::http::{header, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
@@ -15,7 +16,7 @@ use serde_json::json;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::mpsc;
 
-use crate::protocol::{AppInfo, Command, ServerMsg, StateSnapshot};
+use crate::protocol::{AppInfo, AudioInfo, Command, ServerMsg, StateSnapshot};
 use crate::state::AppState;
 
 const INDEX: &str = include_str!("../web/index.html");
@@ -30,6 +31,8 @@ pub fn router(state: Shared) -> Router {
     let api = Router::new()
         .route("/state", get(get_state))
         .route("/apps", get(get_apps))
+        .route("/apps/:id/icon", get(get_icon))
+        .route("/audio", get(get_audio))
         .route("/command", post(post_command))
         .route("/ws", get(websocket))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_token))
@@ -75,7 +78,32 @@ async fn get_apps(State(state): State<Shared>) -> Json<Vec<AppInfo>> {
     Json(state.app_infos())
 }
 
-async fn post_command(State(state): State<Shared>, Json(cmd): Json<Command>) -> Response {
+async fn get_icon(State(state): State<Shared>, Path(id): Path<String>) -> Response {
+    let Some(path) = state.icon_path(&id) else { return StatusCode::NOT_FOUND.into_response() };
+    let content_type = match path.extension().and_then(|ext| ext.to_str()) {
+        Some("svg") => "image/svg+xml",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        _ => "image/png",
+    };
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "private, max-age=3600")], bytes)
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn get_audio(State(state): State<Shared>) -> Json<AudioInfo> {
+    Json(state.audio_info().await)
+}
+
+/// Takes the body as JSON whatever the Content-Type, so a plain `curl -d` works.
+async fn post_command(State(state): State<Shared>, body: Bytes) -> Response {
+    let cmd: Command = match serde_json::from_slice(&body) {
+        Ok(cmd) => cmd,
+        Err(err) => {
+            return (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("bad command: {err}") }))).into_response()
+        }
+    };
     match state.execute(cmd).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(err) => (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("{err:#}") }))).into_response(),
@@ -91,7 +119,11 @@ async fn client(socket: WebSocket, state: Shared) {
     let mut events = state.events.subscribe();
     let (reply_tx, mut reply_rx) = mpsc::unbounded_channel::<ServerMsg>();
 
-    let hello = [ServerMsg::Apps { apps: state.app_infos() }, ServerMsg::State(state.snapshot().await)];
+    let hello = [
+        ServerMsg::Apps { apps: state.app_infos() },
+        ServerMsg::Audio(state.audio_info().await),
+        ServerMsg::State(state.snapshot().await),
+    ];
     for msg in &hello {
         if send(&mut sink, msg).await.is_err() {
             return;

@@ -83,6 +83,9 @@ pub struct App {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
+    /// Icon file (SVG, PNG or JPEG). Flatpak apps fall back to their own icon.
+    #[serde(default)]
+    pub icon: Option<PathBuf>,
     /// Extra environment variables for this app.
     #[serde(default)]
     pub env: BTreeMap<String, String>,
@@ -124,6 +127,32 @@ impl App {
             AppKind::Command { command } => command.clone(),
             AppKind::Web { url } => browser.command.iter().map(|part| part.replace("{url}", url)).collect(),
         }
+    }
+
+    /// The configured icon, or the icon a Flatpak app exports.
+    pub fn icon_path(&self) -> Option<PathBuf> {
+        if let Some(icon) = &self.icon {
+            return expand_home(icon).filter(|path| path.is_file());
+        }
+        let AppKind::Flatpak { app_id, .. } = &self.kind else { return None };
+        let mut roots = vec![PathBuf::from("/var/lib/flatpak/exports/share/icons/hicolor")];
+        if let Some(home) = std::env::var_os("HOME") {
+            roots.insert(0, PathBuf::from(home).join(".local/share/flatpak/exports/share/icons/hicolor"));
+        }
+        let candidates = [
+            format!("scalable/apps/{app_id}.svg"),
+            format!("512x512/apps/{app_id}.png"),
+            format!("256x256/apps/{app_id}.png"),
+            format!("128x128/apps/{app_id}.png"),
+        ];
+        roots.iter().flat_map(|root| candidates.iter().map(move |rel| root.join(rel))).find(|path| path.is_file())
+    }
+}
+
+fn expand_home(path: &Path) -> Option<PathBuf> {
+    match path.strip_prefix("~") {
+        Ok(rest) => Some(PathBuf::from(std::env::var_os("HOME")?).join(rest)),
+        Err(_) => Some(path.to_path_buf()),
     }
 }
 

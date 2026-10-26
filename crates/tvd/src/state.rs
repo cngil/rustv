@@ -1,5 +1,6 @@
 //! Shared daemon state and command execution.
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -13,7 +14,7 @@ use crate::audio;
 use crate::config::Config;
 use crate::input::{Input, Mods};
 use crate::keymap;
-use crate::protocol::{AppInfo, Command, RunningInfo, ServerMsg, StateSnapshot};
+use crate::protocol::{AppInfo, AudioInfo, Command, RunningInfo, ServerMsg, StateSnapshot};
 
 /// Largest pointer move accepted in one message.
 const MAX_DELTA: i32 = 1000;
@@ -56,8 +57,21 @@ impl AppState {
                 name: app.name.clone(),
                 kind: app.kind_name(),
                 description: app.description.clone(),
+                icon: app.icon_path().is_some(),
             })
             .collect()
+    }
+
+    pub fn icon_path(&self, id: &str) -> Option<PathBuf> {
+        self.apps.list().iter().find(|app| app.id == id)?.icon_path()
+    }
+
+    pub async fn audio_info(&self) -> AudioInfo {
+        let outputs = audio::outputs().await.unwrap_or_else(|err| {
+            warn!("listing audio outputs: {err:#}");
+            Vec::new()
+        });
+        AudioInfo { max_volume: self.config.audio.max_volume, step: self.config.audio.step, outputs }
     }
 
     pub async fn snapshot(&self) -> StateSnapshot {
@@ -104,6 +118,11 @@ impl AppState {
             Command::Stop => self.apps.stop().await,
             Command::Volume { action, level } => {
                 audio::apply(action, level, &self.config.audio).await?;
+                self.notify().await;
+            }
+            Command::AudioOutput { id } => {
+                audio::set_output(id).await?;
+                let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
                 self.notify().await;
             }
         }

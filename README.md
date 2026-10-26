@@ -17,6 +17,11 @@ year. rustv turns any Linux box (an old laptop, a mini PC) into a TV front
 end that you own: it shows the apps you choose, does what you configure, and
 talks to nobody but you.
 
+**No new device needed.** rustv is just two small programs: `tvd`, a daemon
+that runs your apps and serves the remote, and `rustv-shell`, the home
+screen. Add them to the Linux machine you already have, plug it into the TV,
+and your phone becomes the remote.
+
 > **Status:** early development. The daemon, the web remote and a first
 > on-screen shell work today. See the [roadmap](#roadmap).
 

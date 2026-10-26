@@ -17,8 +17,8 @@ year. rustv turns any Linux box (an old laptop, a mini PC) into a TV front
 end that you own: it shows the apps you choose, does what you configure, and
 talks to nobody but you.
 
-> **Status:** early development. The daemon and the web remote work today;
-> the on-screen shell is next. See the [roadmap](#roadmap).
+> **Status:** early development. The daemon, the web remote and a first
+> on-screen shell work today. See the [roadmap](#roadmap).
 
 ## Principles
 
@@ -35,6 +35,9 @@ talks to nobody but you.
 
 ## What works today
 
+- **On-screen shell** (`rustv-shell`, Rust + Slint): a home screen with big
+  app cards, real app icons, a clock and a volume overlay. Arrow keys and OK
+  from the remote are all you need; no pointer, no cursor.
 - **`tvd` daemon**: launches and closes apps, one at a time; when an app
   exits you are back home.
 - **Three kinds of apps**: Flatpak apps, any command, and web apps (a URL
@@ -45,11 +48,13 @@ talks to nobody but you.
   - Touchpad with acceleration, tap to click, two-finger scroll and right click
   - On a computer: take over the TV pointer with your mouse (pointer lock)
     and forward your keyboard
-  - App launcher, volume, text input
+  - App dock with icons, text input
+  - Audio panel: volume slider, mute, choose the output (HDMI, headphones…)
   - Installable as an app (PWA)
 - **Virtual keyboard and mouse** through `uinput`, so control works in every
   app without app support.
-- **Volume** through PipeWire.
+- **Audio** through PipeWire: volume and output selection.
+- **App icons**: Flatpak apps bring their own; any app can set one.
 
 ## How it works
 
@@ -65,21 +70,24 @@ talks to nobody but you.
  │  web remote, API       │                  ▲
  └────────────────────────┘                  │ Wayland
                                     ┌────────┴─────────┐
-                                    │ cage (kiosk)     │
-                                    │ + shell (soon)   │
+                                    │ sway (kiosk)     │
+                                    │ + rustv-shell    │
                                     └──────────────────┘
 ```
 
-`tvd` holds all logic. The on-screen shell will be a thin client of the same
-API as the remote, so a crashed screen never takes the remote down.
+`tvd` holds all logic. The shell is a thin client of the same API as the
+remote, so a crashed screen never takes the remote down.
 
 ## Requirements
 
-- Linux with a Wayland kiosk compositor such as [cage](https://github.com/cage-kiosk/cage) on the TV output
-- PipeWire (`wpctl`) for volume
+- Linux with [sway](https://swaywm.org) on the TV output, used as a kiosk
+  (no bars, no decorations, no keybindings; see [`packaging/sway/rustv.conf`](packaging/sway/rustv.conf)).
+  sway picks the output mode, which matters on 4K TVs that only do 30 Hz over HDMI 1.4.
+- PipeWire (`wpctl`, `pw-dump`) for audio
 - Write access to `/dev/uinput` (see below)
 - Flatpak for Flatpak apps, Firefox (Flatpak) for web apps by default
-- Rust 1.80+ to build
+- Rust 1.80+ and, for the shell, fontconfig and xkbcommon headers
+  (`sudo apt install libfontconfig1-dev libxkbcommon-dev` on Debian/Ubuntu)
 
 ## Install
 
@@ -93,7 +101,17 @@ sudo usermod -aG input "$USER"   # log in again afterwards
 
 ./scripts/install.sh             # builds, installs the user service, prints the pairing link
 loginctl enable-linger "$USER"   # start at boot without logging in
+
+# show the shell on the TV (edit YOUR_USER and the uid in the unit first)
+install -Dm644 packaging/sway/rustv.conf ~/.config/rustv/sway.conf
+install -Dm644 packaging/xdg-desktop-portal/portals.conf ~/.config/xdg-desktop-portal/portals.conf
+sudo install -m644 packaging/systemd/rustv-session.service /etc/systemd/system/
+sudo systemctl enable --now rustv-session
 ```
+
+The `portals.conf` matters: without it, a box with no desktop environment
+makes every Flatpak app wait ~25 seconds for a portal backend that never
+starts.
 
 Open the printed link (`http://<box>:8765/#token=…`) on your phone and add
 it to the home screen. Run `tvd pair` any time to see it again.
@@ -136,8 +154,10 @@ All endpoints except `/api/v1/health` need `Authorization: Bearer <token>`
 | --- | --- | --- |
 | `GET` | `/api/v1/state` | Running app, volume, seconds since last input |
 | `GET` | `/api/v1/apps` | Configured apps |
+| `GET` | `/api/v1/apps/{id}/icon` | App icon (SVG, PNG or JPEG) |
+| `GET` | `/api/v1/audio` | Audio outputs and volume limits |
 | `POST` | `/api/v1/command` | Run one command (below) |
-| `GET` | `/api/v1/ws` | WebSocket: send commands, receive `apps` and `state` updates |
+| `GET` | `/api/v1/ws` | WebSocket: send commands, receive `apps`, `audio` and `state` updates |
 
 Commands are JSON objects tagged by `type`:
 
@@ -152,6 +172,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "button", "button": "left", "action": "click"}
 {"type": "volume", "action": "up"}
 {"type": "volume", "action": "set", "level": 0.6}
+{"type": "audio_output", "id": 52}
 ```
 
 Key codes follow the browser's
@@ -171,11 +192,12 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 ## Roadmap
 
 - [x] Daemon: app launching, virtual input, volume, API
-- [x] Web remote for phone and computer
-- [ ] On-screen shell (Rust + Slint): home screen, D-pad navigation, no cursor needed
+- [x] Web remote for phone and computer, with app dock and audio panel
+- [x] On-screen shell (Rust + Slint): home screen, D-pad navigation, no cursor needed
+- [x] App icons
 - [ ] Screensaver with artwork from your Jellyfin library
 - [ ] Now playing card, Spotify Connect through `spotifyd`
-- [ ] App icons and themes
+- [ ] Themes and shell settings in the config
 - [ ] QR code pairing, mDNS discovery
 - [ ] Agent integration (MCP) and voice commands
 - [ ] Switching between running apps
@@ -203,4 +225,5 @@ RUST_LOG=debug cargo run -p tvd -- --config config/config.example.toml
 
 ## License
 
-[GPL-3.0-or-later](LICENSE).
+[GPL-3.0-or-later](LICENSE). The shell bundles the [Inter](https://rsms.me/inter/)
+typeface, licensed under the [SIL Open Font License](crates/shell/ui/fonts/OFL.txt).

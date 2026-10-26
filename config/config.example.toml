@@ -47,6 +47,15 @@ airplay = false
 name = "rustv"      # shown in the sender's Screen Mirroring list
 # extra_args = ["-vd", "avdec_h264"]   # more UxPlay options, here: software decoding
 
+[theme]
+# Colors of the TV and the remote. Presets: indigo, ocean, sunset, forest,
+# rose, graphite. Any of the three colors below replaces the preset's own;
+# backgrounds must be dark (text is light).
+preset = "indigo"
+# accent = "#6c8cff"
+# accent_2 = "#9b6cff"       # second color of gradients
+# background = "#0b0d12"
+
 [locale]
 # Language of the TV, the remote and the overlay, and how numbers look.
 language = "en"            # en or tr

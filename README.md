@@ -80,6 +80,9 @@ and your phone becomes the remote.
   and guests, not a network defense: the pairing token is that.
 - **Network overview** in the remote's settings: every port the box listens
   on, on which address, and which program owns it.
+- **Themes**: six color presets (indigo, ocean, sunset, forest, rose,
+  graphite) or your own accent and background, picked from the remote; the
+  TV and the remote change together.
 - **Languages**: English and Turkish on the TV, the remote and the overlay,
   with a 24 or 12 hour clock and °C or °F, switchable from the remote.
 - **UI sounds**: soft, generated clicks when moving between apps and opening
@@ -301,6 +304,8 @@ Commands are JSON objects tagged by `type`:
 {"type": "lock"}
 {"type": "unlock", "pin": "2468"}
 {"type": "set", "key": "cast.airplay", "value": true}
+{"type": "set", "key": "theme.preset", "value": "ocean"}
+{"type": "set", "key": "theme.accent", "value": null}
 {"type": "set", "key": "screensaver.idle_minutes", "value": 10}
 {"type": "reorder", "ids": ["stremio", "jellyfin"]}
 ```
@@ -327,7 +332,7 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [x] App icons
 - [x] Screensaver: generated animation with a drifting clock
 - [ ] Now playing card, Spotify Connect through `spotifyd`
-- [ ] Themes and shell settings in the config
+- [x] Themes: six presets or your own colors, on the TV and the remote
 - [x] QR code pairing
 - [x] mDNS: the remote at `http://<hostname>.local:8765`, announced on the network
 - [ ] Agent integration (MCP) and voice commands

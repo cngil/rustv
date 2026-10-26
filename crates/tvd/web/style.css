@@ -1,5 +1,7 @@
 :root {
+  /* Indigo until tvd sends the theme; see applyTheme() in app.js. */
   --bg: #0b0d12;
+  --bg-top: #1a2140;
   --surface: #151922;
   --surface-2: #1d2230;
   --surface-3: #252b3b;
@@ -24,7 +26,7 @@ html,
 body {
   margin: 0;
   height: 100%;
-  background: radial-gradient(120% 70% at 50% -10%, #1a2140 0%, var(--bg) 55%) fixed var(--bg);
+  background: radial-gradient(120% 70% at 50% -10%, var(--bg-top) 0%, var(--bg) 55%) fixed var(--bg);
   color: var(--text);
   font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -301,7 +303,7 @@ code {
   height: var(--size);
   margin: auto auto 0;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 30%, #232a3c, #151922 70%);
+  background: radial-gradient(circle at 50% 30%, var(--surface-2), #151922 70%);
   border: 1px solid var(--line);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   overflow: hidden;
@@ -322,7 +324,7 @@ code {
 .dpad .dp.pressed {
   transform: none;
   color: var(--text);
-  background: radial-gradient(circle at var(--glow), rgba(108, 140, 255, 0.35), transparent 45%);
+  background: radial-gradient(circle at var(--glow), color-mix(in srgb, var(--accent) 35%, transparent), transparent 45%);
 }
 
 .dpad .dp svg {
@@ -345,13 +347,13 @@ code {
   font-weight: 700;
   font-size: calc(var(--size) * 0.07);
   letter-spacing: 0.04em;
-  box-shadow: 0 8px 26px rgba(108, 140, 255, 0.45), 0 0 0 6px rgba(11, 13, 18, 0.6);
+  box-shadow: 0 8px 26px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 6px color-mix(in srgb, var(--bg) 60%, transparent);
   z-index: 1;
 }
 
 .dpad .ok:active,
 .dpad .ok.pressed {
-  background: linear-gradient(135deg, #8aa3ff, #b08cff);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 75%, white), color-mix(in srgb, var(--accent-2) 75%, white));
 }
 
 .actions {
@@ -651,7 +653,7 @@ code {
   flex: 1;
   min-height: 220px;
   border-radius: 24px;
-  background: linear-gradient(160deg, #1a1f2c, #11141c);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
   border: 1px solid var(--line);
   display: grid;
   place-items: center;
@@ -672,7 +674,7 @@ code {
 
 .pad.locked {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(108, 140, 255, 0.25);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
   cursor: none;
 }
 
@@ -763,7 +765,7 @@ code {
   overflow-x: auto;
   scrollbar-width: none;
   border-radius: 24px;
-  background: rgba(21, 25, 34, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   border: 1px solid var(--line);
 }
 
@@ -867,7 +869,7 @@ code {
   gap: 4px;
   padding: 5px;
   border-radius: 20px;
-  background: rgba(21, 25, 34, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   border: 1px solid var(--line);
 }
 
@@ -905,7 +907,7 @@ code {
   max-width: calc(100% - 28px);
   padding: 11px 16px;
   border-radius: 14px;
-  background: #1d2230f2;
+  background: color-mix(in srgb, var(--surface-2) 95%, transparent);
   border: 1px solid var(--line);
   color: var(--text);
   font-size: 14px;
@@ -962,7 +964,7 @@ code {
   }
 
   .card {
-    background: rgba(21, 25, 34, 0.5);
+    background: color-mix(in srgb, var(--surface) 50%, transparent);
     border: 1px solid var(--line);
     border-radius: 26px;
     padding: 20px;
@@ -1221,7 +1223,7 @@ code {
   z-index: 25;
   display: grid;
   place-items: center;
-  background: rgba(11, 13, 18, 0.96);
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
   animation: fade 160ms ease;
 }
 
@@ -1292,4 +1294,68 @@ code {
   padding: 0 22px;
   border-radius: 999px;
   color: var(--muted);
+}
+
+/* ---- theme picker ---- */
+
+.theme-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+}
+
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.color-pickers {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.color-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.color-field.own {
+  color: var(--text);
+}
+
+.color-field input {
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  background: none;
+  cursor: pointer;
+}
+
+.color-field.own input {
+  border-color: var(--accent);
+}
+
+.color-field input::-webkit-color-swatch-wrapper {
+  padding: 4px;
+}
+
+.color-field input::-webkit-color-swatch {
+  border: 0;
+  border-radius: 11px;
+}
+
+.color-field input::-moz-color-swatch {
+  border: 0;
+  border-radius: 11px;
 }

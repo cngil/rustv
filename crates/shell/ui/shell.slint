@@ -6,6 +6,18 @@ import "fonts/Inter-SemiBold.ttf";
 import "fonts/Inter-Bold.ttf";
 import { Screensaver } from "screensaver.slint";
 
+// Colors, from the theme in the config (tvd works them out). Defaults: the indigo preset.
+export global Palette {
+    in property <color> accent: #6c8cff;
+    in property <color> accent-2: #9b6cff;
+    in property <color> accent-soft: #a9b8ff;
+    in property <color> background: #0b0d12;
+    in property <color> background-top: #18204a;
+    in property <color> background-mid: #0f1426;
+    in property <color> surface: #151922;
+    in property <color> line: #262c3b;
+}
+
 // Every piece of text on the home screen; the shell fills these in per language.
 export global Strings {
     in property <string> subtitle: "What would you like to watch?";
@@ -51,9 +63,9 @@ component Card inherits Rectangle {
         border-radius: 32px * s;
         background: focused ? #ffffff24 : #ffffff0f;
         border-width: focused ? 3px * s : 1px * s;
-        border-color: focused ? #a9b8ff : #ffffff17;
+        border-color: focused ? Palette.accent-soft : #ffffff17;
         drop-shadow-blur: focused ? 48px * s : 0px;
-        drop-shadow-color: #6c8cff70;
+        drop-shadow-color: Palette.accent.transparentize(0.56);
         animate background, border-color, drop-shadow-blur { duration: 180ms; easing: ease-out; }
     }
 
@@ -106,7 +118,7 @@ component Card inherits Rectangle {
 
 export component Shell inherits Window {
     title: "rustv";
-    background: #0b0d12;
+    background: Palette.background;
     default-font-family: "Inter";
     preferred-width: 1920px;
     preferred-height: 1080px;
@@ -178,7 +190,7 @@ export component Shell inherits Window {
 
     // Background
     Rectangle {
-        background: @linear-gradient(165deg, #18204a 0%, #0f1426 38%, #0b0d12 75%);
+        background: @linear-gradient(165deg, Palette.background-top 0%, Palette.background-mid 38%, Palette.background 75%);
     }
     Rectangle {
         x: root.width * 0.62;
@@ -186,7 +198,7 @@ export component Shell inherits Window {
         width: root.width * 0.7;
         height: self.width;
         border-radius: self.width / 2;
-        background: #6c8cff10;
+        background: Palette.accent.transparentize(0.94);
     }
     Rectangle {
         x: -root.width * 0.2;
@@ -194,7 +206,7 @@ export component Shell inherits Window {
         width: root.width * 0.55;
         height: self.width;
         border-radius: self.width / 2;
-        background: #9b6cff0c;
+        background: Palette.accent-2.transparentize(0.95);
     }
 
     // Hides the pointer everywhere; cards still react to clicks.
@@ -298,9 +310,9 @@ export component Shell inherits Window {
         width: 640px * s;
         height: 232px * s;
         border-radius: 28px * s;
-        background: #151922e6;
+        background: Palette.surface.transparentize(0.1);
         border-width: 1px;
-        border-color: #262c3b;
+        border-color: Palette.line;
 
         HorizontalLayout {
             padding: 24px * s;
@@ -370,9 +382,9 @@ export component Shell inherits Window {
         width: 620px * s;
         height: 96px * s;
         border-radius: 28px * s;
-        background: #151922e6;
+        background: Palette.surface.transparentize(0.1);
         border-width: 1px;
-        border-color: #262c3b;
+        border-color: Palette.line;
 
         HorizontalLayout {
             padding-left: 36px * s;
@@ -391,13 +403,13 @@ export component Shell inherits Window {
                     y: (parent.height - self.height) / 2;
                     height: 14px * s;
                     border-radius: self.height / 2;
-                    background: #262c3b;
+                    background: Palette.line;
                     Rectangle {
                         x: 0;
                         width: parent.width * clamp(root.volume / max(root.max-volume, 0.01), 0, 1);
                         animate width { duration: 120ms; }
                         border-radius: parent.border-radius;
-                        background: root.muted ? #4a5168 : @linear-gradient(90deg, #6c8cff 0%, #9b6cff 100%);
+                        background: root.muted ? #4a5168 : @linear-gradient(90deg, Palette.accent 0%, Palette.accent-2 100%);
                     }
                 }
             }
@@ -415,7 +427,7 @@ export component Shell inherits Window {
 
     // Lock screen
     if root.locked: Rectangle {
-        background: #0b0d12fc;
+        background: Palette.background;
         TouchArea { mouse-cursor: none; }
         VerticalLayout {
             alignment: center;
@@ -433,13 +445,13 @@ export component Shell inherits Window {
                         height: 80px * s;
                         border-radius: 34px * s;
                         border-width: 12px * s;
-                        border-color: #a9b8ff;
+                        border-color: Palette.accent-soft;
                     }
                     Rectangle {
                         y: 56px * s;
                         height: 84px * s;
                         border-radius: 20px * s;
-                        background: @linear-gradient(135deg, #6c8cff 0%, #9b6cff 100%);
+                        background: @linear-gradient(135deg, Palette.accent 0%, Palette.accent-2 100%);
                     }
                 }
             }

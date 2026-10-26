@@ -149,9 +149,9 @@ async fn client(socket: WebSocket, state: Shared, is_shell: bool) {
     let (reply_tx, mut reply_rx) = mpsc::unbounded_channel::<ServerMsg>();
 
     // Read the config before awaiting anything: its lock must not be held across an await.
-    let (shell, screensaver, locale) = {
+    let (shell, screensaver, locale, palette) = {
         let cfg = state.config();
-        (cfg.shell.clone(), cfg.screensaver.clone(), cfg.locale.clone())
+        (cfg.shell.clone(), cfg.screensaver.clone(), cfg.locale.clone(), crate::theme::resolve(&cfg.theme))
     };
     let pairing = is_shell.then(|| {
         let url = state.pairing_url();
@@ -168,6 +168,7 @@ async fn client(socket: WebSocket, state: Shared, is_shell: bool) {
         ServerMsg::Shell(shell),
         ServerMsg::Screensaver(screensaver),
         ServerMsg::Locale(locale),
+        ServerMsg::Theme(palette),
         ServerMsg::Settings(state.settings_info()),
         ServerMsg::State(state.snapshot().await),
     ];

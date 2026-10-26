@@ -160,6 +160,22 @@ const TRANSLATIONS = {
     Position: "Konum",
     Top: "Üst",
     Bottom: "Alt",
+    // theme
+    Theme: "Tema",
+    Preset: "Hazır tema",
+    "Pick a preset, or your own colors on top of it. Dark backgrounds only.":
+      "Hazır bir tema seç ya da üstüne kendi renklerini koy. Yalnızca koyu arka planlar.",
+    Indigo: "Çivit",
+    Ocean: "Okyanus",
+    Sunset: "Gün batımı",
+    Forest: "Orman",
+    Rose: "Gül",
+    Graphite: "Grafit",
+    "Your colors": "Kendi renklerin",
+    Accent: "Vurgu",
+    "Accent 2": "Vurgu 2",
+    Background: "Arka plan",
+    "Back to the preset": "Hazır temaya dön",
     // network
     Network: "Ağ",
     "Open to the network": "Ağa açık olanlar",
@@ -264,6 +280,37 @@ function setLanguage(next) {
   renderPin();
 }
 
+// ---- theme ----
+
+const THEME_KEY = "rustv.theme";
+let palette = null;
+
+// The palette tvd works out from [theme]; cached so the next load starts in the right colors.
+function applyTheme(p) {
+  if (!p) return;
+  palette = p;
+  const root = document.documentElement.style;
+  const vars = {
+    "--accent": p.accent,
+    "--accent-2": p.accent_2,
+    "--bg": p.background,
+    "--bg-top": p.background_top,
+    "--surface": p.surface,
+    "--surface-2": p.surface_2,
+    "--surface-3": p.surface_3,
+    "--line": p.line,
+  };
+  for (const [name, value] of Object.entries(vars)) root.setProperty(name, value);
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", p.background);
+  localStorage.setItem(THEME_KEY, JSON.stringify(p));
+}
+
+try {
+  applyTheme(JSON.parse(localStorage.getItem(THEME_KEY)));
+} catch {
+  // No saved theme yet.
+}
+
 const TOKEN_KEY = "rustv.token";
 const TAB_KEY = "rustv.tab";
 const LAUNCH_TIMEOUT = 30000;
@@ -353,6 +400,9 @@ function handle(msg) {
     state = msg;
     settleApps(before);
     renderState();
+  } else if (msg.type === "theme") {
+    applyTheme(msg);
+    renderSettings();
   } else if (msg.type === "settings") {
     settings = msg;
     settingsBefore = null;
@@ -818,6 +868,7 @@ const SETTINGS = [
       },
     ],
   },
+  { title: "Theme", custom: themeRows },
   {
     title: "Screensaver",
     items: [
@@ -967,7 +1018,7 @@ function renderSettings() {
     const title = document.createElement("h3");
     title.textContent = t(group.title);
     section.append(title);
-    for (const item of group.items) section.append(settingRow(item));
+    for (const row of group.custom ? group.custom() : group.items.map(settingRow)) section.append(row);
     body.append(section);
   }
   body.append(networkGroup());
@@ -1050,6 +1101,77 @@ function settingRow(item) {
     row.append(toggle);
   }
   return row;
+}
+
+// ---- theme picker ----
+
+const COLOR_KEYS = [
+  ["accent", "Accent"],
+  ["accent_2", "Accent 2"],
+  ["background", "Background"],
+];
+
+function themeRows() {
+  const theme = settings.theme || { preset: "indigo" };
+  const own = COLOR_KEYS.filter(([key]) => theme[key]);
+
+  const presets = document.createElement("div");
+  presets.className = "setting stacked";
+  const text = document.createElement("div");
+  text.className = "setting-text";
+  text.innerHTML = '<div class="setting-label"></div><div class="setting-hint"></div>';
+  text.querySelector(".setting-label").textContent = t("Preset");
+  text.querySelector(".setting-hint").textContent = t("Pick a preset, or your own colors on top of it. Dark backgrounds only.");
+  const chips = document.createElement("div");
+  chips.className = "chips";
+  for (const preset of settings.presets || []) {
+    const chip = document.createElement("button");
+    chip.className = "chip theme-chip";
+    chip.setAttribute("aria-pressed", String(preset.name === theme.preset && own.length === 0));
+    const swatch = document.createElement("span");
+    swatch.className = "swatch";
+    swatch.style.background = `linear-gradient(135deg, ${preset.accent}, ${preset.accent_2})`;
+    swatch.style.boxShadow = `0 0 0 3px ${preset.background}`;
+    chip.append(swatch, t(preset.name[0].toUpperCase() + preset.name.slice(1)));
+    chip.addEventListener("click", () => {
+      // A preset brings its own colors, so drop the custom ones.
+      if (preset.name !== theme.preset) changeSetting("theme.preset", preset.name);
+      for (const [key] of own) changeSetting(`theme.${key}`, null);
+    });
+    chips.append(chip);
+  }
+  presets.append(text, chips);
+
+  const colors = document.createElement("div");
+  colors.className = "setting stacked";
+  const label = document.createElement("div");
+  label.className = "setting-label";
+  label.textContent = t("Your colors");
+  const pickers = document.createElement("div");
+  pickers.className = "color-pickers";
+  for (const [key, name] of COLOR_KEYS) {
+    const field = document.createElement("label");
+    field.className = "color-field" + (theme[key] ? " own" : "");
+    const input = document.createElement("input");
+    input.type = "color";
+    input.value = (palette && palette[key]) || "#6c8cff";
+    input.addEventListener("change", () => changeSetting(`theme.${key}`, input.value));
+    const caption = document.createElement("span");
+    caption.textContent = t(name);
+    field.append(input, caption);
+    pickers.append(field);
+  }
+  colors.append(label, pickers);
+  if (own.length) {
+    const reset = document.createElement("button");
+    reset.className = "chip";
+    reset.textContent = t("Back to the preset");
+    reset.addEventListener("click", () => {
+      for (const [key] of own) changeSetting(`theme.${key}`, null);
+    });
+    colors.append(reset);
+  }
+  return [presets, colors];
 }
 
 // ---- network overview (read-only) ----

@@ -32,6 +32,10 @@ pub const EDITABLE: &[&str] = &[
     "audio.step",
     "cast.airplay",
     "lock.on_sleep",
+    "theme.preset",
+    "theme.accent",
+    "theme.accent_2",
+    "theme.background",
     "locale.language",
     "locale.clock",
     "locale.temperature",
@@ -69,7 +73,9 @@ fn set(text: &str, key: &str, value: &Value) -> Result<String> {
             None => bail!("{key}: not a number"),
         },
         Value::String(s) => toml_edit::value(s.as_str()),
-        _ => bail!("{key}: expected true/false, a number or text"),
+        // `null` removes the key, so its default applies again (for example a preset color).
+        Value::Null => toml_edit::Item::None,
+        _ => bail!("{key}: expected true/false, a number, text or null"),
     };
 
     let mut doc: DocumentMut = text.parse().context("parsing the config")?;
@@ -84,7 +90,11 @@ fn set(text: &str, key: &str, value: &Value) -> Result<String> {
             *value.decor_mut() = old.decor().clone();
         }
     }
-    section[field] = new;
+    if new.is_none() {
+        section.remove(field);
+    } else {
+        section[field] = new;
+    }
     Ok(doc.to_string())
 }
 
@@ -107,6 +117,13 @@ mod tests {
         let out = set(CONFIG, "audio.max_volume", &json!(1)).unwrap();
         assert!(out.contains("[audio]\nmax_volume = 1.0\n"), "{out}");
         assert_eq!(Config::parse(&out).unwrap().audio.max_volume, 1.0);
+    }
+
+    #[test]
+    fn null_removes_a_key() {
+        let out = set(CONFIG, "screensaver.style", &serde_json::Value::Null).unwrap();
+        assert!(!out.contains("style"), "{out}");
+        assert_eq!(Config::parse(&out).unwrap().screensaver.idle_minutes, 5.0);
     }
 
     #[test]

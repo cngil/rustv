@@ -221,6 +221,44 @@ fn update_clock(ui: &Shell) {
     });
 }
 
+/// The palette tvd works out from the theme, as `#rrggbb` strings.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct Colors {
+    accent: String,
+    accent_2: String,
+    accent_soft: String,
+    background: String,
+    background_top: String,
+    background_mid: String,
+    surface: String,
+    line: String,
+}
+
+pub fn set_theme(ui: &Weak<Shell>, colors: Colors) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        let p = ui.global::<Palette>();
+        let set = |hex: &str, apply: &dyn Fn(Color)| {
+            if let Some(color) = parse_hex(hex) {
+                apply(color);
+            }
+        };
+        set(&colors.accent, &|c| p.set_accent(c));
+        set(&colors.accent_2, &|c| p.set_accent_2(c));
+        set(&colors.accent_soft, &|c| p.set_accent_soft(c));
+        set(&colors.background, &|c| p.set_background(c));
+        set(&colors.background_top, &|c| p.set_background_top(c));
+        set(&colors.background_mid, &|c| p.set_background_mid(c));
+        set(&colors.surface, &|c| p.set_surface(c));
+        set(&colors.line, &|c| p.set_line(c));
+    });
+}
+
+fn parse_hex(hex: &str) -> Option<Color> {
+    let digits = hex.strip_prefix('#').filter(|d| d.len() == 6)?;
+    let channel = |i: usize| u8::from_str_radix(&digits[i..i + 2], 16).ok();
+    Some(Color::from_rgb_u8(channel(0)?, channel(2)?, channel(4)?))
+}
+
 pub fn set_locale(ui: &Weak<Shell>, locale: locale::Locale) {
     let _ = ui.upgrade_in_event_loop(move |ui| {
         let s = locale.strings();
@@ -355,6 +393,12 @@ pub fn set_visibility(ui: &Weak<Shell>, v: net::Visibility) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_theme_colors() {
+        assert_eq!(parse_hex("#6c8cff"), Some(Color::from_rgb_u8(0x6c, 0x8c, 0xff)));
+        assert_eq!(parse_hex("6c8cff"), None);
+    }
 
     #[test]
     fn hides_the_token_in_the_shown_address() {

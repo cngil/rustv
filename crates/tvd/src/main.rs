@@ -20,6 +20,7 @@ mod settings;
 mod sleep;
 mod state;
 mod stats;
+mod theme;
 
 use std::io::IsTerminal;
 use std::net::SocketAddr;

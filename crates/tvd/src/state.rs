@@ -38,6 +38,8 @@ pub struct AppState {
     pub overlay: Overlay,
     cast: Cast,
     lock: Lock,
+    /// One settings change at a time: each reads, edits and rewrites config.toml.
+    settings_write: tokio::sync::Mutex<()>,
     /// Open WebSocket connections.
     pub clients: AtomicUsize,
     /// The ones that are remotes, not the TV shell.
@@ -75,6 +77,7 @@ impl AppState {
             overlay: Overlay::new(config_path.clone()),
             cast: Cast::default(),
             lock: Lock::load(),
+            settings_write: tokio::sync::Mutex::new(()),
             config_path,
             clients: AtomicUsize::new(0),
             last_input: AtomicU64::new(now()),
@@ -130,6 +133,8 @@ impl AppState {
             cast: cfg.cast.clone(),
             lock: LockInfo { on_sleep: cfg.lock.on_sleep, pin_set: self.lock.has_pin() },
             locale: cfg.locale.clone(),
+            theme: cfg.theme.clone(),
+            presets: crate::theme::presets(),
             overlay: cfg.overlay.clone(),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
@@ -152,6 +157,7 @@ impl AppState {
     }
 
     async fn change_setting(self: &Arc<Self>, key: String, value: serde_json::Value) -> Result<()> {
+        let _one_at_a_time = self.settings_write.lock().await;
         let path = self.config_path.clone();
         let log_key = key.clone();
         let fresh = tokio::task::spawn_blocking(move || settings::apply(&path, &key, &value)).await??;
@@ -160,6 +166,7 @@ impl AppState {
             // The overlay reads position and locale when it starts, so either change restarts it.
             let moved = cfg.overlay.position != fresh.overlay.position || cfg.locale != fresh.locale;
             cfg.locale = fresh.locale;
+            cfg.theme = fresh.theme;
             let cast_changed = cfg.cast != fresh.cast;
             cfg.cast = fresh.cast;
             cfg.lock = fresh.lock;
@@ -183,8 +190,12 @@ impl AppState {
         };
         let _ = self.events.send(ServerMsg::Shell(shell));
         let _ = self.events.send(ServerMsg::Screensaver(screensaver));
-        let locale = self.config().locale.clone();
+        let (locale, theme) = {
+            let cfg = self.config();
+            (cfg.locale.clone(), cfg.theme.clone())
+        };
         let _ = self.events.send(ServerMsg::Locale(locale));
+        let _ = self.events.send(ServerMsg::Theme(crate::theme::resolve(&theme)));
         let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
         let _ = self.events.send(ServerMsg::Settings(self.settings_info()));
         self.enforce_volume_limit().await;

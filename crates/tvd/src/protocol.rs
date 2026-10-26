@@ -131,6 +131,8 @@ pub enum ServerMsg {
     Settings(SettingsInfo),
     /// Language and formats (`[locale]` in the config).
     Locale(crate::config::Locale),
+    /// Colors for the shell and the remotes, worked out from `[theme]`.
+    Theme(crate::theme::Palette),
     /// Pairing link and its QR code (`modules`: rows of `size` characters, `1` = dark). Sent to the shell.
     Pairing {
         url: String,
@@ -151,6 +153,9 @@ pub struct SettingsInfo {
     pub cast: crate::config::Cast,
     pub lock: LockInfo,
     pub locale: crate::config::Locale,
+    pub theme: crate::config::Theme,
+    /// The presets, with their colors, for the theme picker.
+    pub presets: Vec<crate::theme::Preset>,
     pub overlay: crate::config::Overlay,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],

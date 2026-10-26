@@ -1,0 +1,66 @@
+# AGENTS.md
+
+Guidance for AI coding agents working on rustv. Humans should read
+[CONTRIBUTING.md](CONTRIBUTING.md) and the [README](README.md).
+
+## Project
+
+rustv is a private, open-source TV shell for Linux. The `tvd` daemon holds all
+logic (app launching, virtual input, volume, JSON API, web remote). An
+on-screen shell will be a thin client of the same API.
+
+## Layout
+
+- `crates/tvd/src/`: daemon
+  - `main.rs` entry point and CLI (`tvd check`, `tvd pair`)
+  - `config.rs` TOML config loading and validation
+  - `apps.rs` app manager (flatpak, command, web)
+  - `api.rs` REST and WebSocket server
+  - `protocol.rs` command and message types
+  - `state.rs` shared daemon state
+  - `input.rs`, `keymap.rs` uinput virtual keyboard and mouse
+  - `audio.rs` PipeWire volume through `wpctl`
+- `crates/tvd/web/`: web remote (plain HTML, CSS, JS, PWA), no build step
+- `config/config.example.toml`: documented example config
+- `packaging/`: systemd user unit and udev rule
+- `scripts/install.sh`: build and install
+
+## Commands
+
+```sh
+cargo build
+cargo test
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
+RUST_LOG=debug cargo run -p tvd -- --config config/config.example.toml
+```
+
+Run test, clippy and fmt before declaring a task done.
+
+## Rules
+
+- No network access from `tvd` or the shell. No telemetry, analytics or
+  accounts. Only launched apps may use the internet.
+- Keep dependencies minimal. Prefer the standard library and existing crates.
+- Everything user-facing is configurable in TOML. Do not hardcode apps,
+  limits or promoted content.
+- New displayed information or features must be user-toggleable.
+- Every API endpoint except `/api/v1/health` requires the bearer token. Do
+  not weaken auth or log the token.
+- The web remote has no build step. Do not introduce a bundler or framework.
+- Match surrounding code style and comment density. rustfmt uses
+  `max_width = 120`.
+- When behavior, config keys or endpoints change, update the README and
+  `config/config.example.toml` in the same change.
+- Code, comments, commits and docs are in English.
+
+## Commits and PRs
+
+Conventional Commits (`feat`, `fix`, `docs`, `refactor`, `test`, `chore`) with
+a scope when useful. One focused change per commit. Do not commit secrets,
+tokens or local config.
+
+## Scope
+
+Check the roadmap and backlog in the README before starting. Ask before
+large architectural changes, new crates or new runtime dependencies.

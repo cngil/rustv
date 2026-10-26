@@ -187,6 +187,15 @@ sudo install -m644 packaging/systemd/rustv-session.service /etc/systemd/system/
 sudo systemctl enable --now rustv-session
 ```
 
+Optional, recommended: with Avahi the remote opens at
+`http://<hostname>.local:8765` and pairing keeps working if the box gets a
+new IP. The service file also announces it to apps that browse the network:
+
+```sh
+sudo apt install avahi-daemon
+sudo install -m644 packaging/avahi/rustv.service /etc/avahi/services/
+```
+
 The `portals.conf` matters: without it, a box with no desktop environment
 makes every Flatpak app wait ~25 seconds for a portal backend that never
 starts.
@@ -320,7 +329,7 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [ ] Now playing card, Spotify Connect through `spotifyd`
 - [ ] Themes and shell settings in the config
 - [x] QR code pairing
-- [ ] mDNS discovery
+- [x] mDNS: the remote at `http://<hostname>.local:8765`, announced on the network
 - [ ] Agent integration (MCP) and voice commands
 - [ ] Switching between running apps
 

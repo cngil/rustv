@@ -99,7 +99,8 @@ impl AppState {
     }
 
     pub fn pairing_url(&self) -> String {
-        pairing::url(&self.config().server.bind, &self.token)
+        let cfg = self.config();
+        pairing::url(&cfg.server.bind, &self.token, cfg.server.pairing_address)
     }
 
     /// A remote (not the shell) connected with the token: pairing worked.

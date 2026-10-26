@@ -9,6 +9,7 @@
 # as Tailscale; never forward this port to the internet.
 bind = "0.0.0.0:8765"
 # token_file = "/home/you/.config/rustv/token"   # default: next to this file
+# pairing_address = "auto"   # auto: <hostname>.local when Avahi runs, else the IP; or "ip", "hostname"
 
 [browser]
 # Opens "web" apps. {url} is replaced with the app URL.

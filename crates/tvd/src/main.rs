@@ -86,12 +86,17 @@ async fn main() -> Result<()> {
         }
         "pair" => {
             let token = config::load_or_create_token(&cfg)?;
-            let url = pairing::url(&cfg.server.bind, &token);
+            let url = pairing::url(&cfg.server.bind, &token, cfg.server.pairing_address);
             if let Some(qr) = pairing::terminal(&url) {
                 println!("{qr}");
                 println!("Scan with your phone's camera, or open:");
             }
             println!("{url}");
+            let by_ip = pairing::ip_url(&cfg.server.bind, &token);
+            if by_ip != url {
+                println!("If that name does not open on your device, use the IP address:");
+                println!("{by_ip}");
+            }
             Ok(())
         }
         "overlay-status" => {

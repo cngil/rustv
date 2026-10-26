@@ -1,7 +1,8 @@
 #!/bin/sh
 # Builds rustv and installs it for the current user.
 # Needs: Rust toolchain, PipeWire (wpctl, pw-dump), uinput access (see packaging/udev),
-# and for the shell: cage plus libfontconfig/libxkbcommon development headers.
+# and for the shell: sway plus libfontconfig/libxkbcommon development headers.
+# Optional: avahi-daemon, so the remote opens at http://<hostname>.local:8765.
 set -eu
 
 cd "$(dirname "$0")/.."

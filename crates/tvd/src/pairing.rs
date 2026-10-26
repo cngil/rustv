@@ -10,12 +10,50 @@ use std::path::PathBuf;
 use qrcode::render::unicode::Dense1x2;
 use qrcode::{Color, QrCode};
 
-/// `http://<lan ip>:<port>/#token=…`. The token sits in the fragment, which
+use crate::config::PairingAddress;
+
+/// `http://<host>:<port>/#token=…`. The token sits in the fragment, which
 /// browsers never send to the server or put in logs.
-pub fn url(bind: &str, token: &str) -> String {
-    let port = bind.rsplit(':').next().unwrap_or("8765");
-    let ip = lan_ip().unwrap_or_else(|| "<device-ip>".into());
-    format!("http://{ip}:{port}/#token={token}")
+pub fn url(bind: &str, token: &str, address: PairingAddress) -> String {
+    format!("http://{}:{}/#token={token}", host(address), port(bind))
+}
+
+/// The same link by IP address, for devices that cannot resolve .local names.
+pub fn ip_url(bind: &str, token: &str) -> String {
+    format!("http://{}:{}/#token={token}", lan_ip().unwrap_or_else(|| "<device-ip>".into()), port(bind))
+}
+
+fn port(bind: &str) -> &str {
+    bind.rsplit(':').next().unwrap_or("8765")
+}
+
+/// `<hostname>.local` when mDNS is available (Avahi answers for it), else the LAN IP.
+pub fn host(address: PairingAddress) -> String {
+    let mdns = || mdns_name().filter(|_| avahi_running());
+    match address {
+        PairingAddress::Ip => None,
+        PairingAddress::Hostname => mdns_name(),
+        PairingAddress::Auto => mdns(),
+    }
+    .or_else(lan_ip)
+    .unwrap_or_else(|| "<device-ip>".into())
+}
+
+fn avahi_running() -> bool {
+    std::path::Path::new("/run/avahi-daemon/socket").exists()
+}
+
+/// This machine's name on the local network, such as `mintop.local`.
+fn mdns_name() -> Option<String> {
+    let mut buf = [0u8; 256];
+    // SAFETY: gethostname writes at most `buf.len()` bytes into `buf`.
+    if unsafe { libc::gethostname(buf.as_mut_ptr().cast(), buf.len()) } != 0 {
+        return None;
+    }
+    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+    let name = std::str::from_utf8(&buf[..end]).ok()?.split('.').next()?.to_ascii_lowercase();
+    let valid = !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    valid.then(|| format!("{name}.local"))
 }
 
 /// Primary LAN address. Connecting a UDP socket sends no packets; it only

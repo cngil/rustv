@@ -257,11 +257,24 @@ pub struct Server {
     pub bind: String,
     /// Where the pairing token is stored. Created on first start.
     pub token_file: Option<PathBuf>,
+    /// What the pairing link points at: `auto` uses `<hostname>.local` when Avahi
+    /// runs (it keeps working if the IP changes), `ip` the LAN address, `hostname`
+    /// always the .local name.
+    pub pairing_address: PairingAddress,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PairingAddress {
+    #[default]
+    Auto,
+    Ip,
+    Hostname,
 }
 
 impl Default for Server {
     fn default() -> Self {
-        Self { bind: "0.0.0.0:8765".into(), token_file: None }
+        Self { bind: "0.0.0.0:8765".into(), token_file: None, pairing_address: PairingAddress::Auto }
     }
 }
 

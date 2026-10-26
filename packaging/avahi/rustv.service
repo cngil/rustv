@@ -1,0 +1,13 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!-- Announces the rustv remote on the local network (mDNS / DNS-SD), so apps
+     that browse for web services list it. Install to /etc/avahi/services/. -->
+<service-group>
+  <name replace-wildcards="yes">rustv on %h</name>
+  <service>
+    <type>_http._tcp</type>
+    <port>8765</port>
+    <txt-record>path=/</txt-record>
+    <txt-record>app=rustv</txt-record>
+  </service>
+</service-group>

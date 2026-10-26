@@ -52,6 +52,9 @@ and your phone becomes the remote.
   drifts over generated animation (soft drifting lights, a turning galaxy of
   points, or just a large clock), different each time. Nothing to set up, no
   images, no network; any key wakes it.
+- **AirPlay**: mirror an iPhone, iPad or Mac, or play its videos and music
+  on the TV, through [UxPlay](https://github.com/FDH2/UxPlay). Off by
+  default; turn it on in the config or the remote's settings.
 - **Sleep**: after an hour with no remote input and no sound, the screen
   turns off (most TVs then go to standby) and the open app closes, freeing
   its memory and CPU. Any button wakes it. A film playing never counts as
@@ -118,6 +121,9 @@ remote, so a crashed screen never takes the remote down.
 - PipeWire (`wpctl`, `pw-dump`) for audio
 - Write access to `/dev/uinput` (see below)
 - Flatpak for Flatpak apps, Firefox (Flatpak) for web apps by default
+- For AirPlay (optional): `uxplay` and `avahi-daemon`
+  (`sudo apt install uxplay avahi-daemon gstreamer1.0-plugins-bad gstreamer1.0-libav`),
+  and, behind a firewall, TCP 7000, 7001, 7100 and UDP 5353, 6000, 6001, 7011 open to your LAN
 - Rust 1.80+ and, for the shell, fontconfig and xkbcommon headers
   (`sudo apt install libfontconfig1-dev libxkbcommon-dev` on Debian/Ubuntu)
 
@@ -241,6 +247,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "overlay", "visible": true}
 {"type": "sleep"}
 {"type": "show_pairing"}
+{"type": "set", "key": "cast.airplay", "value": true}
 {"type": "set", "key": "screensaver.idle_minutes", "value": 10}
 {"type": "reorder", "ids": ["stremio", "jellyfin"]}
 ```
@@ -284,8 +291,9 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [ ] Lock and unlock, set a password, configure remotely exposed ports
 - [x] Reorder apps (from the remote)
 - [ ] Localization options (UI language, date and time format, units)
-- [ ] Screen casting: AirPlay, Google Cast or Miracast from phones and
-  computers straight to the TV
+- [x] Screen casting with AirPlay (iPhone, iPad, Mac)
+- [ ] Screen casting from Android and Windows (Google Cast, Miracast); there
+  is no dependable open-source receiver yet
 
 ## Development
 

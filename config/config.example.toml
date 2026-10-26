@@ -37,6 +37,13 @@ style = "random"   # random (a different one each time), aurora, orbits or clock
 clock = true
 date = true
 
+[cast]
+# AirPlay receiver: iPhones, iPads and Macs can mirror their screen or play
+# video and music on the TV. Needs uxplay and avahi-daemon (see the README).
+airplay = false
+name = "rustv"      # shown in the sender's Screen Mirroring list
+# extra_args = ["-vd", "avdec_h264"]   # more UxPlay options, here: software decoding
+
 [sleep]
 # After this long without remote input and without sound, the screen turns
 # off and the open app closes. Any button on the remote wakes the TV. The box

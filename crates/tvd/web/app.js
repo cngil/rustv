@@ -580,6 +580,16 @@ const SETTINGS = [
     ],
   },
   {
+    title: "Screen casting",
+    items: [
+      {
+        key: "cast.airplay",
+        label: "AirPlay",
+        hint: "Mirror an iPhone, iPad or Mac, or play videos and music from them. Needs uxplay on the box.",
+      },
+    ],
+  },
+  {
     title: "Sleep",
     items: [
       {

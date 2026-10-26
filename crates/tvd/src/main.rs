@@ -7,6 +7,7 @@
 mod api;
 mod apps;
 mod audio;
+mod cast;
 mod config;
 mod input;
 mod keymap;

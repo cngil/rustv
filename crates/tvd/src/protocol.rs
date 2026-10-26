@@ -134,6 +134,7 @@ pub struct SettingsInfo {
     pub screensaver: crate::config::Screensaver,
     pub audio: crate::config::Audio,
     pub sleep: crate::config::Sleep,
+    pub cast: crate::config::Cast,
     pub overlay: crate::config::Overlay,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],

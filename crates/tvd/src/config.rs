@@ -37,6 +37,8 @@ pub struct Config {
     #[serde(default)]
     pub sleep: Sleep,
     #[serde(default)]
+    pub cast: Cast,
+    #[serde(default)]
     pub overlay: Overlay,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
@@ -108,6 +110,24 @@ pub struct Sleep {
 impl Default for Sleep {
     fn default() -> Self {
         Self { enabled: true, after_minutes: 60.0, close_apps: true }
+    }
+}
+
+/// Screen casting receivers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Cast {
+    /// AirPlay receiver (UxPlay) for iPhone, iPad and Mac. Needs `uxplay` and `avahi-daemon`.
+    pub airplay: bool,
+    /// Name shown in the sender's AirPlay / Screen Mirroring list.
+    pub name: String,
+    /// Extra UxPlay options, for example `["-vd", "avdec_h264"]` to force software decoding.
+    pub extra_args: Vec<String>,
+}
+
+impl Default for Cast {
+    fn default() -> Self {
+        Self { airplay: false, name: "rustv".into(), extra_args: Vec::new() }
     }
 }
 
@@ -341,6 +361,9 @@ impl Config {
         }
         if !(0.1..=1440.0).contains(&self.screensaver.idle_minutes) {
             bail!("screensaver.idle_minutes must be between 0.1 and 1440");
+        }
+        if self.cast.name.trim().is_empty() {
+            bail!("cast.name must not be empty");
         }
         if !(1.0..=1440.0).contains(&self.sleep.after_minutes) {
             bail!("sleep.after_minutes must be between 1 and 1440");

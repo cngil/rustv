@@ -11,6 +11,7 @@ use tracing::{info, warn};
 
 use crate::apps::AppManager;
 use crate::audio::{self, VolumeAction};
+use crate::cast::Cast;
 use crate::config::Config;
 use crate::input::{Input, Mods};
 use crate::keymap;
@@ -34,6 +35,7 @@ pub struct AppState {
     pub apps: Arc<AppManager>,
     pub events: broadcast::Sender<ServerMsg>,
     pub overlay: Overlay,
+    cast: Cast,
     /// Open WebSocket connections.
     pub clients: AtomicUsize,
     /// The ones that are remotes, not the TV shell.
@@ -69,6 +71,7 @@ impl AppState {
             apps: manager,
             events,
             overlay: Overlay::new(config_path.clone()),
+            cast: Cast::default(),
             config_path,
             clients: AtomicUsize::new(0),
             last_input: AtomicU64::new(now()),
@@ -76,6 +79,8 @@ impl AppState {
             asleep: AtomicBool::new(false),
         });
         sleep::watch(Arc::downgrade(&state));
+        let cast = state.config().cast.clone();
+        state.cast.apply(&cast, Arc::downgrade(&state));
         if state.config().overlay.enabled {
             state.overlay.set_visible(true, Arc::downgrade(&state));
         }
@@ -118,6 +123,7 @@ impl AppState {
             screensaver: cfg.screensaver.clone(),
             audio: cfg.audio.clone(),
             sleep: cfg.sleep.clone(),
+            cast: cfg.cast.clone(),
             overlay: cfg.overlay.clone(),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
@@ -143,17 +149,23 @@ impl AppState {
         let path = self.config_path.clone();
         let log_key = key.clone();
         let fresh = tokio::task::spawn_blocking(move || settings::apply(&path, &key, &value)).await??;
-        let overlay_moved = {
+        let (overlay_moved, cast_changed) = {
             let mut cfg = self.config.write().unwrap();
             let moved = cfg.overlay.position != fresh.overlay.position;
+            let cast_changed = cfg.cast != fresh.cast;
+            cfg.cast = fresh.cast;
             // Only the sections the remote can edit; apps and the server need a restart.
             cfg.shell = fresh.shell;
             cfg.screensaver = fresh.screensaver;
             cfg.audio = fresh.audio;
             cfg.sleep = fresh.sleep;
             cfg.overlay = fresh.overlay;
-            moved
+            (moved, cast_changed)
         };
+        if cast_changed {
+            let cast = self.config().cast.clone();
+            self.cast.apply(&cast, Arc::downgrade(self));
+        }
         info!(key = %log_key, "setting changed");
 
         let (shell, screensaver) = {
@@ -251,6 +263,12 @@ impl AppState {
         }
         self.asleep.store(true, Ordering::Relaxed);
         self.notify().await;
+    }
+
+    /// Something other than the remote used the TV (a phone started casting).
+    pub async fn external_activity(&self) {
+        self.last_activity.store(now(), Ordering::Relaxed);
+        self.wake().await;
     }
 
     /// Turns the screen back on. Returns whether the TV was asleep.

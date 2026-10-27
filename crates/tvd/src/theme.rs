@@ -1,23 +1,37 @@
-//! Colors: a preset, optionally with your own accent and background on top.
+//! Colors: a metal finish on graphite, optionally with your own colors on top.
 //!
-//! tvd works out the whole palette (surfaces, lines, the lighter accent for
-//! focus rings) from three colors and sends it to the shell and the remotes,
-//! so the TV and the phone always match.
+//! tvd works out the whole palette (surfaces, text, the ink on a lit plate)
+//! from three colors and sends it to the shell and the remotes, so the TV and
+//! the phone always match. The accent is the "lit plate": the focused tile,
+//! the OK button, a switch that is on.
 
 use anyhow::{bail, Context, Result};
 use serde::Serialize;
 
 use crate::config::Theme;
 
-/// name, accent, second accent (gradients), background.
+/// name, accent (the plate), second accent (a plate being pressed), background.
 pub const PRESETS: &[(&str, &str, &str, &str)] = &[
-    ("indigo", "#6c8cff", "#9b6cff", "#0b0d12"),
-    ("ocean", "#22b8cf", "#3b82f6", "#071216"),
-    ("sunset", "#ff8a4c", "#ff4f8b", "#130c0c"),
-    ("forest", "#4ade80", "#14b8a6", "#0a110d"),
-    ("rose", "#f472b6", "#a855f7", "#130b12"),
-    ("graphite", "#a1a1aa", "#e4e4e7", "#0c0c0e"),
+    ("silver", "#c9ced4", "#eceff2", "#0e1013"),
+    ("titanium", "#a8b3be", "#d4dce4", "#0c0f12"),
+    ("champagne", "#d5c4a1", "#efe5cf", "#100f0d"),
+    ("gunmetal", "#8e959d", "#bcc2c8", "#0b0c0d"),
 ];
+
+/// Presets from before the metal finishes, so older configs keep working.
+const RENAMED: &[(&str, &str)] = &[
+    ("indigo", "silver"),
+    ("ocean", "silver"),
+    ("sunset", "silver"),
+    ("forest", "silver"),
+    ("rose", "silver"),
+    ("graphite", "gunmetal"),
+];
+
+/// The finish a configured preset name stands for.
+fn canonical(name: &str) -> &str {
+    RENAMED.iter().find(|(old, _)| *old == name).map_or(name, |(_, new)| new)
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Palette {
@@ -26,6 +40,11 @@ pub struct Palette {
     pub accent_2: String,
     /// Lighter accent, for focus rings and highlights.
     pub accent_soft: String,
+    /// Text and icons on the accent: dark on a light metal, light on a dark custom color.
+    pub on_accent: String,
+    /// Body text, and quieter text for hints and labels.
+    pub text: String,
+    pub muted: String,
     pub background: String,
     /// Top and middle of the background gradient.
     pub background_top: String,
@@ -52,13 +71,13 @@ pub fn presets() -> Vec<Preset> {
 /// Checks the config: a known preset, colors as `#rrggbb`, a dark background
 /// (all text is light, so a bright background would make it unreadable).
 pub fn validate(theme: &Theme) -> Result<()> {
-    if !PRESETS.iter().any(|p| p.0 == theme.preset) {
+    if !PRESETS.iter().any(|p| p.0 == canonical(&theme.preset)) {
         let names: Vec<&str> = PRESETS.iter().map(|p| p.0).collect();
         bail!("theme.preset must be one of {}", names.join(", "));
     }
     for (key, value) in [("accent", &theme.accent), ("accent_2", &theme.accent_2), ("background", &theme.background)] {
         if let Some(value) = value {
-            rgb(value).with_context(|| format!("theme.{key} must look like #6c8cff"))?;
+            rgb(value).with_context(|| format!("theme.{key} must look like #c9ced4"))?;
         }
     }
     if let Some(background) = &theme.background {
@@ -70,7 +89,8 @@ pub fn validate(theme: &Theme) -> Result<()> {
 }
 
 pub fn resolve(theme: &Theme) -> Palette {
-    let preset = PRESETS.iter().find(|p| p.0 == theme.preset).unwrap_or(&PRESETS[0]);
+    let name = canonical(&theme.preset);
+    let preset = PRESETS.iter().find(|p| p.0 == name).unwrap_or(&PRESETS[0]);
     let pick = |own: &Option<String>, fallback: &str| {
         own.as_deref().and_then(|c| rgb(c).ok()).unwrap_or_else(|| rgb(fallback).expect("presets are valid"))
     };
@@ -78,19 +98,26 @@ pub fn resolve(theme: &Theme) -> Palette {
     let accent_2 = pick(&theme.accent_2, preset.2);
     let bg = pick(&theme.background, preset.3);
     const WHITE: [f32; 3] = [255.0, 255.0, 255.0];
-    let surface = |lift: f32, tint: f32| mix(mix(bg, WHITE, lift), accent, tint);
+    // Graphite surfaces carry a trace of the metal, so champagne reads warm and titanium cool.
+    let surface = |lift: f32| mix(mix(bg, WHITE, lift), accent, 0.025);
+    // Light metals take dark ink; a dark custom accent takes light ink.
+    let on_accent = if luminance(accent) > 0.25 { mix(bg, BLACK, 0.2) } else { WHITE };
     Palette {
         preset: preset.0.to_string(),
         accent: hex(accent),
         accent_2: hex(accent_2),
         accent_soft: hex(mix(accent, WHITE, 0.45)),
+        on_accent: hex(on_accent),
+        text: hex(mix(mix(WHITE, accent, 0.06), bg, 0.04)),
+        muted: hex(mix(mix(bg, WHITE, 0.58), accent, 0.06)),
         background: hex(bg),
-        background_top: hex(mix(bg, accent, 0.2)),
-        background_mid: hex(mix(bg, accent, 0.07)),
-        surface: hex(surface(0.045, 0.03)),
-        surface_2: hex(surface(0.085, 0.05)),
-        surface_3: hex(surface(0.12, 0.06)),
-        line: hex(surface(0.12, 0.06)),
+        // The background is flat now; these stay for clients that still draw a gradient.
+        background_top: hex(bg),
+        background_mid: hex(bg),
+        surface: hex(surface(0.045)),
+        surface_2: hex(surface(0.075)),
+        surface_3: hex(surface(0.115)),
+        line: hex(surface(0.14)),
     }
 }
 
@@ -104,6 +131,8 @@ fn hex([r, g, b]: [f32; 3]) -> String {
     let c = |v: f32| v.round().clamp(0.0, 255.0) as u8;
     format!("#{:02x}{:02x}{:02x}", c(r), c(g), c(b))
 }
+
+const BLACK: [f32; 3] = [0.0, 0.0, 0.0];
 
 /// `a` moved `t` of the way towards `b`.
 fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
@@ -145,20 +174,52 @@ mod tests {
 
     #[test]
     fn own_colors_override_the_preset() {
-        let mut t = theme("ocean");
+        let mut t = theme("titanium");
         t.accent = Some("#ff0000".into());
         let palette = resolve(&t);
         assert_eq!(palette.accent, "#ff0000");
-        assert_eq!(palette.accent_2, "#3b82f6");
-        assert_eq!(palette.preset, "ocean");
+        assert_eq!(palette.accent_2, "#d4dce4");
+        assert_eq!(palette.preset, "titanium");
+    }
+
+    #[test]
+    fn old_preset_names_still_load() {
+        for (old, new) in RENAMED {
+            let t = theme(old);
+            validate(&t).unwrap();
+            assert_eq!(resolve(&t).preset, *new);
+        }
+    }
+
+    /// WCAG contrast ratio between two colors.
+    fn contrast(a: &str, b: &str) -> f32 {
+        let (a, b) = (luminance(rgb(a).unwrap()), luminance(rgb(b).unwrap()));
+        (a.max(b) + 0.05) / (a.min(b) + 0.05)
+    }
+
+    #[test]
+    fn text_is_readable_on_every_finish() {
+        for (name, ..) in PRESETS {
+            let p = resolve(&theme(name));
+            for ground in [&p.background, &p.surface, &p.surface_2, &p.surface_3] {
+                assert!(contrast(&p.text, ground) >= 7.0, "{name}: text on {ground}");
+                assert!(contrast(&p.muted, ground) >= 4.5, "{name}: muted on {ground}");
+            }
+            assert!(contrast(&p.on_accent, &p.accent) >= 4.5, "{name}: ink on the plate");
+            assert!(contrast(&p.on_accent, &p.accent_2) >= 4.5, "{name}: ink on a pressed plate");
+        }
+        // A dark custom accent gets light ink.
+        let mut t = theme("silver");
+        t.accent = Some("#2f3a8f".into());
+        assert_eq!(resolve(&t).on_accent, "#ffffff");
     }
 
     #[test]
     fn rejects_bad_colors_and_bright_backgrounds() {
-        let mut t = theme("indigo");
+        let mut t = theme("silver");
         t.accent = Some("red".into());
         assert!(validate(&t).is_err());
-        let mut t = theme("indigo");
+        let mut t = theme("silver");
         t.background = Some("#f0f0f0".into());
         assert!(validate(&t).is_err());
         assert!(validate(&theme("neon")).is_err());

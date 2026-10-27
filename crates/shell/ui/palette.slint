@@ -1,0 +1,31 @@
+// Colors, from the theme in the config (tvd works them out). Defaults: the silver finish.
+// Graphite everywhere; the accent is the lit plate: the focused tile and little else.
+export global Palette {
+    in property <color> accent: #c9ced4;
+    in property <color> accent-2: #eceff2;
+    in property <color> accent-soft: #e2e5e9;
+    in property <color> on-accent: #0b0d0f;
+    in property <color> text: #f2f3f3;
+    in property <color> muted: #9d9e9f;
+    in property <color> background: #0e1013;
+    in property <color> surface: #1d1f22;
+    in property <color> surface-2: #242629;
+    in property <color> surface-3: #2e3032;
+    in property <color> line: #343538;
+}
+
+// A remote key, as in the footer hints.
+export component KeyCap inherits Rectangle {
+    in property <string> label;
+    in property <float> s;
+    width: max(64px * s, cap.preferred-width + 28px * s);
+    height: 44px * s;
+    border-radius: 12px * s;
+    background: Palette.surface-2;
+    cap := Text {
+        text: root.label;
+        color: Palette.text;
+        font-size: 20px * s;
+        font-weight: 600;
+    }
+}

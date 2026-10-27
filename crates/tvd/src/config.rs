@@ -201,11 +201,11 @@ impl Default for Gamepad {
     }
 }
 
-/// Colors of the shell and the remote: a preset, and optionally your own on top.
+/// Colors of the shell and the remote: a metal finish, and optionally your own colors on top.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Theme {
-    /// indigo, ocean, sunset, forest, rose or graphite.
+    /// silver, titanium, champagne or gunmetal (older color preset names load as one of these).
     pub preset: String,
     /// Your own colors (`#rrggbb`), each replacing the preset's.
     pub accent: Option<String>,
@@ -215,7 +215,7 @@ pub struct Theme {
 
 impl Default for Theme {
     fn default() -> Self {
-        Self { preset: "indigo".into(), accent: None, accent_2: None, background: None }
+        Self { preset: "silver".into(), accent: None, accent_2: None, background: None }
     }
 }
 

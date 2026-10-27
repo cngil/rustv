@@ -65,13 +65,14 @@ enabled = true
 guide_closes_app = true   # the Xbox / PS button closes the open app
 
 [theme]
-# Colors of the TV and the remote. Presets: indigo, ocean, sunset, forest,
-# rose, graphite. Any of the three colors below replaces the preset's own;
-# backgrounds must be dark (text is light).
-preset = "indigo"
-# accent = "#6c8cff"
-# accent_2 = "#9b6cff"       # second color of gradients
-# background = "#0b0d12"
+# Colors of the TV and the remote: a metal finish on graphite. Presets:
+# silver, titanium, champagne, gunmetal (the old color presets still load,
+# as silver; graphite as gunmetal). Any of the three colors below replaces
+# the finish's own; backgrounds must be dark (text is light).
+preset = "silver"
+# accent = "#c9ced4"         # the lit plate: focused tile, OK, switches that are on
+# accent_2 = "#eceff2"       # a plate being pressed
+# background = "#0e1013"
 
 [locale]
 # Language of the TV, the remote and the overlay, and how numbers look.

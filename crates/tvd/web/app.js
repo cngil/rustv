@@ -21,7 +21,7 @@ const TRANSLATIONS = {
     "That token was rejected.": "Bu anahtar kabul edilmedi.",
     // header and remote
     "Connecting…": "Bağlanıyor…",
-    "Now on TV": "Şimdi TV'de",
+    Connected: "Bağlı",
     "Reconnecting…": "Yeniden bağlanıyor…",
     "Not connected to the TV": "TV'ye bağlı değil",
     Home: "Ana ekran",
@@ -242,20 +242,18 @@ const TRANSLATIONS = {
     "The Xbox or PS button closes the open app.": "Xbox ya da PS tuşu açık uygulamayı kapatır.",
     // theme
     Theme: "Tema",
-    Preset: "Hazır tema",
-    "Pick a preset, or your own colors on top of it. Dark backgrounds only.":
-      "Hazır bir tema seç ya da üstüne kendi renklerini koy. Yalnızca koyu arka planlar.",
-    Indigo: "Çivit",
-    Ocean: "Okyanus",
-    Sunset: "Gün batımı",
-    Forest: "Orman",
-    Rose: "Gül",
-    Graphite: "Grafit",
+    Finish: "Kaplama",
+    "Pick a metal, or your own colors on top of it. Dark backgrounds only.":
+      "Bir metal seç ya da üstüne kendi renklerini koy. Yalnızca koyu arka planlar.",
+    Silver: "Gümüş",
+    Titanium: "Titanyum",
+    Champagne: "Şampanya",
+    Gunmetal: "Füme",
     "Your colors": "Kendi renklerin",
     Accent: "Vurgu",
-    "Accent 2": "Vurgu 2",
+    Pressed: "Basılı",
     Background: "Arka plan",
-    "Back to the preset": "Hazır temaya dön",
+    "Back to the finish": "Kaplamaya dön",
     // network
     Network: "Ağ",
     "Open to the network": "Ağa açık olanlar",
@@ -380,6 +378,8 @@ function applyTheme(p) {
     "--surface-3": p.surface_3,
     "--line": p.line,
   };
+  // Palettes from an older tvd lack these; the stylesheet's defaults stay then.
+  if (p.on_accent) Object.assign(vars, { "--on-accent": p.on_accent, "--text": p.text, "--muted": p.muted });
   for (const [name, value] of Object.entries(vars)) root.setProperty(name, value);
   document.querySelector('meta[name="theme-color"]').setAttribute("content", p.background);
   localStorage.setItem(THEME_KEY, JSON.stringify(p));
@@ -458,7 +458,7 @@ function connect() {
 function setOnline(online) {
   $("#dot").classList.toggle("on", online);
   $("#app").classList.toggle("offline", !online);
-  $("#conn").textContent = t(online ? "Now on TV" : "Reconnecting…");
+  $("#conn").textContent = t(online ? "Connected" : "Reconnecting…");
 }
 
 let offlineNotice = 0;
@@ -568,7 +568,7 @@ function renderState() {
     ? t("Any button wakes the TV")
     : sleepLeft() !== null
       ? t("Sleeps in {minutes} min", { minutes: Math.max(1, Math.ceil(sleepLeft() / 60)) })
-      : t("Now on TV");
+      : t("Connected");
   $("#timer-open").classList.toggle("active", sleepLeft() !== null);
   renderTimer();
   $("#stop").hidden = !running;
@@ -825,15 +825,8 @@ function appIcon(app) {
   }
   const tile = document.createElement("span");
   tile.className = "dock-icon letter";
-  tile.style.setProperty("--hue", hue(app.id));
   tile.textContent = app.name.slice(0, 1).toUpperCase();
   return tile;
-}
-
-function hue(text) {
-  let h = 0;
-  for (const c of text) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return h;
 }
 
 let toastTimer = null;
@@ -1358,12 +1351,12 @@ function settingRow(item) {
 
 const COLOR_KEYS = [
   ["accent", "Accent"],
-  ["accent_2", "Accent 2"],
+  ["accent_2", "Pressed"],
   ["background", "Background"],
 ];
 
 function themeRows() {
-  const theme = settings.theme || { preset: "indigo" };
+  const theme = settings.theme || { preset: "silver" };
   const own = COLOR_KEYS.filter(([key]) => theme[key]);
 
   const presets = document.createElement("div");
@@ -1371,8 +1364,8 @@ function themeRows() {
   const text = document.createElement("div");
   text.className = "setting-text";
   text.innerHTML = '<div class="setting-label"></div><div class="setting-hint"></div>';
-  text.querySelector(".setting-label").textContent = t("Preset");
-  text.querySelector(".setting-hint").textContent = t("Pick a preset, or your own colors on top of it. Dark backgrounds only.");
+  text.querySelector(".setting-label").textContent = t("Finish");
+  text.querySelector(".setting-hint").textContent = t("Pick a metal, or your own colors on top of it. Dark backgrounds only.");
   const chips = document.createElement("div");
   chips.className = "chips";
   for (const preset of settings.presets || []) {
@@ -1381,7 +1374,7 @@ function themeRows() {
     chip.setAttribute("aria-pressed", String(preset.name === theme.preset && own.length === 0));
     const swatch = document.createElement("span");
     swatch.className = "swatch";
-    swatch.style.background = `linear-gradient(135deg, ${preset.accent}, ${preset.accent_2})`;
+    swatch.style.background = preset.accent;
     swatch.style.boxShadow = `0 0 0 3px ${preset.background}`;
     chip.append(swatch, t(preset.name[0].toUpperCase() + preset.name.slice(1)));
     chip.addEventListener("click", () => {
@@ -1405,7 +1398,7 @@ function themeRows() {
     field.className = "color-field" + (theme[key] ? " own" : "");
     const input = document.createElement("input");
     input.type = "color";
-    input.value = (palette && palette[key]) || "#6c8cff";
+    input.value = (palette && palette[key]) || "#c9ced4";
     input.addEventListener("change", () => changeSetting(`theme.${key}`, input.value));
     const caption = document.createElement("span");
     caption.textContent = t(name);
@@ -1416,7 +1409,7 @@ function themeRows() {
   if (own.length) {
     const reset = document.createElement("button");
     reset.className = "chip";
-    reset.textContent = t("Back to the preset");
+    reset.textContent = t("Back to the finish");
     reset.addEventListener("click", () => {
       for (const [key] of own) changeSetting(`theme.${key}`, null);
     });

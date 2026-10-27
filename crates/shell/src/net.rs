@@ -41,7 +41,8 @@ enum Incoming {
     Screensaver(ScreensaverConfig),
     Wallpaper(WallpaperConfig),
     Locale(crate::locale::Locale),
-    Theme(crate::Colors),
+    // Boxed: the palette is much larger than the other messages.
+    Theme(Box<crate::Colors>),
     #[serde(other)]
     Other,
 }
@@ -197,7 +198,7 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
             let _ = ui.upgrade_in_event_loop(move |ui| crate::wallpaper::configure(&ui, cfg));
         }
         Incoming::Locale(locale) => crate::set_locale(ui, locale),
-        Incoming::Theme(colors) => crate::set_theme(ui, colors),
+        Incoming::Theme(colors) => crate::set_theme(ui, *colors),
         Incoming::Pairing { url, size, modules } => crate::set_pairing(ui, url, size, modules),
         Incoming::Other => {}
     }

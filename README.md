@@ -85,9 +85,11 @@ and your phone becomes the remote.
   and guests, not a network defense: the pairing token is that.
 - **Network overview** in the remote's settings: every port the box listens
   on, on which address, and which program owns it.
-- **Themes**: six color presets (indigo, ocean, sunset, forest, rose,
-  graphite) or your own accent and background, picked from the remote; the
-  TV and the remote change together.
+- **Look**: graphite surfaces with one metal. Whatever is selected or
+  primary (the focused app, OK, a switch that is on) is a solid plate of it;
+  nothing glows. Four finishes (silver, titanium, champagne, gunmetal) or
+  your own colors, picked from the remote; the TV and the remote change
+  together. Older color presets in a config still load.
 - **Media keys** in the remote: play/pause, previous, next and ±10 s, sent
   to the player over MPRIS (Firefox, Jellyfin, VLC…) or as keys otherwise.
 - **Sleep timer** from the remote: 15 minutes to 2 hours.
@@ -358,7 +360,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "lock"}
 {"type": "unlock", "pin": "2468"}
 {"type": "set", "key": "cast.airplay", "value": true}
-{"type": "set", "key": "theme.preset", "value": "ocean"}
+{"type": "set", "key": "theme.preset", "value": "champagne"}
 {"type": "set", "key": "theme.accent", "value": null}
 {"type": "set", "key": "screensaver.idle_minutes", "value": 10}
 {"type": "reorder", "ids": ["stremio", "jellyfin"]}
@@ -386,12 +388,12 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [x] App icons
 - [x] Screensaver: generated animation with a drifting clock
 - [ ] Now playing card, Spotify Connect through `spotifyd`
-- [x] Themes: six presets or your own colors, on the TV and the remote
+- [x] Themes: four metal finishes or your own colors, on the TV and the remote
 - [x] QR code pairing
 - [x] mDNS: the remote at `http://<hostname>.local:8765`, announced on the network
 - [ ] Agent integration (MCP) and voice commands
 - [ ] Switching between running apps
-- [ ] UI redesign of the shell and the remote, once the feature set is complete
+- [x] UI redesign of the shell and the remote: graphite and one metal, one design language (see [DESIGN.md](DESIGN.md))
 
 ### Backlog
 
@@ -430,5 +432,7 @@ npx playwright test
 
 ## License
 
-[GPL-3.0-or-later](LICENSE). The shell bundles the [Inter](https://rsms.me/inter/)
-typeface, licensed under the [SIL Open Font License](crates/shell/ui/fonts/OFL.txt).
+[GPL-3.0-or-later](LICENSE). The shell and the remote bundle the
+[Hanken Grotesk](https://github.com/marcologous/hanken-grotesk) typeface, licensed
+under the [SIL Open Font License](crates/shell/ui/fonts/OFL.txt); the remote serves
+it from the box, so nothing loads from the internet.

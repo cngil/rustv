@@ -115,7 +115,7 @@ mod tests {
         let palette = crate::theme::resolve(&crate::config::Theme::default());
         let ini = config(&palette, 100);
         assert!(ini.contains("max = 100\n"));
-        assert!(ini.contains("bar_color = 6c8cff\n"));
+        assert!(ini.contains("bar_color = c9ced4\n"));
         assert!(!ini.contains('#'));
     }
 }

@@ -89,7 +89,6 @@ fn main() -> Result<()> {
         let _ = commands.send(msg.to_string());
         set_opening(&weak, id.to_string());
     });
-
     let weak = ui.as_weak();
     std::thread::Builder::new().name("net".into()).spawn(move || {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("tokio runtime");
@@ -242,10 +241,19 @@ pub struct Colors {
     accent_2: String,
     accent_soft: String,
     background: String,
-    background_top: String,
-    background_mid: String,
     surface: String,
     line: String,
+    // Missing from an older tvd; the shell's defaults stay then.
+    #[serde(default)]
+    on_accent: String,
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    muted: String,
+    #[serde(default)]
+    surface_2: String,
+    #[serde(default)]
+    surface_3: String,
 }
 
 pub fn set_theme(ui: &Weak<Shell>, colors: Colors) {
@@ -260,10 +268,13 @@ pub fn set_theme(ui: &Weak<Shell>, colors: Colors) {
         set(&colors.accent_2, &|c| p.set_accent_2(c));
         set(&colors.accent_soft, &|c| p.set_accent_soft(c));
         set(&colors.background, &|c| p.set_background(c));
-        set(&colors.background_top, &|c| p.set_background_top(c));
-        set(&colors.background_mid, &|c| p.set_background_mid(c));
         set(&colors.surface, &|c| p.set_surface(c));
+        set(&colors.surface_2, &|c| p.set_surface_2(c));
+        set(&colors.surface_3, &|c| p.set_surface_3(c));
         set(&colors.line, &|c| p.set_line(c));
+        set(&colors.on_accent, &|c| p.set_on_accent(c));
+        set(&colors.text, &|c| p.set_text(c));
+        set(&colors.muted, &|c| p.set_muted(c));
     });
 }
 
@@ -313,35 +324,11 @@ fn tile(app: AppEntry) -> AppTile {
     let icon = app.icon.as_deref().and_then(|path| Image::load_from_path(path).ok());
     AppTile {
         initial: app.name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default().into(),
-        color: color_for(&app.id),
         has_icon: icon.is_some(),
         icon: icon.unwrap_or_default(),
         id: app.id.into(),
         name: app.name.into(),
     }
-}
-
-/// Stable color per app, same idea as the web remote.
-fn color_for(id: &str) -> Color {
-    let hue = id.chars().fold(0u32, |h, c| (h * 31 + c as u32) % 360) as f32;
-    let (r, g, b) = hsl_to_rgb(hue, 0.65, 0.55);
-    Color::from_rgb_u8(r, g, b)
-}
-
-fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
-    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
-    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
-    let m = l - c / 2.0;
-    let (r, g, b) = match h as u32 {
-        0..=59 => (c, x, 0.0),
-        60..=119 => (x, c, 0.0),
-        120..=179 => (0.0, c, x),
-        180..=239 => (0.0, x, c),
-        240..=299 => (x, 0.0, c),
-        _ => (c, 0.0, x),
-    };
-    let to_u8 = |v: f32| ((v + m) * 255.0).round().clamp(0.0, 255.0) as u8;
-    (to_u8(r), to_u8(g), to_u8(b))
 }
 
 pub fn set_running(ui: &Weak<Shell>, running: bool) {
@@ -431,13 +418,5 @@ mod tests {
         assert!((0..8).any(|n| pick_style("random", n, true) == "images"));
         assert_eq!(pick_style("images", 0, false), "aurora");
         assert_eq!(pick_style("images", 0, true), "images");
-    }
-
-    #[test]
-    fn colors_are_stable_and_valid() {
-        assert_eq!(color_for("jellyfin"), color_for("jellyfin"));
-        assert_eq!(hsl_to_rgb(0.0, 1.0, 0.5), (255, 0, 0));
-        assert_eq!(hsl_to_rgb(120.0, 1.0, 0.5), (0, 255, 0));
-        assert_eq!(hsl_to_rgb(240.0, 1.0, 0.5), (0, 0, 255));
     }
 }

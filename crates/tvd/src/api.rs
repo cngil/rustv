@@ -29,6 +29,11 @@ const ICON: &str = include_str!("../web/icon.svg");
 const TOUCH_ICON: &[u8] = include_bytes!("../web/apple-touch-icon.png");
 const ICON_192: &[u8] = include_bytes!("../web/icon-192.png");
 const ICON_512: &[u8] = include_bytes!("../web/icon-512.png");
+// Hanken Grotesk (SIL Open Font License, see web/fonts/OFL.txt), served from the box:
+// the remote loads nothing from the internet.
+const HANKEN_400: &[u8] = include_bytes!("../web/fonts/HankenGrotesk-Regular.woff2");
+const HANKEN_500: &[u8] = include_bytes!("../web/fonts/HankenGrotesk-Medium.woff2");
+const HANKEN_600: &[u8] = include_bytes!("../web/fonts/HankenGrotesk-SemiBold.woff2");
 
 type Shared = Arc<AppState>;
 
@@ -95,12 +100,21 @@ pub fn router(state: Shared) -> Router {
         .route("/apple-touch-icon.png", get(|| async { image(TOUCH_ICON) }))
         .route("/icon-192.png", get(|| async { image(ICON_192) }))
         .route("/icon-512.png", get(|| async { image(ICON_512) }))
+        .route("/fonts/hanken-3.013-400.woff2", get(|| async { font(HANKEN_400) }))
+        .route("/fonts/hanken-3.013-500.woff2", get(|| async { font(HANKEN_500) }))
+        .route("/fonts/hanken-3.013-600.woff2", get(|| async { font(HANKEN_600) }))
         .nest("/api/v1", api)
         .with_state(state)
 }
 
 fn asset(content_type: &'static str, body: &'static str) -> Response {
     ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "no-cache")], body).into_response()
+}
+
+/// Font files never change under a URL that carries their version.
+fn font(woff2: &'static [u8]) -> Response {
+    ([(header::CONTENT_TYPE, "font/woff2"), (header::CACHE_CONTROL, "public, max-age=31536000, immutable")], woff2)
+        .into_response()
 }
 
 fn image(png: &'static [u8]) -> Response {

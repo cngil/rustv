@@ -1,22 +1,15 @@
 // rustv home screen. Designed for 1920x1080 and scaled to the real output.
 // Navigation works with arrow keys and Enter (the remote's D-pad); no pointer needed.
 
-import "fonts/Inter-Regular.ttf";
-import "fonts/Inter-SemiBold.ttf";
-import "fonts/Inter-Bold.ttf";
+import "fonts/HankenGrotesk-Regular.ttf";
+import "fonts/HankenGrotesk-Medium.ttf";
+import "fonts/HankenGrotesk-SemiBold.ttf";
+import "fonts/HankenGrotesk-Bold.ttf";
 import { Screensaver } from "screensaver.slint";
+import { Palette, KeyCap } from "palette.slint";
 
-// Colors, from the theme in the config (tvd works them out). Defaults: the indigo preset.
-export global Palette {
-    in property <color> accent: #6c8cff;
-    in property <color> accent-2: #9b6cff;
-    in property <color> accent-soft: #a9b8ff;
-    in property <color> background: #0b0d12;
-    in property <color> background-top: #18204a;
-    in property <color> background-mid: #0f1426;
-    in property <color> surface: #151922;
-    in property <color> line: #262c3b;
-}
+// The palette is set from Rust, so it is exported from here too.
+export { Palette }
 
 // Every piece of text on the home screen; the shell fills these in per language.
 export global Strings {
@@ -41,7 +34,6 @@ export struct AppTile {
     initial: string,
     icon: image,
     has-icon: bool,
-    color: color,
 }
 
 component Card inherits Rectangle {
@@ -51,22 +43,22 @@ component Card inherits Rectangle {
     in property <float> s;
     callback activated();
 
-    property <length> grow: focused ? 20px * s : 0px;
-    animate grow { duration: 180ms; easing: ease-out; }
+    property <length> grow: focused ? 24px * s : 0px;
+    animate grow { duration: 220ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
 
     // The face grows around the slot when focused, so neighbours do not move.
+    // Focused, it is the lit plate: solid metal with dark ink. Otherwise matte graphite.
     face := Rectangle {
         x: -grow / 2;
         y: -grow / 2;
         width: root.width + grow;
         height: root.height + grow;
-        border-radius: 32px * s;
-        background: focused ? #ffffff24 : #ffffff0f;
-        border-width: focused ? 3px * s : 1px * s;
-        border-color: focused ? Palette.accent-soft : #ffffff17;
-        drop-shadow-blur: focused ? 48px * s : 0px;
-        drop-shadow-color: Palette.accent.transparentize(0.56);
-        animate background, border-color, drop-shadow-blur { duration: 180ms; easing: ease-out; }
+        border-radius: 28px * s;
+        background: focused ? Palette.accent : Palette.surface;
+        drop-shadow-offset-y: focused ? 22px * s : 0px;
+        drop-shadow-blur: focused ? 44px * s : 0px;
+        drop-shadow-color: #00000080;
+        animate background { duration: 220ms; easing: ease-out; }
     }
 
     VerticalLayout {
@@ -75,7 +67,7 @@ component Card inherits Rectangle {
         width: face.width;
         height: face.height;
         alignment: center;
-        spacing: 22px * s;
+        spacing: 24px * s;
         padding: 24px * s;
 
         HorizontalLayout {
@@ -86,25 +78,27 @@ component Card inherits Rectangle {
                 height: 112px * s;
                 image-fit: contain;
             }
+            // No icon: the initial, engraved in graphite (and in the plate's ink when focused).
             if !tile.has-icon: Rectangle {
                 width: 112px * s;
                 height: 112px * s;
-                border-radius: 30px * s;
-                background: @linear-gradient(135deg, tile.color 0%, tile.color.darker(0.45) 100%);
+                border-radius: 28px * s;
+                background: focused ? Palette.on-accent.transparentize(0.9) : Palette.surface-3;
+                animate background { duration: 220ms; easing: ease-out; }
                 Text {
                     text: tile.initial;
-                    color: white;
+                    color: focused ? Palette.on-accent : Palette.accent;
                     font-size: 52px * s;
-                    font-weight: 700;
+                    font-weight: 600;
                 }
             }
         }
 
         Text {
             text: opening ? Strings.opening : tile.name;
-            color: focused ? white : #d6dbe8;
+            color: focused ? Palette.on-accent : Palette.muted;
             font-size: 30px * s;
-            font-weight: 600;
+            font-weight: focused ? 600 : 500;
             horizontal-alignment: center;
             overflow: elide;
         }
@@ -119,7 +113,7 @@ component Card inherits Rectangle {
 export component Shell inherits Window {
     title: "rustv";
     background: Palette.background;
-    default-font-family: "Inter";
+    default-font-family: "Hanken Grotesk";
     preferred-width: 1920px;
     preferred-height: 1080px;
 
@@ -175,10 +169,10 @@ export component Shell inherits Window {
     callback activity();
 
     property <float> s: min(root.width / 1920px, root.height / 1080px);
-    property <length> slot-width: 340px * s;
-    property <length> slot-height: 250px * s;
-    property <length> gap: 44px * s;
-    property <length> margin: 96px * s;
+    property <length> slot-width: 300px * s;
+    property <length> slot-height: 264px * s;
+    property <length> gap: 32px * s;
+    property <length> margin: 112px * s;
 
     function activate(index: int) {
         if index >= 0 && index < apps.length {
@@ -199,26 +193,7 @@ export component Shell inherits Window {
         }
     }
 
-    // Background
-    Rectangle {
-        background: @linear-gradient(165deg, Palette.background-top 0%, Palette.background-mid 38%, Palette.background 75%);
-    }
-    Rectangle {
-        x: root.width * 0.62;
-        y: -root.height * 0.35;
-        width: root.width * 0.7;
-        height: self.width;
-        border-radius: self.width / 2;
-        background: Palette.accent.transparentize(0.94);
-    }
-    Rectangle {
-        x: -root.width * 0.2;
-        y: root.height * 0.55;
-        width: root.width * 0.55;
-        height: self.width;
-        border-radius: self.width / 2;
-        background: Palette.accent-2.transparentize(0.95);
-    }
+    // Background: flat graphite (the window's own color); your pictures go over it.
     if root.wallpaper-on: Rectangle {
         Image {
             width: parent.width;
@@ -238,7 +213,7 @@ export component Shell inherits Window {
         }
         // Darker at the top and bottom, where the clock, the greeting and the hints are.
         Rectangle {
-            background: @linear-gradient(180deg, #000000b0 0%, #00000050 40%, #00000060 65%, #000000c0 100%);
+            background: @linear-gradient(180deg, #000000b8 0%, #00000058 40%, #00000066 65%, #000000c8 100%);
         }
     }
 
@@ -248,46 +223,47 @@ export component Shell inherits Window {
         pointer-event(event) => { root.activity(); }
     }
 
-    // Header
+    // Header: greeting on the left, the time on the right, sharing one top line.
     Text {
         visible: root.show-greeting;
         x: margin;
-        y: 84px * s;
+        y: 96px * s;
         text: root.greeting;
-        color: white;
-        font-size: 56px * s;
-        font-weight: 700;
+        color: Palette.text;
+        font-size: 52px * s;
+        font-weight: 600;
+        letter-spacing: -0.5px * s;
     }
     Text {
         visible: root.show-greeting;
         x: margin;
-        y: 156px * s;
+        y: 172px * s;
         text: Strings.subtitle;
-        color: #8a93a8;
-        font-size: 30px * s;
-        font-weight: 600;
+        color: Palette.muted;
+        font-size: 28px * s;
     }
     Text {
         visible: root.show-clock;
         x: root.width - self.width - margin;
-        y: 66px * s;
+        y: 74px * s;
         text: root.time;
-        color: white;
-        font-size: 84px * s;
-        font-weight: 700;
+        color: Palette.text;
+        font-size: 88px * s;
+        font-weight: 500;
+        letter-spacing: -2px * s;
     }
     Text {
         visible: root.show-date;
         x: root.width - self.width - margin;
-        y: root.show-clock ? 168px * s : 84px * s;
+        y: root.show-clock ? 178px * s : 96px * s;
         text: root.date;
-        color: #8a93a8;
+        color: Palette.muted;
         font-size: 28px * s;
     }
 
-    // App row: centered when it fits, otherwise it scrolls to keep the focused card visible.
+    // App row: from the left margin when it fits, otherwise it scrolls to keep the focused card visible.
     Rectangle {
-        y: (root.height - slot-height) / 2 + 40px * s;
+        y: (root.height - slot-height) / 2 + 28px * s;
         height: slot-height;
         width: root.width;
 
@@ -295,8 +271,9 @@ export component Shell inherits Window {
         property <length> follow: root.width / 2 - (root.selected * (slot-width + gap) + slot-width / 2);
 
         Rectangle {
+            // Starts at the margin, in line with the greeting; scrolls once it no longer fits.
             x: parent.total <= root.width - 2 * margin
-                ? (root.width - parent.total) / 2
+                ? margin
                 : max(min(margin, parent.follow), root.width - margin - parent.total);
             animate x { duration: 240ms; easing: ease-out; }
             width: parent.total;
@@ -322,30 +299,37 @@ export component Shell inherits Window {
         width: root.width;
         horizontal-alignment: center;
         text: Strings.no-apps;
-        color: #8a93a8;
+        color: Palette.muted;
         font-size: 30px * s;
     }
 
-    // Footer hints
+    // Footer hints: keys drawn as small graphite caps.
     if root.show-hints: HorizontalLayout {
-        y: root.height - 110px * s;
-        height: 40px * s;
-        alignment: center;
-        spacing: 56px * s;
-        Text { text: "←  →   " + Strings.hint-move; color: #6d7590; font-size: 24px * s; }
-        Text { text: "OK   " + Strings.hint-open; color: #6d7590; font-size: 24px * s; }
+        x: margin;
+        y: root.height - 88px * s - self.height;
+        width: self.preferred-width;
+        height: 44px * s;
+        spacing: 40px * s;
+        HorizontalLayout {
+            spacing: 14px * s;
+            KeyCap { label: "←  →"; s: root.s; }
+            Text { text: Strings.hint-move; color: Palette.muted; font-size: 24px * s; vertical-alignment: center; }
+        }
+        HorizontalLayout {
+            spacing: 14px * s;
+            KeyCap { label: "OK"; s: root.s; }
+            Text { text: Strings.hint-open; color: Palette.muted; font-size: 24px * s; vertical-alignment: center; }
+        }
     }
 
     // Pairing card
     if root.show-pairing && !root.screensaver-active: Rectangle {
         x: root.width - self.width - margin;
-        y: root.height - self.height - 64px * s;
-        width: 640px * s;
+        y: root.height - self.height - 72px * s;
+        width: 660px * s;
         height: 232px * s;
         border-radius: 28px * s;
-        background: Palette.surface.transparentize(0.1);
-        border-width: 1px;
-        border-color: Palette.line;
+        background: Palette.surface;
 
         HorizontalLayout {
             padding: 24px * s;
@@ -368,21 +352,22 @@ export component Shell inherits Window {
                 spacing: 10px * s;
                 Text {
                     text: Strings.pair-title;
-                    color: white;
+                    color: Palette.text;
                     font-size: 30px * s;
-                    font-weight: 700;
+                    font-weight: 600;
                     wrap: word-wrap;
                 }
                 Text {
                     text: Strings.pair-body;
-                    color: #aab2c5;
-                    font-size: 21px * s;
+                    color: Palette.muted;
+                    font-size: 22px * s;
                     wrap: word-wrap;
                 }
                 Text {
                     text: root.pairing-url;
-                    color: #6d7590;
-                    font-size: 19px * s;
+                    color: Palette.accent;
+                    font-size: 20px * s;
+                    font-weight: 500;
                 }
             }
         }
@@ -393,16 +378,26 @@ export component Shell inherits Window {
         visible: !root.connected;
         x: (root.width - self.width) / 2;
         y: 40px * s;
-        width: banner-text.preferred-width + 56px * s;
-        height: 56px * s;
+        width: banner-row.preferred-width + 64px * s;
+        height: 60px * s;
         border-radius: self.height / 2;
-        background: #2a1820;
-        border-width: 1px;
-        border-color: #ff5d7380;
-        banner-text := Text {
-            text: Strings.connecting;
-            color: #ffd6dc;
-            font-size: 24px * s;
+        background: Palette.surface-2;
+        banner-row := HorizontalLayout {
+            alignment: center;
+            spacing: 16px * s;
+            Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: 12px * s;
+                height: 12px * s;
+                border-radius: self.width / 2;
+                background: #e3b866;
+            }
+            Text {
+                text: Strings.connecting;
+                color: Palette.text;
+                font-size: 24px * s;
+                vertical-alignment: center;
+            }
         }
     }
 
@@ -415,9 +410,10 @@ export component Shell inherits Window {
         width: 620px * s;
         height: 96px * s;
         border-radius: 28px * s;
-        background: Palette.surface.transparentize(0.1);
-        border-width: 1px;
-        border-color: Palette.line;
+        background: Palette.surface-2;
+        drop-shadow-offset-y: 16px * s;
+        drop-shadow-blur: 40px * s;
+        drop-shadow-color: #00000080;
 
         HorizontalLayout {
             padding-left: 36px * s;
@@ -426,23 +422,23 @@ export component Shell inherits Window {
             Text {
                 vertical-alignment: center;
                 text: root.muted ? Strings.muted : Strings.volume;
-                color: #d6dbe8;
+                color: Palette.muted;
                 font-size: 26px * s;
-                font-weight: 600;
+                font-weight: 500;
                 min-width: 120px * s;
             }
             Rectangle {
                 Rectangle {
                     y: (parent.height - self.height) / 2;
-                    height: 14px * s;
+                    height: 10px * s;
                     border-radius: self.height / 2;
-                    background: Palette.line;
+                    background: Palette.surface-3;
                     Rectangle {
                         x: 0;
                         width: parent.width * clamp(root.volume / max(root.max-volume, 0.01), 0, 1);
                         animate width { duration: 120ms; }
                         border-radius: parent.border-radius;
-                        background: root.muted ? #4a5168 : @linear-gradient(90deg, Palette.accent 0%, Palette.accent-2 100%);
+                        background: root.muted ? Palette.muted : Palette.accent;
                     }
                 }
             }
@@ -450,9 +446,9 @@ export component Shell inherits Window {
                 vertical-alignment: center;
                 horizontal-alignment: right;
                 text: Math.round(root.volume * 100) + "%";
-                color: white;
-                font-size: 26px * s;
-                font-weight: 700;
+                color: Palette.text;
+                font-size: 28px * s;
+                font-weight: 600;
                 min-width: 90px * s;
             }
         }
@@ -478,26 +474,26 @@ export component Shell inherits Window {
                         height: 80px * s;
                         border-radius: 34px * s;
                         border-width: 12px * s;
-                        border-color: Palette.accent-soft;
+                        border-color: Palette.muted;
                     }
                     Rectangle {
                         y: 56px * s;
                         height: 84px * s;
                         border-radius: 20px * s;
-                        background: @linear-gradient(135deg, Palette.accent 0%, Palette.accent-2 100%);
+                        background: Palette.accent;
                     }
                 }
             }
             Text {
                 text: Strings.locked;
-                color: white;
+                color: Palette.text;
                 font-size: 56px * s;
-                font-weight: 700;
+                font-weight: 600;
                 horizontal-alignment: center;
             }
             Text {
                 text: Strings.unlock-hint;
-                color: #8a93a8;
+                color: Palette.muted;
                 font-size: 28px * s;
                 horizontal-alignment: center;
             }

@@ -85,14 +85,14 @@ test("switching to Turkish translates the remote, and back", async ({ page }) =>
   await expect(page.locator('[data-tab="remote"]')).toHaveText("Remote");
 });
 
-test("a theme preset recolors the remote", async ({ page }) => {
+test("a finish recolors the remote", async ({ page }) => {
   await open(page);
   await openSettings(page);
   const accent = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim());
-  await row(page, "Preset").getByRole("button", { name: "Ocean", exact: true }).click();
-  await expect.poll(accent).toBe("#22b8cf");
-  await row(page, "Preset").getByRole("button", { name: "Indigo", exact: true }).click();
-  await expect.poll(accent).toBe("#6c8cff");
+  await row(page, "Finish").getByRole("button", { name: "Champagne", exact: true }).click();
+  await expect.poll(accent).toBe("#d5c4a1");
+  await row(page, "Finish").getByRole("button", { name: "Silver", exact: true }).click();
+  await expect.poll(accent).toBe("#c9ced4");
 });
 
 test("the sleep timer shows in the header and can be turned off", async ({ page }) => {
@@ -102,7 +102,7 @@ test("the sleep timer shows in the header and can be turned off", async ({ page 
   await expect(page.locator("#conn")).toHaveText(/Sleeps in 15 min/);
   await page.locator("#timer-open").click();
   await page.locator("#timer-chips").getByRole("button", { name: "Turn the timer off", exact: true }).click();
-  await expect(page.locator("#conn")).toHaveText("Now on TV");
+  await expect(page.locator("#conn")).toHaveText("Connected");
 });
 
 test.describe("on a small phone", () => {

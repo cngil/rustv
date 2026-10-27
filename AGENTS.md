@@ -22,7 +22,7 @@ on-screen shell (`rustv-shell`) is a thin client of the same API.
   - `audio.rs` PipeWire volume (`wpctl`) and outputs (`pw-dump`)
 - `crates/tvd/web/`: web remote (plain HTML, CSS, JS, PWA), no build step
 - `crates/shell/`: on-screen shell
-  - `ui/shell.slint` home screen (Slint markup), `ui/fonts/` bundled Inter
+  - `ui/shell.slint` home screen (Slint markup), `ui/fonts/` bundled Hanken Grotesk
   - `src/main.rs` window, clock, UI updates; `src/net.rs` WebSocket client;
     `src/settings.rs` finds tvd from the shared config
 - `config/config.example.toml`: documented example config

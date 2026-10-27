@@ -13,6 +13,7 @@ mod config;
 mod display;
 mod gamepad;
 mod input;
+mod keyboard;
 mod keymap;
 mod lock;
 mod media;

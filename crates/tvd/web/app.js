@@ -233,6 +233,15 @@ const TRANSLATIONS = {
     "Settings on the TV": "TV'de ayarlar",
     "A Settings tile after the apps, for whoever has only the TV remote. Only the phone can turn it back on.":
       "Uygulamaların sonunda bir Ayarlar kutucuğu, yalnızca TV kumandası olanlar için. Yeniden yalnızca telefondan açılabilir.",
+    // on-screen keyboard
+    "On-screen keyboard": "Ekran klavyesi",
+    "Keyboard on the TV": "TV'de klavye",
+    "For typing with the TV remote or a gamepad: arrows move, OK types, Back closes.":
+      "TV kumandası ya da oyun koluyla yazmak için: yön tuşları gezer, OK yazar, Geri kapatır.",
+    "Hold OK to open it": "Açmak için OK'a basılı tut",
+    "On the TV remote, over HDMI-CEC.": "TV kumandasında, HDMI-CEC üzerinden.",
+    "Hold the gamepad's Guide button to open it": "Açmak için oyun kolunun ana menü tuşuna basılı tut",
+    "A short press still goes home.": "Kısa basış yine ana ekrana döner.",
     // HDMI-CEC
     "TV control (HDMI-CEC)": "TV kontrolü (HDMI-CEC)",
     "Control the TV over HDMI": "TV'yi HDMI üzerinden kontrol et",
@@ -1288,6 +1297,28 @@ const SETTINGS = [
         },
         { key: "wallpaper.shuffle", label: "Random order" },
       ].map(settingRow),
+    ],
+  },
+  {
+    title: "On-screen keyboard",
+    items: [
+      {
+        key: "keyboard.enabled",
+        label: "Keyboard on the TV",
+        hint: "For typing with the TV remote or a gamepad: arrows move, OK types, Back closes.",
+      },
+      {
+        key: "keyboard.hold_ok",
+        label: "Hold OK to open it",
+        hint: "On the TV remote, over HDMI-CEC.",
+        needs: "keyboard.enabled",
+      },
+      {
+        key: "keyboard.hold_guide",
+        label: "Hold the gamepad's Guide button to open it",
+        hint: "A short press still goes home.",
+        needs: "keyboard.enabled",
+      },
     ],
   },
   {

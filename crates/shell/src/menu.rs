@@ -325,6 +325,34 @@ const SECTIONS: &[Section] = &[
         ],
     },
     Section {
+        title: ["On-screen keyboard", "Ekran klavyesi"],
+        pictures: false,
+        display: false,
+        items: &[
+            toggle(
+                "keyboard.enabled",
+                ["Keyboard on the TV", "TV'de klavye"],
+                [
+                    "For typing with the TV remote or a gamepad: arrows move, OK types, Back closes.",
+                    "TV kumandası ya da oyun koluyla yazmak için: yön tuşları gezer, OK yazar, Geri kapatır.",
+                ],
+                None,
+            ),
+            toggle(
+                "keyboard.hold_ok",
+                ["Hold OK to open it", "Açmak için OK'a basılı tut"],
+                ["On the TV remote, over HDMI-CEC.", "TV kumandasında, HDMI-CEC üzerinden."],
+                Some("keyboard.enabled"),
+            ),
+            toggle(
+                "keyboard.hold_guide",
+                ["Hold Guide on a gamepad", "Oyun kolunda ana menü tuşuna basılı tut"],
+                ["A short press still goes home.", "Kısa basış yine ana ekrana döner."],
+                Some("keyboard.enabled"),
+            ),
+        ],
+    },
+    Section {
         title: ["TV control (HDMI-CEC)", "TV kontrolü (HDMI-CEC)"],
         pictures: false,
         display: false,

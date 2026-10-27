@@ -24,6 +24,8 @@ const REPEAT_AFTER: Duration = Duration::from_millis(400);
 const REPEAT_EVERY: Duration = Duration::from_millis(140);
 /// Stick travel (0..1) that counts as a direction, and where it lets go again.
 const STICK_ON: f32 = 0.6;
+/// Holding Guide this long opens the on-screen keyboard instead of going home.
+const HOLD: Duration = Duration::from_millis(600);
 const STICK_OFF: f32 = 0.35;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,6 +55,8 @@ enum Action {
     VolumeUp,
     VolumeDown,
     Guide,
+    /// Guide held: the on-screen keyboard.
+    Keyboard,
 }
 
 /// Looks for gamepads every few seconds, for as long as tvd runs.
@@ -107,12 +111,19 @@ async fn read(device: Device, state: &Weak<AppState>) {
     let mut held: Option<Dir> = None;
     let mut next_repeat = Instant::now();
     let mut stick: (Option<Dir>, Option<Dir>) = (None, None);
+    // When Guide went down, until it is let go or held long enough to count as a hold.
+    let mut guide_down: Option<Instant> = None;
     loop {
         let event = tokio::select! {
             event = events.next_event() => match event {
                 Ok(event) => event,
                 Err(_) => return,
             },
+            _ = tokio::time::sleep_until(guide_down.map_or_else(Instant::now, |at| at + HOLD)), if guide_down.is_some() => {
+                guide_down = None;
+                act(state, Action::Keyboard).await;
+                continue;
+            }
             _ = tokio::time::sleep_until(next_repeat), if held.is_some() => {
                 next_repeat = Instant::now() + REPEAT_EVERY;
                 if let Some(dir) = held {
@@ -144,7 +155,12 @@ async fn read(device: Device, state: &Weak<AppState>) {
                 (Key::BTN_EAST, 1) => Some(Action::Back),
                 (Key::BTN_TR, 1) => Some(Action::VolumeUp),
                 (Key::BTN_TL, 1) => Some(Action::VolumeDown),
-                (Key::BTN_MODE, 1) => Some(Action::Guide),
+                // Guide acts when let go, so holding it can mean something else.
+                (Key::BTN_MODE, 1) => {
+                    guide_down = Some(Instant::now());
+                    None
+                }
+                (Key::BTN_MODE, 0) => guide_down.take().map(|_| Action::Guide),
                 _ => None,
             },
             InputEventKind::AbsAxis(axis)
@@ -211,6 +227,25 @@ async fn act(state: &Weak<AppState>, action: Action) {
     if !cfg.enabled {
         return;
     }
+    // The on-screen keyboard takes the gamepad wherever it is open, inside apps too.
+    if state.keyboard.is_open() {
+        let command = match action {
+            Action::Move(dir) => Some(key(dir.key())),
+            Action::Open => Some(key("Enter")),
+            Action::Back | Action::Keyboard | Action::Guide => Some(key("Escape")),
+            Action::VolumeUp | Action::VolumeDown => None,
+        };
+        if let Some(command) = command {
+            let _ = state.execute(command).await;
+        }
+        return;
+    }
+    if action == Action::Keyboard {
+        if state.config().keyboard.hold_guide {
+            state.set_keyboard(true).await;
+        }
+        return;
+    }
     let in_app = state.apps.running().await.is_some();
     // An asleep TV wakes on any button; tvd swallows that first key itself.
     let command = if state.is_asleep() {
@@ -224,7 +259,7 @@ async fn act(state: &Weak<AppState>, action: Action) {
             Action::Back => Some(key("Escape")),
             Action::VolumeUp => Some(Command::Volume { action: VolumeAction::Up, level: None }),
             Action::VolumeDown => Some(Command::Volume { action: VolumeAction::Down, level: None }),
-            Action::Guide => None,
+            Action::Guide | Action::Keyboard => None,
         }
     };
     let Some(command) = command else { return };

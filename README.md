@@ -137,6 +137,11 @@ and your phone becomes the remote.
   Needs a CEC adapter the kernel knows (`/dev/cec*`): a Raspberry Pi, some
   NUCs, a DisplayPort adapter with CEC tunneling, or a Pulse-Eight USB adapter
   through `inputattach --pulse8-cec`. Most PC graphics cards have none.
+- **On-screen keyboard**, for typing a search or an address with only the TV
+  remote or a gamepad: hold OK on the TV remote (over HDMI-CEC) or hold the
+  gamepad's Guide button. Arrows move, OK types the key into the app, Back
+  closes, Enter sends and closes. It shows over full screen apps and never
+  takes their focus.
 - **Resolution and refresh rate**, picked from the modes the TV offers, in the
   remote's settings or on the TV. A new mode applies at once and goes back by
   itself after 15 seconds unless kept, so a mode the TV cannot show never
@@ -372,6 +377,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "display_mode", "mode": "1920x1080@60"}
 {"type": "display_keep"}
 {"type": "display_revert"}
+{"type": "keyboard", "open": true}
 {"type": "sleep_timer", "minutes": 30}
 {"type": "media", "action": "play_pause"}
 {"type": "media", "action": "seek", "seconds": -10}

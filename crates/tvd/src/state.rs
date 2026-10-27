@@ -68,6 +68,7 @@ pub struct AppState {
     /// A mode on trial, and a counter that ends older trials.
     display_trial: std::sync::Mutex<Option<Trial>>,
     display_trial_id: AtomicU64,
+    pub keyboard: crate::keyboard::Keyboard,
 }
 
 /// A display mode being tried, and the one to go back to.
@@ -115,6 +116,7 @@ impl AppState {
             display_set: std::sync::Mutex::new(None),
             display_trial: std::sync::Mutex::new(None),
             display_trial_id: AtomicU64::new(0),
+            keyboard: crate::keyboard::Keyboard::default(),
         });
         sleep::watch(Arc::downgrade(&state));
         watch_volume(Arc::downgrade(&state));
@@ -174,6 +176,7 @@ impl AppState {
             overlay: cfg.overlay.clone(),
             cec: cfg.cec.clone(),
             display: crate::display::Info { mode: cfg.display.mode.clone(), ..self.display.lock().unwrap().clone() },
+            keyboard: cfg.keyboard.clone(),
             wallpaper: crate::wallpaper::info(&cfg.wallpaper),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
@@ -227,6 +230,7 @@ impl AppState {
             cfg.sleep = fresh.sleep;
             cfg.overlay = fresh.overlay;
             cfg.display = fresh.display;
+            cfg.keyboard = fresh.keyboard;
             cfg.cec = fresh.cec;
             cfg.wallpaper = fresh.wallpaper;
             (moved, cast_changed, osd_changed)
@@ -313,6 +317,7 @@ impl AppState {
                 mode: trial.mode.to_string(),
                 seconds: trial.until.saturating_sub(now()),
             }),
+            keyboard: self.keyboard.is_open(),
             remotes: self.remotes.load(Ordering::Relaxed),
             clients: self.clients.load(Ordering::Relaxed),
         }
@@ -341,6 +346,48 @@ impl AppState {
         if let Some((id, _)) = self.apps.running().await {
             self.volumes.lock().await.current = id;
         }
+    }
+
+    /// Opens or closes the on-screen keyboard, in the theme's colors and the TV's language.
+    pub async fn set_keyboard(&self, open: bool) {
+        if open == self.keyboard.is_open() {
+            return;
+        }
+        if open {
+            let (enabled, palette, lang) = {
+                let cfg = self.config();
+                (cfg.keyboard.enabled, crate::theme::resolve(&cfg.theme), cfg.locale.language)
+            };
+            if !enabled {
+                return;
+            }
+            self.keyboard.open(&palette, lang_code(lang));
+        } else {
+            self.keyboard.close();
+        }
+        self.notify().await;
+    }
+
+    /// A key while the keyboard is open. Returns whether the keyboard took it.
+    async fn keyboard_key(&self, code: &str) -> Result<bool> {
+        let (palette, lang) = {
+            let cfg = self.config();
+            (crate::theme::resolve(&cfg.theme), cfg.locale.language)
+        };
+        let Some(outputs) = self.keyboard.press(code, &palette, lang_code(lang)) else { return Ok(false) };
+        for output in outputs {
+            match output {
+                crate::keyboard::Output::Type(text) => {
+                    self.input.text(&text)?;
+                }
+                crate::keyboard::Output::Press(code) => {
+                    let key = keymap::from_code(code).with_context(|| format!("no key {code}"))?;
+                    self.input.key(key, Mods::default())?;
+                }
+                crate::keyboard::Output::Close => self.set_keyboard(false).await,
+            }
+        }
+        Ok(true)
     }
 
     /// Reads the TV output from sway into `display`, for the remotes and the shell.
@@ -571,6 +618,12 @@ impl AppState {
         if self.lock.is_locked() && !matches!(cmd, Command::Unlock { .. } | Command::Sleep) {
             anyhow::bail!("The TV is locked. Enter the PIN on a remote to unlock it.");
         }
+        // While the on-screen keyboard is open, the arrows, OK and Back move over it.
+        if let Command::Key { code, .. } = &cmd {
+            if self.keyboard.is_open() && self.keyboard_key(code).await? {
+                return Ok(());
+            }
+        }
         match cmd {
             Command::Key { code, shift, ctrl, alt, meta } => {
                 let key = keymap::from_code(&code).with_context(|| format!("unknown key code {code:?}"))?;
@@ -636,6 +689,10 @@ impl AppState {
             Command::DisplayMode { mode } => self.try_display_mode(&mode).await?,
             Command::DisplayKeep => self.keep_display_mode().await?,
             Command::DisplayRevert => self.end_display_trial().await,
+            Command::Keyboard { open } => {
+                let open = open.unwrap_or(!self.keyboard.is_open());
+                self.set_keyboard(open).await;
+            }
             Command::Sleep => self.go_to_sleep().await,
             Command::Lock => {
                 self.lock.lock()?;
@@ -694,6 +751,13 @@ fn watch_volume(state: std::sync::Weak<AppState>) {
             last = Some(volume);
         }
     });
+}
+
+fn lang_code(language: crate::config::Language) -> &'static str {
+    match language {
+        crate::config::Language::En => "en",
+        crate::config::Language::Tr => "tr",
+    }
 }
 
 fn now() -> u64 {

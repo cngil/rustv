@@ -3843,6 +3843,7 @@ dependencies = [
 name = "rustv-shell"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "anyhow",
  "chrono",
  "futures-util",
@@ -3851,6 +3852,8 @@ dependencies = [
  "serde_json",
  "slint",
  "slint-build",
+ "smithay-client-toolkit",
+ "tiny-skia 0.11.4",
  "tokio",
  "tokio-tungstenite",
  "toml 0.8.23",

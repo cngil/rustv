@@ -34,6 +34,10 @@ use crate::protocol::Command;
 use crate::state::AppState;
 
 const CHECK_EVERY: Duration = Duration::from_secs(5);
+/// Holding OK this long opens the on-screen keyboard.
+const HOLD: Duration = Duration::from_millis(600);
+/// The UI command code of OK.
+const SELECT: u8 = 0x00;
 /// How long one read waits before checking whether the adapter should close.
 const RECEIVE_TIMEOUT_MS: u32 = 1000;
 
@@ -76,7 +80,7 @@ const MENU_STATUS: u8 = 0x8e;
 const GIVE_DEVICE_POWER_STATUS: u8 = 0x8f;
 const REPORT_POWER_STATUS: u8 = 0x90;
 /// Answered by the kernel itself (or meant for it), so never refused here.
-const KERNEL_HANDLES: &[u8] = &[0x46, 0x83, 0x84, 0x8c, 0x9f, 0xa5, 0xff, USER_CONTROL_RELEASED];
+const KERNEL_HANDLES: &[u8] = &[0x46, 0x83, 0x84, 0x8c, 0x9f, 0xa5, 0xff];
 
 const ABORT_UNRECOGNIZED: u8 = 0;
 const POWER_ON: u8 = 0;
@@ -227,6 +231,16 @@ pub struct Cec {
     elsewhere: AtomicBool,
     /// The TV said it went to standby, so there is no need to tell it.
     tv_off: AtomicBool,
+    /// OK is down and not decided yet: a tap (Enter) or a hold (the keyboard).
+    ok_down: Mutex<Option<OkDown>>,
+    ok_count: std::sync::atomic::AtomicU64,
+}
+
+struct OkDown {
+    since: std::time::Instant,
+    /// The TV repeated the press, as it does while a button is held.
+    repeated: bool,
+    id: u64,
 }
 
 impl Cec {
@@ -400,12 +414,85 @@ async fn handle(app: &Arc<AppState>, adapter: &Arc<Adapter>, frame: &[u8]) {
             app.cec.tv_off.store(false, Ordering::Relaxed);
         }
         Some(Event::Button(code)) if cfg.remote_keys => press(app, code).await,
-        Some(Event::Button(_)) | None => {}
+        Some(Event::Released) if cfg.remote_keys => released(app).await,
+        Some(Event::Button(_) | Event::Released) | None => {}
+    }
+}
+
+/// Whether OK has to wait to see if it is held: only where holding it opens the keyboard.
+fn ok_can_hold(app: &AppState) -> bool {
+    let cfg = app.config().keyboard.clone();
+    cfg.enabled && cfg.hold_ok && !app.keyboard.is_open() && !app.is_asleep()
+}
+
+/// OK went down, or the TV repeated it because it is still down.
+async fn ok_pressed(app: &Arc<AppState>) {
+    // Decided under the lock, acted on after it.
+    let started = {
+        let mut down = app.cec.ok_down.lock().unwrap();
+        match down.as_mut() {
+            Some(held) => {
+                held.repeated = true;
+                if held.since.elapsed() >= HOLD {
+                    *down = None;
+                    Err(true)
+                } else {
+                    Err(false)
+                }
+            }
+            None => {
+                let id = app.cec.ok_count.fetch_add(1, Ordering::Relaxed) + 1;
+                *down = Some(OkDown { since: std::time::Instant::now(), repeated: false, id });
+                Ok(id)
+            }
+        }
+    };
+    let id = match started {
+        Ok(id) => id,
+        // Held long enough: the keyboard.
+        Err(true) => return app.set_keyboard(true).await,
+        Err(false) => return,
+    };
+    // Neither a release nor a repeat by then: a TV that sends neither, so treat it as a tap.
+    let app = Arc::clone(app);
+    tokio::spawn(async move {
+        tokio::time::sleep(HOLD).await;
+        let decided = {
+            let mut down = app.cec.ok_down.lock().unwrap();
+            if down.as_ref().is_some_and(|held| held.id == id) {
+                down.take()
+            } else {
+                None
+            }
+        };
+        match decided {
+            Some(held) if held.repeated => app.set_keyboard(true).await,
+            Some(_) => tap_ok(&app).await,
+            None => {}
+        }
+    });
+}
+
+/// A button was let go: an OK that is still undecided was a tap.
+async fn released(app: &Arc<AppState>) {
+    let undecided = app.cec.ok_down.lock().unwrap().take();
+    if undecided.is_some() {
+        tap_ok(app).await;
+    }
+}
+
+async fn tap_ok(app: &Arc<AppState>) {
+    let enter = Command::Key { code: "Enter".into(), shift: false, ctrl: false, alt: false, meta: false };
+    if let Err(err) = app.execute(enter).await {
+        debug!("CEC: OK: {err:#}");
     }
 }
 
 /// A button on the TV remote.
 async fn press(app: &Arc<AppState>, code: u8) {
+    if code == SELECT && (app.cec.ok_down.lock().unwrap().is_some() || ok_can_hold(app)) {
+        return ok_pressed(app).await;
+    }
     let Some(button) = button(code) else {
         debug!(code, "CEC: button without a meaning in rustv");
         return;
@@ -443,6 +530,8 @@ enum Event {
     Elsewhere,
     /// A button on the TV remote, as a CEC UI command code.
     Button(u8),
+    /// The TV remote's button was let go.
+    Released,
 }
 
 /// The answer to `frame` (to whom, and what), and what it means for rustv.
@@ -471,6 +560,7 @@ fn react(frame: &[u8], me: &Me) -> (Option<(u8, Vec<u8>)>, Option<Event>) {
             (Some(active_source()), None)
         }
         USER_CONTROL_PRESSED => (None, args.first().map(|&code| Event::Button(code))),
+        USER_CONTROL_RELEASED => (None, Some(Event::Released)),
         GIVE_DEVICE_POWER_STATUS if !broadcast => {
             (Some((from, vec![REPORT_POWER_STATUS, if me.awake { POWER_ON } else { POWER_STANDBY }])), None)
         }
@@ -632,6 +722,7 @@ mod tests {
     #[test]
     fn remote_buttons() {
         assert_eq!(react(&[0x04, USER_CONTROL_PRESSED, 0x01], &me(true, true)), (None, Some(Event::Button(0x01))));
+        assert_eq!(react(&[0x04, USER_CONTROL_RELEASED], &me(true, true)), (None, Some(Event::Released)));
         assert!(matches!(button(0x01), Some(Button::Key("ArrowUp"))));
         assert!(matches!(button(0x25), Some(Button::Key("Digit5"))));
         assert!(matches!(button(0x0d), Some(Button::Key("Escape"))));

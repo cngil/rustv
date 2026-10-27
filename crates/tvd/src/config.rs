@@ -54,6 +54,8 @@ pub struct Config {
     pub wallpaper: Wallpaper,
     #[serde(default)]
     pub display: Display,
+    #[serde(default)]
+    pub keyboard: Keyboard,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
 }
@@ -126,6 +128,23 @@ pub enum ScreensaverStyle {
     Clock,
     /// A slideshow of your own pictures (`[wallpaper] images`).
     Images,
+}
+
+/// The on-screen keyboard, for typing with the TV remote or a gamepad.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Keyboard {
+    pub enabled: bool,
+    /// Holding OK on the TV remote (over HDMI-CEC) opens it.
+    pub hold_ok: bool,
+    /// Holding a gamepad's Guide button opens it; a short press still closes the app.
+    pub hold_guide: bool,
+}
+
+impl Default for Keyboard {
+    fn default() -> Self {
+        Self { enabled: true, hold_ok: true, hold_guide: true }
+    }
 }
 
 /// The TV output's resolution and refresh rate.

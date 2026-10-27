@@ -60,6 +60,15 @@ plate; its switch swaps colors so it stays visible on the plate. A row that
 depends on a switch that is off is dimmed and skipped. What the focused row
 does is shown in the column to the right of the list, not under every row.
 
+## On-screen keyboard
+
+`rustv-keyboard` (`crates/shell/src/bin/`) draws the keyboard tvd describes
+(`crates/tvd/src/keyboard.rs`) on sway's overlay layer, over any app: a
+graphite panel rising from the bottom edge (top corners rounded), a recessed
+line with what was typed so far, keys in surface-2 with the focused key as the
+lit plate, an active Shift in the metal on surface-3. Special keys are words,
+not symbols, so they stay in the bundled face.
+
 ## Type
 
 Hanken Grotesk, bundled (`crates/shell/ui/fonts/`, `crates/tvd/web/fonts/`;

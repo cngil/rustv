@@ -119,6 +119,11 @@ pub enum Command {
     DisplayKeep,
     /// Go back to the mode before the one being tried, now.
     DisplayRevert,
+    /// Open or close the on-screen keyboard; without `open` it toggles.
+    Keyboard {
+        #[serde(default)]
+        open: Option<bool>,
+    },
 }
 
 impl Command {
@@ -201,6 +206,7 @@ pub struct SettingsInfo {
     pub overlay: crate::config::Overlay,
     pub cec: crate::config::Cec,
     pub display: crate::display::Info,
+    pub keyboard: crate::config::Keyboard,
     pub wallpaper: crate::wallpaper::Info,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],
@@ -239,6 +245,8 @@ pub struct StateSnapshot {
     pub sleep_in: Option<u64>,
     /// A display mode on trial: it goes back unless kept within `seconds`.
     pub display_trial: Option<DisplayTrial>,
+    /// The on-screen keyboard is open; the arrows and OK go to it.
+    pub keyboard: bool,
     /// Connected remotes (clients other than the TV shell).
     pub remotes: usize,
     /// Connected WebSocket clients (remotes, the shell).
@@ -294,12 +302,13 @@ mod tests {
             locked: false,
             sleep_in: None,
             display_trial: None,
+            keyboard: false,
             remotes: 0,
             clients: 1,
         });
         assert_eq!(
             serde_json::to_string(&msg).unwrap(),
-            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"show_pairing":false,"locked":false,"sleep_in":null,"display_trial":null,"remotes":0,"clients":1}"#
+            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"show_pairing":false,"locked":false,"sleep_in":null,"display_trial":null,"keyboard":false,"remotes":0,"clients":1}"#
         );
         let cmd: Command = serde_json::from_str(r#"{"type":"overlay"}"#).unwrap();
         assert!(matches!(cmd, Command::Overlay { visible: None }));

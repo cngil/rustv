@@ -32,6 +32,45 @@ const ICON_512: &[u8] = include_bytes!("../web/icon-512.png");
 
 type Shared = Arc<AppState>;
 
+/// Changes whenever the script or the styles change, so they can be cached for a
+/// year under a URL that carries it, while the page itself is revalidated cheaply.
+static VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    let hash = [SCRIPT, STYLE, INDEX]
+        .iter()
+        .flat_map(|s| s.bytes())
+        .fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
+    format!("{hash:016x}")
+});
+
+static PAGE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    INDEX
+        .replace("\"/app.js\"", &format!("\"/app.js?v={}\"", *VERSION))
+        .replace("\"/style.css\"", &format!("\"/style.css?v={}\"", *VERSION))
+});
+
+/// The page: no-cache, but an unchanged one is answered with an empty 304.
+async fn page(headers: axum::http::HeaderMap) -> Response {
+    let etag = format!("\"{}\"", *VERSION);
+    if headers.get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()) == Some(etag.as_str()) {
+        return (StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response();
+    }
+    (
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8".to_string()),
+            (header::CACHE_CONTROL, "no-cache".to_string()),
+            (header::ETAG, etag),
+        ],
+        PAGE.as_str(),
+    )
+        .into_response()
+}
+
+/// Script and styles, under versioned URLs: cached for good.
+fn immutable(content_type: &'static str, body: &'static str) -> Response {
+    ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "public, max-age=31536000, immutable")], body)
+        .into_response()
+}
+
 pub fn router(state: Shared) -> Router {
     let api = Router::new()
         .route("/state", get(get_state))
@@ -47,9 +86,9 @@ pub fn router(state: Shared) -> Router {
         .route("/health", get(|| async { "ok" }));
 
     Router::new()
-        .route("/", get(|| async { asset("text/html; charset=utf-8", INDEX) }))
-        .route("/app.js", get(|| async { asset("text/javascript; charset=utf-8", SCRIPT) }))
-        .route("/style.css", get(|| async { asset("text/css; charset=utf-8", STYLE) }))
+        .route("/", get(page))
+        .route("/app.js", get(|| async { immutable("text/javascript; charset=utf-8", SCRIPT) }))
+        .route("/style.css", get(|| async { immutable("text/css; charset=utf-8", STYLE) }))
         .route("/manifest.webmanifest", get(|| async { asset("application/manifest+json", MANIFEST) }))
         .route("/icon.svg", get(|| async { asset("image/svg+xml", ICON) }))
         .route("/apple-touch-icon.png", get(|| async { image(TOUCH_ICON) }))

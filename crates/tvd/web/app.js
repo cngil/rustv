@@ -386,17 +386,24 @@ function readToken() {
 
 // ---- connection ----
 
-async function start() {
+function start() {
   if (!token) return showPair();
-  try {
-    const res = await fetch("/api/v1/state", { headers: { Authorization: `Bearer ${token}` } });
-    if (res.status === 401) return showPair(t("That token was rejected."));
-  } catch {
-    // Offline for now; connect() keeps retrying.
-  }
+  // Show the remote and connect at once; checking the token runs alongside and
+  // only takes over if the token was revoked.
   $("#pair").hidden = true;
   $("#app").hidden = false;
   connect();
+  fetch("/api/v1/state", { headers: { Authorization: `Bearer ${token}` } })
+    .then((res) => {
+      if (res.status === 401) {
+        if (ws) ws.onclose = null;
+        if (ws) ws.close();
+        showPair(t("That token was rejected."));
+      }
+    })
+    .catch(() => {
+      // Offline for now; connect() keeps retrying.
+    });
 }
 
 function connect() {

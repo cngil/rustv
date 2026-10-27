@@ -97,6 +97,7 @@ impl AppState {
             asleep: AtomicBool::new(false),
         });
         sleep::watch(Arc::downgrade(&state));
+        watch_volume(Arc::downgrade(&state));
         state.restart_osd();
         state.apply_cast();
         if state.config().overlay.enabled {
@@ -515,6 +516,27 @@ impl AppState {
         }
         Ok(())
     }
+}
+
+/// Volume changes made outside rustv (an app's own control, another PipeWire
+/// client, an output switch) reach the remotes and the shell within 2 s.
+/// One `wpctl get-volume` every 2 s costs next to nothing.
+fn watch_volume(state: std::sync::Weak<AppState>) {
+    tokio::spawn(async move {
+        let mut last = None;
+        loop {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            let Some(state) = state.upgrade() else { return };
+            let Ok(volume) = audio::get().await else { continue };
+            if last.is_some_and(|last| last != volume) {
+                if state.config().shell.volume_overlay && state.apps.running().await.is_some() {
+                    state.osd.show(if volume.muted { 0 } else { (volume.level * 100.0).round() as u32 });
+                }
+                state.notify().await;
+            }
+            last = Some(volume);
+        }
+    });
 }
 
 fn now() -> u64 {

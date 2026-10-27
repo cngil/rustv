@@ -22,6 +22,7 @@ process.env.RUSTV_TEST_DIR = dir;
 const config = join(dir, "config.toml");
 if (fresh) {
   mkdirSync(join(dir, "state"));
+  mkdirSync(join(dir, "run"), { mode: 0o700 });
   // One 1x1 PNG as the only wallpaper, next to a file that is not a picture.
   mkdirSync(join(dir, "pictures"));
   const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -91,7 +92,9 @@ export default defineConfig({
   webServer: {
     command: `${tvd} --config ${config}`,
     url: `http://127.0.0.1:${PORT}/api/v1/health`,
-    env: { XDG_STATE_HOME: join(dir, "state"), RUST_LOG: "warn" },
+    // A runtime dir of its own: on a TV box, tvd would otherwise find the real
+    // sway session and switch the TV screen on at start.
+    env: { XDG_STATE_HOME: join(dir, "state"), XDG_RUNTIME_DIR: join(dir, "run"), WAYLAND_DISPLAY: "", RUST_LOG: "warn" },
     reuseExistingServer: false,
     timeout: 30_000,
   },

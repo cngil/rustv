@@ -20,7 +20,7 @@ move; it never supplies the layout or the controls.
 flat plate of the metal with dark ink, like the illuminated active input on a
 receiver. It marks:
 
-- the focused app tile on the TV
+- the focused app tile and the focused settings row on the TV
 - OK on the D-pad, Send, Connect, Done, the PIN's OK
 - the active tab, a selected chip, a switch that is on, the active output's icon
 - the sleep timer button while a timer runs, the app running on the TV (a short bar in the dock)
@@ -49,6 +49,16 @@ and sends it to both surfaces as the `theme` message. Four finishes:
   `#e3b866` (connecting), danger `#f2797f` (muted, close app, errors).
 - Older preset names in a config (indigo, ocean, sunset, forest, rose) load as
   silver, graphite as gunmetal.
+
+## Settings on the TV
+
+The TV's settings (`crates/shell/ui/settings.slint`, list in `crates/shell/src/menu.rs`)
+are one list, not panes: up and down move, left and right change a choice,
+OK switches a toggle or cycles a choice, Back closes. Section titles are
+quiet muted text, rows sit on the background, and the focused row is the lit
+plate; its switch swaps colors so it stays visible on the plate. A row that
+depends on a switch that is off is dimmed and skipped. What the focused row
+does is shown in the column to the right of the list, not under every row.
 
 ## Type
 

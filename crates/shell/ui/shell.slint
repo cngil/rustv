@@ -7,6 +7,7 @@ import "fonts/HankenGrotesk-SemiBold.ttf";
 import "fonts/HankenGrotesk-Bold.ttf";
 import { Screensaver } from "screensaver.slint";
 import { Palette, KeyCap } from "palette.slint";
+import { SettingsView, SettingRow } from "settings.slint";
 
 // The palette is set from Rust, so it is exported from here too.
 export { Palette }
@@ -25,6 +26,11 @@ export global Strings {
     in property <string> pair-body: "Scan the code with the camera, then add the page to your home screen.";
     in property <string> locked: "Locked";
     in property <string> unlock-hint: "Enter the PIN on your phone to unlock.";
+    in property <string> settings: "Settings";
+    in property <string> hint-change: "Change";
+    in property <string> hint-select: "Select";
+    in property <string> hint-close: "Close";
+    in property <string> back-key: "Back";
 }
 
 export struct AppTile {
@@ -34,6 +40,8 @@ export struct AppTile {
     initial: string,
     icon: image,
     has-icon: bool,
+    // The Settings tile at the end of the row, drawn with a gear.
+    settings: bool,
 }
 
 component Card inherits Rectangle {
@@ -72,6 +80,23 @@ component Card inherits Rectangle {
 
         HorizontalLayout {
             alignment: center;
+            if tile.settings: Rectangle {
+                width: 112px * s;
+                height: 112px * s;
+                border-radius: 28px * s;
+                background: focused ? Palette.on-accent.transparentize(0.9) : Palette.surface-3;
+                animate background { duration: 220ms; easing: ease-out; }
+                Path {
+                    width: 60px * s;
+                    height: 60px * s;
+                    viewbox-width: 24;
+                    viewbox-height: 24;
+                    fill: transparent;
+                    stroke: focused ? Palette.on-accent : Palette.accent;
+                    stroke-width: 1.6px * s;
+                    commands: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z";
+                }
+            }
             if tile.has-icon: Image {
                 source: tile.icon;
                 width: 112px * s;
@@ -79,7 +104,7 @@ component Card inherits Rectangle {
                 image-fit: contain;
             }
             // No icon: the initial, engraved in graphite (and in the plate's ink when focused).
-            if !tile.has-icon: Rectangle {
+            if !tile.has-icon && !tile.settings: Rectangle {
                 width: 112px * s;
                 height: 112px * s;
                 border-radius: 28px * s;
@@ -161,6 +186,16 @@ export component Shell inherits Window {
 
     // Locked with the PIN: the home screen is hidden and keys do nothing.
     in property <bool> locked;
+
+    // Settings on the TV, drawn from rows the shell works out (menu.rs).
+    in-out property <bool> settings-open;
+    in property <bool> settings-enabled: true;
+    in property <[SettingRow]> settings-rows;
+    in property <float> settings-scroll;
+    in property <string> settings-hint;
+    // "up", "down", "left", "right", "ok" or "back".
+    callback settings-key(string);
+    callback open-settings();
 
     callback launch(string);
     // UI sound: "move", "select" or "edge".
@@ -294,8 +329,9 @@ export component Shell inherits Window {
         }
     }
 
-    if apps.length == 0 && root.connected: Text {
-        y: root.height / 2;
+    // Only the Settings tile, or nothing at all: no apps configured yet.
+    if apps.length - (root.settings-enabled ? 1 : 0) <= 0 && root.connected: Text {
+        y: root.height / 2 - 230px * s;
         width: root.width;
         horizontal-alignment: center;
         text: Strings.no-apps;
@@ -399,6 +435,20 @@ export component Shell inherits Window {
                 vertical-alignment: center;
             }
         }
+    }
+
+    if root.settings-open: SettingsView {
+        rows: root.settings-rows;
+        scroll: root.settings-scroll;
+        hint: root.settings-hint;
+        title: Strings.settings;
+        hint-move: Strings.hint-move;
+        hint-change: Strings.hint-change;
+        hint-select: Strings.hint-select;
+        hint-close: Strings.hint-close;
+        back-key: Strings.back-key;
+        s: root.s;
+        TouchArea { mouse-cursor: none; }
     }
 
     // Volume overlay
@@ -532,6 +582,20 @@ export component Shell inherits Window {
                 return accept;
             }
             if root.locked {
+                return accept;
+            }
+            if root.settings-open {
+                if event.text == Key.UpArrow { root.settings-key("up"); }
+                else if event.text == Key.DownArrow { root.settings-key("down"); }
+                else if event.text == Key.LeftArrow { root.settings-key("left"); }
+                else if event.text == Key.RightArrow { root.settings-key("right"); }
+                else if event.text == Key.Return || event.text == " " { root.settings-key("ok"); }
+                else if event.text == Key.Escape || event.text == Key.Backspace || event.text == Key.Menu { root.settings-key("back"); }
+                return accept;
+            }
+            // The Menu key (the TV remote's Setup button over CEC) opens settings from the home screen.
+            if event.text == Key.Menu && root.settings-enabled {
+                root.open-settings();
                 return accept;
             }
             if event.text == Key.LeftArrow {

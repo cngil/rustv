@@ -73,6 +73,8 @@ pub struct Shell {
     pub sounds: bool,
     /// Loudness of those sounds, 0..1, on top of the TV volume.
     pub sound_volume: f32,
+    /// A Settings tile at the end of the app row, for whoever has only the TV remote.
+    pub settings: bool,
 }
 
 impl Default for Shell {
@@ -86,6 +88,7 @@ impl Default for Shell {
             pairing_qr: true,
             sounds: true,
             sound_volume: 0.5,
+            settings: true,
         }
     }
 }

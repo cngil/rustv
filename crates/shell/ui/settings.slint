@@ -1,0 +1,190 @@
+// Settings on the TV: one list, moved through with the arrows, for whoever has
+// only the TV remote or a gamepad. The shell (menu.rs) decides what the list
+// holds and where the focus is; this file only draws it.
+
+import { Palette, KeyCap } from "palette.slint";
+
+export struct SettingRow {
+    header: bool,
+    label: string,
+    // The current choice; empty for switches and actions.
+    value: string,
+    // "header", "toggle", "choice" or "action".
+    kind: string,
+    on: bool,
+    enabled: bool,
+    focused: bool,
+    // Top of the row in the 1920×1080 layout, before scrolling.
+    y: float,
+    // More choices to the left / right.
+    before: bool,
+    after: bool,
+}
+
+// A switch, drawn like the remote's: a recess when off, the lit plate when on.
+// On a focused (lit) row the colors swap, so it stays visible on the plate.
+component Switch inherits Rectangle {
+    in property <bool> on;
+    in property <bool> lit;
+    in property <float> s;
+    width: 76px * s;
+    height: 44px * s;
+    border-radius: self.height / 2;
+    background: on ? (lit ? Palette.on-accent : Palette.accent) : (lit ? Palette.on-accent.transparentize(0.85) : Palette.surface-3);
+    Rectangle {
+        x: on ? parent.width - self.width - 6px * s : 6px * s;
+        animate x { duration: 200ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+        width: 32px * s;
+        height: 32px * s;
+        border-radius: self.width / 2;
+        background: on ? (lit ? Palette.accent : Palette.on-accent) : (lit ? Palette.on-accent.transparentize(0.4) : Palette.muted);
+    }
+}
+
+export component SettingsView inherits Rectangle {
+    in property <[SettingRow]> rows;
+    in property <float> scroll;
+    in property <string> hint;
+    in property <string> title;
+    in property <string> hint-move;
+    in property <string> hint-change;
+    in property <string> hint-select;
+    in property <string> hint-close;
+    // The remote's Back key, as it is called in this language.
+    in property <string> back-key: "Back";
+    in property <float> s: 1;
+
+    property <length> margin: 112px * s;
+    property <length> list-width: 1040px * s;
+    // Must match `VIEW` in menu.rs.
+    property <length> view: 680px * s;
+
+    background: Palette.background;
+
+    Text {
+        x: margin;
+        y: 96px * s;
+        text: root.title;
+        color: Palette.text;
+        font-size: 52px * s;
+        font-weight: 600;
+        letter-spacing: -0.5px * s;
+    }
+
+    // The list, clipped to its window; the focused row is the lit plate.
+    Rectangle {
+        x: margin - 28px * s;
+        y: 214px * s;
+        width: list-width + 56px * s;
+        height: view;
+        clip: true;
+
+        property <length> offset: root.scroll * 1px * s;
+        animate offset { duration: 240ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+
+        for row in root.rows: Rectangle {
+            x: 0;
+            y: row.y * 1px * s - parent.offset;
+            width: parent.width;
+            height: row.header ? 92px * s : 84px * s;
+
+            if row.header: Text {
+                x: 28px * s;
+                y: parent.height - self.height - 14px * s;
+                text: row.label;
+                color: Palette.muted;
+                font-size: 24px * s;
+                font-weight: 600;
+            }
+
+            if !row.header: Rectangle {
+                y: 4px * s;
+                height: parent.height - 8px * s;
+                border-radius: 22px * s;
+                background: row.focused ? Palette.accent : transparent;
+                opacity: row.enabled ? 1 : 0.38;
+                animate background { duration: 160ms; easing: ease-out; }
+
+                Text {
+                    x: 28px * s;
+                    text: row.label;
+                    color: row.focused ? Palette.on-accent : Palette.text;
+                    font-size: 30px * s;
+                    font-weight: row.focused ? 600 : 400;
+                    vertical-alignment: center;
+                }
+                if row.kind == "toggle": Switch {
+                    x: parent.width - self.width - 28px * s;
+                    on: row.on;
+                    lit: row.focused;
+                    s: root.s;
+                }
+                if row.kind == "choice": HorizontalLayout {
+                    x: parent.width - self.width - 28px * s;
+                    width: self.preferred-width;
+                    spacing: 18px * s;
+                    Text {
+                        text: "‹";
+                        font-size: 34px * s;
+                        vertical-alignment: center;
+                        color: row.focused ? Palette.on-accent : Palette.muted;
+                        opacity: row.before ? 1 : 0.25;
+                    }
+                    Text {
+                        text: row.value;
+                        font-size: 28px * s;
+                        font-weight: 500;
+                        vertical-alignment: center;
+                        color: row.focused ? Palette.on-accent : Palette.muted;
+                    }
+                    Text {
+                        text: "›";
+                        font-size: 34px * s;
+                        vertical-alignment: center;
+                        color: row.focused ? Palette.on-accent : Palette.muted;
+                        opacity: row.after ? 1 : 0.25;
+                    }
+                }
+            }
+        }
+    }
+
+    // What the focused setting does, beside the list.
+    Text {
+        x: margin + list-width + 96px * s;
+        y: 306px * s;
+        width: root.width - self.x - margin;
+        text: root.hint;
+        color: Palette.muted;
+        font-size: 28px * s;
+        wrap: word-wrap;
+    }
+
+    HorizontalLayout {
+        x: margin;
+        y: root.height - 88px * s - self.height;
+        width: self.preferred-width;
+        height: 44px * s;
+        spacing: 40px * s;
+        HorizontalLayout {
+            spacing: 14px * s;
+            KeyCap { label: "↑  ↓"; s: root.s; }
+            Text { text: root.hint-move; color: Palette.muted; font-size: 24px * s; vertical-alignment: center; }
+        }
+        HorizontalLayout {
+            spacing: 14px * s;
+            KeyCap { label: "←  →"; s: root.s; }
+            Text { text: root.hint-change; color: Palette.muted; font-size: 24px * s; vertical-alignment: center; }
+        }
+        HorizontalLayout {
+            spacing: 14px * s;
+            KeyCap { label: "OK"; s: root.s; }
+            Text { text: root.hint-select; color: Palette.muted; font-size: 24px * s; vertical-alignment: center; }
+        }
+        HorizontalLayout {
+            spacing: 14px * s;
+            KeyCap { label: root.back-key; s: root.s; }
+            Text { text: root.hint-close; color: Palette.muted; font-size: 24px * s; vertical-alignment: center; }
+        }
+    }
+}

@@ -54,6 +54,11 @@ and your phone becomes the remote.
 </table>
 
 <details>
+<summary>Settings on the TV, for the TV remote alone</summary>
+<img src="docs/screenshots/tv-settings.png" alt="The settings list on the TV: the focused row is a silver plate, switches and choices on the right">
+</details>
+
+<details>
 <summary>The remote on a computer</summary>
 <img src="docs/screenshots/remote-desktop.png" alt="The web remote in a desktop browser: D-pad, touchpad, keyboard and app dock side by side">
 </details>
@@ -127,10 +132,17 @@ and your phone becomes the remote.
 - **HDMI-CEC** (optional, off by default): rustv waking turns the TV on and
   switches it to rustv, and sleep puts the TV in standby (unless it shows
   another input, such as a console). Turning the TV off puts rustv to sleep,
-  and the TV remote's arrows, OK, Back, play and volume buttons control rustv.
+  and the TV remote's arrows, OK, Back, play and volume buttons control rustv
+  (its Setup button opens the settings on the TV).
   Needs a CEC adapter the kernel knows (`/dev/cec*`): a Raspberry Pi, some
   NUCs, a DisplayPort adapter with CEC tunneling, or a Pulse-Eight USB adapter
   through `inputattach --pulse8-cec`. Most PC graphics cards have none.
+- **Settings on the TV**: a Settings tile after the apps (or the Menu key)
+  opens the settings on the TV itself, moved through with the arrows, for
+  whoever has only the TV remote or a gamepad. The same changes as from the
+  phone, saved to the config. Wi-Fi, Bluetooth, the PIN and custom colors
+  need typing and stay on the phone. The tile can be switched off from the
+  phone (`shell.settings`).
 - **Reorder apps** from the remote: hold an app in the dock, drag it, tap
   Done. The TV follows at once, and the order survives restarts.
 - **`tvd` daemon**: launches and closes apps, one at a time; when an app

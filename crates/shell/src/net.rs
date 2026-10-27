@@ -28,6 +28,8 @@ enum Incoming {
         show_pairing: bool,
         #[serde(default)]
         locked: bool,
+        #[serde(default)]
+        overlay: bool,
     },
     Pairing {
         url: String,
@@ -38,6 +40,8 @@ enum Incoming {
         max_volume: f32,
     },
     Shell(Visibility),
+    /// Everything the settings show, as tvd sends it to the remotes; read by menu.rs.
+    Settings(serde_json::Value),
     Screensaver(ScreensaverConfig),
     Wallpaper(WallpaperConfig),
     Locale(crate::locale::Locale),
@@ -58,6 +62,8 @@ pub struct Visibility {
     pub volume_overlay: bool,
     pub sounds: bool,
     pub sound_volume: f32,
+    /// The Settings tile at the end of the app row.
+    pub settings: bool,
 }
 
 impl Default for Visibility {
@@ -70,6 +76,7 @@ impl Default for Visibility {
             volume_overlay: true,
             sounds: true,
             sound_volume: 0.5,
+            settings: true,
         }
     }
 }
@@ -179,7 +186,8 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
             .unwrap_or_default();
             crate::set_apps(ui, entries);
         }
-        Incoming::State { running, volume: new_volume, asleep, show_pairing, locked } => {
+        Incoming::State { running, volume: new_volume, asleep, show_pairing, locked, overlay } => {
+            crate::set_overlay(ui, overlay);
             crate::set_locked(ui, locked);
             crate::set_running(ui, running.is_some());
             crate::set_asleep(ui, asleep);
@@ -193,6 +201,7 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
         }
         Incoming::Audio { max_volume } => crate::set_max_volume(ui, max_volume),
         Incoming::Shell(visibility) => crate::set_visibility(ui, visibility),
+        Incoming::Settings(settings) => crate::set_settings(ui, settings),
         Incoming::Screensaver(cfg) => crate::set_screensaver(ui, cfg),
         Incoming::Wallpaper(cfg) => {
             let _ = ui.upgrade_in_event_loop(move |ui| crate::wallpaper::configure(&ui, cfg));

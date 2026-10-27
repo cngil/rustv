@@ -219,6 +219,9 @@ const TRANSLATIONS = {
     "Pictures in [wallpaper] images: {count}": "[wallpaper] images içindeki resimler: {count}",
     "Add picture files or folders to [wallpaper] images in the config file.":
       "Yapılandırma dosyasında [wallpaper] images listesine resim dosyaları ya da klasörler ekle.",
+    "Settings on the TV": "TV'de ayarlar",
+    "A Settings tile after the apps, for whoever has only the TV remote. Only the phone can turn it back on.":
+      "Uygulamaların sonunda bir Ayarlar kutucuğu, yalnızca TV kumandası olanlar için. Yeniden yalnızca telefondan açılabilir.",
     // HDMI-CEC
     "TV control (HDMI-CEC)": "TV kontrolü (HDMI-CEC)",
     "Control the TV over HDMI": "TV'yi HDMI üzerinden kontrol et",
@@ -1024,6 +1027,11 @@ const SETTINGS = [
         button: "Show code",
         done: "The pairing code is on the TV for 2 minutes",
         needs: "shell.pairing_qr",
+      },
+      {
+        key: "shell.settings",
+        label: "Settings on the TV",
+        hint: "A Settings tile after the apps, for whoever has only the TV remote. Only the phone can turn it back on.",
       },
     ],
   },

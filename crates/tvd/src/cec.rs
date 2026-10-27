@@ -534,6 +534,8 @@ fn button(code: u8) -> Option<Button> {
         0x04 => Button::Key("ArrowRight"),
         // Root menu, often the Home button.
         0x09 => Button::Home,
+        // Setup menu: the shell opens its settings on the Menu key.
+        0x0a => Button::Key("ContextMenu"),
         // Back, or Exit on older remotes.
         0x0d => Button::Key("Escape"),
         0x20..=0x29 => Button::Key(DIGITS[usize::from(code - 0x20)]),
@@ -633,6 +635,7 @@ mod tests {
         assert!(matches!(button(0x01), Some(Button::Key("ArrowUp"))));
         assert!(matches!(button(0x25), Some(Button::Key("Digit5"))));
         assert!(matches!(button(0x0d), Some(Button::Key("Escape"))));
+        assert!(matches!(button(0x0a), Some(Button::Key("ContextMenu"))));
         assert!(matches!(button(0x48), Some(Button::Media(media::Action::Seek, -10))));
         assert!(matches!(button(0x41), Some(Button::Volume(VolumeAction::Up))));
         assert!(button(0x71).is_none());

@@ -27,6 +27,7 @@ clock = true
 date = true
 volume_overlay = true   # volume bar when the volume changes
 pairing_qr = true       # QR code for pairing a phone, until one pairs and on request
+settings = true         # Settings tile after the apps, for whoever has only the TV remote
 sounds = true           # soft sounds when moving between apps and opening one
 sound_volume = 0.5      # 0..1, on top of the TV volume
 

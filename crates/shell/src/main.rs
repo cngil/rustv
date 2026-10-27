@@ -5,6 +5,7 @@
 //! the daemon, so the shell can crash or restart without losing anything.
 
 mod locale;
+mod menu;
 mod net;
 mod settings;
 mod sounds;
@@ -47,7 +48,14 @@ thread_local! {
     static SCREENSAVER_COUNT: Cell<usize> = const { Cell::new(0) };
     static FRAME_TIMER: Timer = Timer::default();
     static LOCALE: RefCell<locale::Locale> = RefCell::new(locale::Locale::default());
+    static MENU: RefCell<menu::Menu> = RefCell::new(menu::Menu::default());
+    /// The apps as tvd sent them, so the Settings tile can be added or taken away later.
+    static APPS: RefCell<Vec<AppEntry>> = const { RefCell::new(Vec::new()) };
+    static SETTINGS_TILE: Cell<bool> = const { Cell::new(true) };
 }
+
+/// Launching this id opens the settings; app ids cannot contain `*`.
+const SETTINGS_ID: &str = "*settings";
 
 /// App data sent from the network thread. `Image` is not `Send`, so icons travel as paths.
 #[derive(Debug, Clone)]
@@ -84,11 +92,46 @@ fn main() -> Result<()> {
 
     let (commands, command_rx) = mpsc::unbounded_channel::<String>();
     let weak = ui.as_weak();
+    let to_tvd = commands.clone();
     ui.on_launch(move |id| {
+        if id == SETTINGS_ID {
+            if let Some(ui) = weak.upgrade() {
+                open_settings(&ui);
+            }
+            return;
+        }
         let msg = serde_json::json!({ "type": "launch", "id": id.as_str() });
-        let _ = commands.send(msg.to_string());
+        let _ = to_tvd.send(msg.to_string());
         set_opening(&weak, id.to_string());
     });
+    let weak = ui.as_weak();
+    ui.on_open_settings(move || {
+        if let Some(ui) = weak.upgrade() {
+            open_settings(&ui);
+        }
+    });
+    let weak = ui.as_weak();
+    ui.on_settings_key(move |key| {
+        let Some(ui) = weak.upgrade() else { return };
+        let outcome = MENU.with(|menu| menu.borrow_mut().key(&key));
+        let send = |msg: &serde_json::Value| {
+            let _ = commands.send(msg.to_string());
+        };
+        match outcome {
+            menu::Outcome::Nothing => ui.invoke_sound("move".into()),
+            menu::Outcome::Send(msg) => {
+                send(&msg);
+                ui.invoke_sound("select".into());
+            }
+            menu::Outcome::Close => ui.set_settings_open(false),
+            menu::Outcome::SendAndClose(msg) => {
+                send(&msg);
+                ui.set_settings_open(false);
+            }
+        }
+        render_menu(&ui);
+    });
+
     let weak = ui.as_weak();
     std::thread::Builder::new().name("net".into()).spawn(move || {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("tokio runtime");
@@ -284,6 +327,56 @@ fn parse_hex(hex: &str) -> Option<Color> {
     Some(Color::from_rgb_u8(channel(0)?, channel(2)?, channel(4)?))
 }
 
+fn open_settings(ui: &Shell) {
+    MENU.with(|menu| menu.borrow_mut().reset());
+    render_menu(ui);
+    ui.set_settings_open(true);
+    ui.invoke_sound("select".into());
+}
+
+/// Puts the menu's rows, scroll position and hint into the UI.
+fn render_menu(ui: &Shell) {
+    MENU.with(|menu| {
+        let mut menu = menu.borrow_mut();
+        let rows: Vec<SettingRow> = menu
+            .rows()
+            .into_iter()
+            .map(|row| SettingRow {
+                header: row.header,
+                label: row.label.into(),
+                value: row.value.into(),
+                kind: row.kind.into(),
+                on: row.on,
+                enabled: row.enabled,
+                focused: row.focused,
+                y: row.y,
+                before: row.before,
+                after: row.after,
+            })
+            .collect();
+        ui.set_settings_rows(ModelRc::new(VecModel::from(rows)));
+        ui.set_settings_scroll(menu.scroll());
+        ui.set_settings_hint(menu.hint().into());
+    });
+}
+
+/// New settings from tvd, after any change from here, the phone or the config file.
+pub fn set_settings(ui: &Weak<Shell>, settings: serde_json::Value) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        MENU.with(|menu| menu.borrow_mut().set_settings(settings));
+        render_menu(&ui);
+    });
+}
+
+pub fn set_overlay(ui: &Weak<Shell>, visible: bool) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        MENU.with(|menu| menu.borrow_mut().set_overlay(visible));
+        if ui.get_settings_open() {
+            render_menu(&ui);
+        }
+    });
+}
+
 pub fn set_locale(ui: &Weak<Shell>, locale: locale::Locale) {
     let _ = ui.upgrade_in_event_loop(move |ui| {
         let s = locale.strings();
@@ -300,8 +393,15 @@ pub fn set_locale(ui: &Weak<Shell>, locale: locale::Locale) {
         g.set_pair_body(s.pair_body.into());
         g.set_locked(s.locked.into());
         g.set_unlock_hint(s.unlock_hint.into());
+        g.set_settings(s.settings.into());
+        g.set_hint_change(s.hint_change.into());
+        g.set_hint_select(s.hint_select.into());
+        g.set_hint_close(s.hint_close.into());
+        g.set_back_key(s.back_key.into());
         LOCALE.with(|current| *current.borrow_mut() = locale);
         update_clock(&ui);
+        // The Settings tile carries a translated name.
+        show_apps(&ui);
     });
 }
 
@@ -311,13 +411,23 @@ pub fn set_connected(ui: &Weak<Shell>, connected: bool) {
 
 pub fn set_apps(ui: &Weak<Shell>, apps: Vec<AppEntry>) {
     let _ = ui.upgrade_in_event_loop(move |ui| {
-        let tiles: Vec<AppTile> = apps.into_iter().map(tile).collect();
-        let count = tiles.len() as i32;
-        ui.set_apps(ModelRc::new(VecModel::from(tiles)));
-        if ui.get_selected() >= count {
-            ui.set_selected((count - 1).max(0));
-        }
+        APPS.with(|stored| *stored.borrow_mut() = apps);
+        show_apps(&ui);
     });
+}
+
+/// The app row: the apps, then the Settings tile unless it is switched off.
+fn show_apps(ui: &Shell) {
+    let mut tiles: Vec<AppTile> = APPS.with(|apps| apps.borrow().iter().cloned().map(tile).collect());
+    if SETTINGS_TILE.with(Cell::get) {
+        let name = LOCALE.with(|locale| locale.borrow().strings().settings);
+        tiles.push(AppTile { id: SETTINGS_ID.into(), name: name.into(), settings: true, ..Default::default() });
+    }
+    let count = tiles.len() as i32;
+    ui.set_apps(ModelRc::new(VecModel::from(tiles)));
+    if ui.get_selected() >= count {
+        ui.set_selected((count - 1).max(0));
+    }
 }
 
 fn tile(app: AppEntry) -> AppTile {
@@ -328,6 +438,7 @@ fn tile(app: AppEntry) -> AppTile {
         icon: icon.unwrap_or_default(),
         id: app.id.into(),
         name: app.name.into(),
+        settings: false,
     }
 }
 
@@ -336,6 +447,8 @@ pub fn set_running(ui: &Weak<Shell>, running: bool) {
         if running {
             ui.set_opening_id(SharedString::new());
             ui.set_screensaver_active(false);
+            // An app started from the phone; the menu would wait behind it otherwise.
+            ui.set_settings_open(false);
         }
         if APP_RUNNING.with(|r| r.replace(running)) != running {
             touch();
@@ -388,6 +501,13 @@ pub fn set_visibility(ui: &Weak<Shell>, v: net::Visibility) {
         ui.set_show_hints(v.hints);
         ui.set_show_volume_overlay(v.volume_overlay);
         sounds::PLAYER.with(|player| player.borrow_mut().configure(v.sounds, v.sound_volume));
+        ui.set_settings_enabled(v.settings);
+        if SETTINGS_TILE.with(|tile| tile.replace(v.settings)) != v.settings {
+            show_apps(&ui);
+        }
+        if !v.settings {
+            ui.set_settings_open(false);
+        }
     });
 }
 

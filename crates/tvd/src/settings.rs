@@ -47,6 +47,10 @@ pub const EDITABLE: &[&str] = &[
     "sleep.close_apps",
     "overlay.enabled",
     "overlay.position",
+    "cec.enabled",
+    "cec.power_tv",
+    "cec.follow_tv",
+    "cec.remote_keys",
 ];
 
 /// Sets `key` (such as `screensaver.idle_minutes`) in the config file and

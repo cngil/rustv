@@ -40,6 +40,7 @@ pub struct AppState {
     pub events: broadcast::Sender<ServerMsg>,
     pub overlay: Overlay,
     cast: Cast,
+    pub cec: crate::cec::Cec,
     lock: Lock,
     osd: Osd,
     volumes: tokio::sync::Mutex<Volumes>,
@@ -84,6 +85,7 @@ impl AppState {
             events,
             overlay: Overlay::new(config_path.clone()),
             cast: Cast::default(),
+            cec: crate::cec::Cec::default(),
             lock: Lock::load(),
             osd: Osd::default(),
             volumes: tokio::sync::Mutex::new(Volumes::load()),
@@ -99,6 +101,7 @@ impl AppState {
         sleep::watch(Arc::downgrade(&state));
         watch_volume(Arc::downgrade(&state));
         crate::gamepad::watch(Arc::downgrade(&state));
+        crate::cec::watch(Arc::downgrade(&state));
         state.restart_osd();
         state.apply_cast();
         if state.config().overlay.enabled {
@@ -151,6 +154,7 @@ impl AppState {
             gamepad: cfg.gamepad.clone(),
             presets: crate::theme::presets(),
             overlay: cfg.overlay.clone(),
+            cec: cfg.cec.clone(),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
             config_path: self.config_path.display().to_string(),
@@ -193,6 +197,7 @@ impl AppState {
             cfg.audio = fresh.audio;
             cfg.sleep = fresh.sleep;
             cfg.overlay = fresh.overlay;
+            cfg.cec = fresh.cec;
             (moved, cast_changed, osd_changed)
         };
         // The bar over apps is drawn in the theme colors, scaled to the volume limit.
@@ -385,6 +390,9 @@ impl AppState {
         if let Err(err) = sleep::display_power(false).await {
             warn!("turning the screen off: {err:#}");
         }
+        if self.config().cec.power_tv {
+            self.cec.tv_standby().await;
+        }
         self.asleep.store(true, Ordering::Relaxed);
         self.notify().await;
     }
@@ -407,6 +415,9 @@ impl AppState {
         info!("waking up");
         if let Err(err) = sleep::display_power(true).await {
             warn!("turning the screen on: {err:#}");
+        }
+        if self.config().cec.power_tv {
+            self.cec.tv_on().await;
         }
         self.notify().await;
         true

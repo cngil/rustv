@@ -205,6 +205,20 @@ const TRANSLATIONS = {
     "Connected to {name}": "{name} bağlandı",
     "Paired with {name}": "{name} eşleştirildi",
     "Something went wrong": "Bir şeyler ters gitti",
+    // HDMI-CEC
+    "TV control (HDMI-CEC)": "TV kontrolü (HDMI-CEC)",
+    "Control the TV over HDMI": "TV'yi HDMI üzerinden kontrol et",
+    "Needs a CEC adapter on the box (/dev/cec*). Most PC graphics cards have none.":
+      "Kutuda bir CEC bağdaştırıcısı gerekir (/dev/cec*). Çoğu PC ekran kartında yoktur.",
+    "Turn the TV on and off": "TV'yi aç ve kapat",
+    "Waking turns the TV on and switches it to rustv; sleep puts it in standby, unless it shows another input.":
+      "Uyanınca TV açılır ve rustv'ye geçer; uykuda TV bekleme moduna geçer, başka bir giriş açıksa dokunulmaz.",
+    "Follow the TV": "TV'yi takip et",
+    "Turning the TV off puts rustv to sleep; switching the TV to rustv wakes it.":
+      "TV kapanınca rustv uyur; TV rustv'ye geçince rustv uyanır.",
+    "Use the TV remote": "TV kumandasını kullan",
+    "Arrows, OK, Back, play and volume buttons control rustv.":
+      "Yön, OK, Geri, oynat ve ses tuşları rustv'yi kontrol eder.",
     // gamepad
     Gamepad: "Oyun kolu",
     "Use a gamepad as the remote": "Oyun kolunu kumanda olarak kullan",
@@ -1126,6 +1140,34 @@ const SETTINGS = [
       },
       { key: "sleep.close_apps", label: "Close the open app", hint: "Frees memory and CPU." },
       { action: "sleep", label: "Put the TV to sleep now", button: "Sleep", done: "TV is going to sleep. Any button wakes it." },
+    ],
+  },
+  {
+    title: "TV control (HDMI-CEC)",
+    items: [
+      {
+        key: "cec.enabled",
+        label: "Control the TV over HDMI",
+        hint: "Needs a CEC adapter on the box (/dev/cec*). Most PC graphics cards have none.",
+      },
+      {
+        key: "cec.power_tv",
+        label: "Turn the TV on and off",
+        hint: "Waking turns the TV on and switches it to rustv; sleep puts it in standby, unless it shows another input.",
+        needs: "cec.enabled",
+      },
+      {
+        key: "cec.follow_tv",
+        label: "Follow the TV",
+        hint: "Turning the TV off puts rustv to sleep; switching the TV to rustv wakes it.",
+        needs: "cec.enabled",
+      },
+      {
+        key: "cec.remote_keys",
+        label: "Use the TV remote",
+        hint: "Arrows, OK, Back, play and volume buttons control rustv.",
+        needs: "cec.enabled",
+      },
     ],
   },
   {

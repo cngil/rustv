@@ -45,7 +45,7 @@ test("settings show every section, with switches only on real settings", async (
   await open(page);
   await openSettings(page);
   const titles = await page.locator("#settings-body h3").allTextContents();
-  for (const title of ["Home screen", "Theme", "Screensaver", "Sound", "Language and format", "Lock and PIN", "Sleep mode", "Network"]) {
+  for (const title of ["Home screen", "Theme", "Screensaver", "Sound", "Language and format", "Lock and PIN", "Sleep mode", "TV control (HDMI-CEC)", "Network"]) {
     expect(titles).toContain(title);
   }
   // Rows that only explain something must not grow a switch.

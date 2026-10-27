@@ -118,6 +118,13 @@ and your phone becomes the remote.
   turns off (most TVs then go to standby) and the open app closes, freeing
   its memory and CPU. Any button wakes it. A film playing never counts as
   unused. The box itself stays on, so the remote can always wake it.
+- **HDMI-CEC** (optional, off by default): rustv waking turns the TV on and
+  switches it to rustv, and sleep puts the TV in standby (unless it shows
+  another input, such as a console). Turning the TV off puts rustv to sleep,
+  and the TV remote's arrows, OK, Back, play and volume buttons control rustv.
+  Needs a CEC adapter the kernel knows (`/dev/cec*`): a Raspberry Pi, some
+  NUCs, a DisplayPort adapter with CEC tunneling, or a Pulse-Eight USB adapter
+  through `inputattach --pulse8-cec`. Most PC graphics cards have none.
 - **Reorder apps** from the remote: hold an app in the dock, drag it, tap
   Done. The TV follows at once, and the order survives restarts.
 - **`tvd` daemon**: launches and closes apps, one at a time; when an app
@@ -202,6 +209,8 @@ remote, so a crashed screen never takes the remote down.
 - Write access to `/dev/uinput` (see below)
 - Flatpak for Flatpak apps, Firefox (Flatpak) for web apps by default
 - For a volume bar over apps (optional): `wob`
+- For HDMI-CEC (optional): a CEC adapter at `/dev/cec*` and your user in the
+  group that owns it (usually `video`)
 - For AirPlay (optional): `uxplay` and `avahi-daemon`
   (`sudo apt install uxplay avahi-daemon gstreamer1.0-plugins-bad gstreamer1.0-libav`),
   and, behind a firewall, TCP 7000, 7001, 7100 and UDP 5353, 6000, 6001, 7011 open to your LAN
@@ -392,6 +401,7 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
 - [x] Localization: English and Turkish, 24 or 12 hour clock, °C or °F
 - [ ] More languages (one table each in the shell, the remote and the overlay)
 - [x] Screen casting with AirPlay (iPhone, iPad, Mac)
+- [x] HDMI-CEC: TV power follows rustv and the other way round, TV remote buttons
 - [ ] Screen casting from Android and Windows (Google Cast, Miracast); there
   is no dependable open-source receiver yet
 

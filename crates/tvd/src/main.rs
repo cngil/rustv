@@ -8,6 +8,7 @@ mod api;
 mod apps;
 mod audio;
 mod cast;
+mod cec;
 mod config;
 mod gamepad;
 mod input;

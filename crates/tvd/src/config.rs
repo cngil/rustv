@@ -48,6 +48,8 @@ pub struct Config {
     pub gamepad: Gamepad,
     #[serde(default)]
     pub overlay: Overlay,
+    #[serde(default)]
+    pub cec: Cec,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
 }
@@ -131,6 +133,29 @@ pub struct Sleep {
 impl Default for Sleep {
     fn default() -> Self {
         Self { enabled: true, after_minutes: 60.0, close_apps: true }
+    }
+}
+
+/// HDMI-CEC: the TV and rustv turn on and off together. Needs a CEC adapter (`/dev/cec*`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Cec {
+    pub enabled: bool,
+    /// The adapter, such as `/dev/cec0`. Unset: the first one found.
+    pub device: Option<PathBuf>,
+    /// Name the TV shows for this input.
+    pub name: String,
+    /// Waking turns the TV on and switches it to rustv; sleeping puts it in standby.
+    pub power_tv: bool,
+    /// Turning the TV off puts rustv to sleep; switching the TV to rustv wakes it.
+    pub follow_tv: bool,
+    /// The TV remote's arrows, OK, Back, play and volume buttons control rustv.
+    pub remote_keys: bool,
+}
+
+impl Default for Cec {
+    fn default() -> Self {
+        Self { enabled: false, device: None, name: "rustv".into(), power_tv: true, follow_tv: true, remote_keys: true }
     }
 }
 
@@ -486,6 +511,11 @@ impl Config {
         }
         if !(1.0..=1440.0).contains(&self.sleep.after_minutes) {
             bail!("sleep.after_minutes must be between 1 and 1440");
+        }
+        // The CEC OSD name: at most 14 printable ASCII characters.
+        let name = &self.cec.name;
+        if name.is_empty() || name.len() > 14 || !name.bytes().all(|b| b.is_ascii_graphic() || b == b' ') {
+            bail!("cec.name must be 1 to 14 plain ASCII characters");
         }
         if self.overlay.interval_ms < 250 {
             bail!("overlay.interval_ms must be at least 250");

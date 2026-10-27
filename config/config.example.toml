@@ -83,6 +83,18 @@ enabled = true
 after_minutes = 60
 close_apps = true   # frees the app's memory and CPU
 
+[cec]
+# HDMI-CEC through the kernel (/dev/cec*). Off by default: most PC graphics
+# cards have no CEC. A Raspberry Pi, some NUCs, DisplayPort adapters with CEC
+# tunneling and the Pulse-Eight USB adapter (inputattach --pulse8-cec) do.
+# Your user needs access to the device, usually through the "video" group.
+enabled = false
+# device = "/dev/cec0"   # unset: the first adapter found
+name = "rustv"           # what the TV calls this input, up to 14 characters
+power_tv = true          # wake turns the TV on and switches to rustv, sleep turns it off
+follow_tv = true         # TV off puts rustv to sleep, TV switched to rustv wakes it
+remote_keys = true       # the TV remote's arrows, OK, Back, play and volume work
+
 [overlay]
 # Debug overlay: one line of live stats over everything on the TV, drawn by
 # swaybar. Switch it in Settings in the remote or through the API at any time.

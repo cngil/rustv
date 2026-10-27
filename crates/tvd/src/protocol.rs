@@ -185,6 +185,7 @@ pub struct SettingsInfo {
     /// The presets, with their colors, for the theme picker.
     pub presets: Vec<crate::theme::Preset>,
     pub overlay: crate::config::Overlay,
+    pub cec: crate::config::Cec,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],
     pub version: &'static str,

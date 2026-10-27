@@ -52,11 +52,11 @@
 
 <section id="pair" class="pair" hidden>
   <img src="/icon.svg" alt="" class="pair-logo">
-  <h1>rustv remote</h1>
-  <p>Run <code>tvd pair</code> on the TV box and open the link it prints, or paste the token here.</p>
+  <h1 data-i18n="remote.pair.title">rustv remote</h1>
+  <p><span data-i18n="remote.pair.run">Run</span> <code>tvd pair</code> <span data-i18n="remote.pair.instructions">on the TV box and open the link it prints, or paste the token here.</span></p>
   <form id="pair-form">
-    <input id="pair-token" placeholder="Pairing token" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <button class="primary">Connect</button>
+    <input id="pair-token" placeholder="Pairing token" data-i18n-placeholder="remote.pair.token" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button class="primary" data-i18n="remote.pair.connect">Connect</button>
   </form>
 </section>
 
@@ -70,38 +70,38 @@
       </div>
     </div>
     <div class="top-actions">
-      <button id="timer-open" class="icon-btn" aria-label="Sleep timer" aria-haspopup="dialog" title="Sleep timer"><svg><use href="#i-moon"/></svg></button>
-      <button id="settings-open" class="icon-btn" aria-label="Settings" aria-haspopup="dialog" title="Settings"><svg><use href="#i-gear"/></svg></button>
-      <button id="stop" class="pill" hidden><svg><use href="#i-close"/></svg>Close app</button>
+      <button id="timer-open" class="icon-btn" aria-label="Sleep timer" data-i18n-aria-label="remote.timer.title" aria-haspopup="dialog" title="Sleep timer" data-i18n-title="remote.timer.title"><svg><use href="#i-moon"/></svg></button>
+      <button id="settings-open" class="icon-btn" aria-label="Settings" data-i18n-aria-label="common.settings" aria-haspopup="dialog" title="Settings" data-i18n-title="common.settings"><svg><use href="#i-gear"/></svg></button>
+      <button id="stop" class="pill" hidden><svg><use href="#i-close"/></svg><span data-i18n="remote.close_app">Close app</span></button>
     </div>
   </header>
 
   <div class="views">
     <section class="view card" data-view="remote">
       <div class="dpad" id="dpad">
-        <button class="dp up" data-key="ArrowUp" data-repeat aria-label="Up"><svg><use href="#i-up"/></svg></button>
-        <button class="dp left" data-key="ArrowLeft" data-repeat aria-label="Left"><svg><use href="#i-left"/></svg></button>
-        <button class="dp right" data-key="ArrowRight" data-repeat aria-label="Right"><svg><use href="#i-right"/></svg></button>
-        <button class="dp down" data-key="ArrowDown" data-repeat aria-label="Down"><svg><use href="#i-down"/></svg></button>
-        <button class="ok" data-key="Enter" aria-label="OK">OK</button>
+        <button class="dp up" data-key="ArrowUp" data-repeat aria-label="Up" data-i18n-aria-label="remote.dpad.up"><svg><use href="#i-up"/></svg></button>
+        <button class="dp left" data-key="ArrowLeft" data-repeat aria-label="Left" data-i18n-aria-label="remote.dpad.left"><svg><use href="#i-left"/></svg></button>
+        <button class="dp right" data-key="ArrowRight" data-repeat aria-label="Right" data-i18n-aria-label="remote.dpad.right"><svg><use href="#i-right"/></svg></button>
+        <button class="dp down" data-key="ArrowDown" data-repeat aria-label="Down" data-i18n-aria-label="remote.dpad.down"><svg><use href="#i-down"/></svg></button>
+        <button class="ok" data-key="Enter" aria-label="OK" data-i18n-aria-label="remote.dpad.ok" data-i18n="remote.dpad.ok">OK</button>
       </div>
 
       <div class="actions">
-        <button class="action" data-key="Escape"><svg><use href="#i-back"/></svg><span>Back</span></button>
-        <button class="action" id="home"><svg><use href="#i-home"/></svg><span>Home</span></button>
-        <button class="action" data-media="play_pause"><svg><use href="#i-play"/></svg><span>Play</span></button>
+        <button class="action" data-key="Escape"><svg><use href="#i-back"/></svg><span data-i18n="common.back">Back</span></button>
+        <button class="action" id="home"><svg><use href="#i-home"/></svg><span data-i18n="common.home">Home</span></button>
+        <button class="action" data-media="play_pause"><svg><use href="#i-play"/></svg><span data-i18n="remote.media.play">Play</span></button>
       </div>
 
       <div class="media-row">
-        <button data-media="previous" aria-label="Previous"><svg><use href="#i-prev"/></svg></button>
-        <button data-media="seek" data-seconds="-10" aria-label="Back 10 seconds"><svg><use href="#i-rewind"/></svg><span>10</span></button>
-        <button data-media="seek" data-seconds="10" aria-label="Forward 10 seconds"><span>10</span><svg><use href="#i-forward"/></svg></button>
-        <button data-media="next" aria-label="Next"><svg><use href="#i-next"/></svg></button>
+        <button data-media="previous" aria-label="Previous" data-i18n-aria-label="remote.media.previous"><svg><use href="#i-prev"/></svg></button>
+        <button data-media="seek" data-seconds="-10" aria-label="Back 10 seconds" data-i18n-aria-label="remote.media.back_10"><svg><use href="#i-rewind"/></svg><span>10</span></button>
+        <button data-media="seek" data-seconds="10" aria-label="Forward 10 seconds" data-i18n-aria-label="remote.media.forward_10"><span>10</span><svg><use href="#i-forward"/></svg></button>
+        <button data-media="next" aria-label="Next" data-i18n-aria-label="remote.media.next"><svg><use href="#i-next"/></svg></button>
       </div>
 
       <div class="volume" id="volume">
         <div class="volume-head">
-          <button id="mute" class="icon-btn" aria-label="Mute"><svg><use href="#i-speaker"/></svg></button>
+          <button id="mute" class="icon-btn" aria-label="Mute" data-i18n-aria-label="remote.volume.mute"><svg><use href="#i-speaker"/></svg></button>
           <div class="volume-value" id="vol-value">–</div>
           <button id="output" class="output-chip" aria-haspopup="dialog">
             <svg class="js-output-icon"><use href="#i-tv"/></svg>
@@ -110,50 +110,50 @@
           </button>
         </div>
         <div class="volume-row">
-          <button class="icon-btn" data-vol="down" data-repeat aria-label="Volume down"><svg><use href="#i-minus"/></svg></button>
-          <input id="vol-slider" class="slider" type="range" min="0" max="150" step="1" value="0" aria-label="Volume">
-          <button class="icon-btn" data-vol="up" data-repeat aria-label="Volume up"><svg><use href="#i-plus"/></svg></button>
+          <button class="icon-btn" data-vol="down" data-repeat aria-label="Volume down" data-i18n-aria-label="remote.volume.down"><svg><use href="#i-minus"/></svg></button>
+          <input id="vol-slider" class="slider" type="range" min="0" max="150" step="1" value="0" aria-label="Volume" data-i18n-aria-label="remote.volume.label">
+          <button class="icon-btn" data-vol="up" data-repeat aria-label="Volume up" data-i18n-aria-label="remote.volume.up"><svg><use href="#i-plus"/></svg></button>
         </div>
       </div>
     </section>
 
     <section class="view card" data-view="pad">
       <div id="pad" class="pad">
-        <span class="hint touch-hint">Drag to move · tap to click<br>Two fingers to scroll · two-finger tap for right click</span>
-        <span class="hint mouse-hint">Click to control the TV pointer with your mouse<br>Press Esc to let go</span>
+        <span class="hint touch-hint"><span data-i18n="remote.pad.touch_hint">Drag to move · tap to click</span><br><span data-i18n="remote.pad.touch_hint_2">Two fingers to scroll · two-finger tap for right click</span></span>
+        <span class="hint mouse-hint"><span data-i18n="remote.pad.mouse_hint">Click to control the TV pointer with your mouse</span><br><span data-i18n="remote.pad.mouse_hint_2">Press Esc to let go</span></span>
       </div>
       <div class="segmented">
-        <button data-btn="left">Left click</button>
-        <button data-btn="middle">Middle</button>
-        <button data-btn="right">Right click</button>
+        <button data-btn="left" data-i18n="remote.pad.left_click">Left click</button>
+        <button data-btn="middle" data-i18n="remote.pad.middle_click">Middle</button>
+        <button data-btn="right" data-i18n="remote.pad.right_click">Right click</button>
       </div>
     </section>
 
     <section class="view card" data-view="keys">
-      <h2>Type on the TV</h2>
+      <h2 data-i18n="remote.text.title">Type on the TV</h2>
       <form id="text-form" class="text">
-        <input id="text" placeholder="Search, URL, password…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send">
-        <button class="primary" aria-label="Send">Send</button>
+        <input id="text" placeholder="Search, URL, password…" data-i18n-placeholder="remote.text.placeholder" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send">
+        <button class="primary" aria-label="Send" data-i18n-aria-label="remote.text.send" data-i18n="remote.text.send">Send</button>
       </form>
       <div class="segmented">
-        <button data-key="Backspace"><svg><use href="#i-backspace"/></svg>Delete</button>
-        <button data-key="Tab"><svg><use href="#i-tab"/></svg>Tab</button>
-        <button data-key="Enter"><svg><use href="#i-enter"/></svg>Enter</button>
+        <button data-key="Backspace"><svg><use href="#i-backspace"/></svg><span data-i18n="remote.key.delete">Delete</span></button>
+        <button data-key="Tab"><svg><use href="#i-tab"/></svg><span data-i18n="remote.key.tab">Tab</span></button>
+        <button data-key="Enter"><svg><use href="#i-enter"/></svg><span data-i18n="remote.key.enter">Enter</span></button>
       </div>
       <label class="switch desktop-only">
         <input type="checkbox" id="capture">
         <span class="track"></span>
-        <span>Send everything I type on this computer to the TV</span>
+        <span data-i18n="remote.text.forward_all">Send everything I type on this computer to the TV</span>
       </label>
     </section>
   </div>
 
-  <nav class="dock" id="dock" aria-label="Apps"></nav>
+  <nav class="dock" id="dock" aria-label="Apps" data-i18n-aria-label="remote.dock.label"></nav>
 
-  <nav class="tabs" aria-label="Views">
-    <button data-tab="remote"><svg><use href="#i-remote"/></svg>Remote</button>
-    <button data-tab="pad"><svg><use href="#i-pad"/></svg>Touchpad</button>
-    <button data-tab="keys"><svg><use href="#i-keyboard"/></svg>Keyboard</button>
+  <nav class="tabs" aria-label="Views" data-i18n-aria-label="remote.tabs.label">
+    <button data-tab="remote"><svg><use href="#i-remote"/></svg><span data-i18n="remote.tabs.remote">Remote</span></button>
+    <button data-tab="pad"><svg><use href="#i-pad"/></svg><span data-i18n="remote.tabs.touchpad">Touchpad</span></button>
+    <button data-tab="keys"><svg><use href="#i-keyboard"/></svg><span data-i18n="remote.tabs.keyboard">Keyboard</span></button>
   </nav>
 </main>
 
@@ -161,8 +161,8 @@
   <div class="sheet-backdrop" data-close></div>
   <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
     <div class="sheet-head">
-      <h2 id="sheet-title">Play sound on</h2>
-      <button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <h2 id="sheet-title" data-i18n="remote.output.title">Play sound on</h2>
+      <button class="icon-btn" data-close aria-label="Close" data-i18n-aria-label="common.close"><svg><use href="#i-close"/></svg></button>
     </div>
     <div id="outputs" class="outputs"></div>
   </div>
@@ -172,8 +172,8 @@
   <div class="sheet-backdrop" data-close-timer></div>
   <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="timer-title">
     <div class="sheet-head">
-      <h2 id="timer-title">Sleep timer</h2>
-      <button class="icon-btn" data-close-timer aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <h2 id="timer-title" data-i18n="remote.timer.title">Sleep timer</h2>
+      <button class="icon-btn" data-close-timer aria-label="Close" data-i18n-aria-label="common.close"><svg><use href="#i-close"/></svg></button>
     </div>
     <p id="timer-status" class="timer-status"></p>
     <div id="timer-chips" class="chips timer-chips"></div>
@@ -183,11 +183,11 @@
 <div id="trial" class="sheet trial" hidden>
   <div class="sheet-backdrop"></div>
   <div class="sheet-panel" role="alertdialog" aria-modal="true" aria-labelledby="trial-title" aria-describedby="trial-text">
-    <h2 id="trial-title">Keep this resolution?</h2>
+    <h2 id="trial-title" data-i18n="remote.display.keep_title">Keep this resolution?</h2>
     <p id="trial-text" class="timer-status"></p>
     <div class="trial-actions">
-      <button id="trial-revert">Go back</button>
-      <button id="trial-keep" class="primary">Keep</button>
+      <button id="trial-revert" data-i18n="common.go_back">Go back</button>
+      <button id="trial-keep" class="primary" data-i18n="common.keep">Keep</button>
     </div>
   </div>
 </div>
@@ -196,8 +196,8 @@
   <div class="sheet-backdrop" data-close-settings></div>
   <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <div class="sheet-head">
-      <h2 id="settings-title">Settings</h2>
-      <button class="icon-btn" data-close-settings aria-label="Close"><svg><use href="#i-close"/></svg></button>
+      <h2 id="settings-title" data-i18n="common.settings">Settings</h2>
+      <button class="icon-btn" data-close-settings aria-label="Close" data-i18n-aria-label="common.close"><svg><use href="#i-close"/></svg></button>
     </div>
     <div id="settings-body"></div>
   </div>
@@ -210,12 +210,13 @@
     <p id="pin-hint" class="pin-hint">Enter the PIN</p>
     <div id="pin-dots" class="pin-dots"></div>
     <div class="pin-pad" id="pin-pad"></div>
-    <button id="pin-cancel" class="pin-cancel" hidden>Cancel</button>
+    <button id="pin-cancel" class="pin-cancel" hidden data-i18n="common.cancel">Cancel</button>
   </div>
 </div>
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+<script src="/locales.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

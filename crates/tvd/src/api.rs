@@ -39,8 +39,12 @@ type Shared = Arc<AppState>;
 
 /// Changes whenever the script or the styles change, so they can be cached for a
 /// year under a URL that carries it, while the page itself is revalidated cheaply.
+/// Every language's texts for the remote, as a script that runs before app.js.
+static LOCALES: std::sync::LazyLock<String> =
+    std::sync::LazyLock::new(|| format!("window.LOCALES = {};\n", rustv_locales::catalogs_json()));
+
 static VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-    let hash = [SCRIPT, STYLE, INDEX]
+    let hash = [SCRIPT, STYLE, INDEX, LOCALES.as_str()]
         .iter()
         .flat_map(|s| s.bytes())
         .fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
@@ -50,6 +54,7 @@ static VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
 static PAGE: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
     INDEX
         .replace("\"/app.js\"", &format!("\"/app.js?v={}\"", *VERSION))
+        .replace("\"/locales.js\"", &format!("\"/locales.js?v={}\"", *VERSION))
         .replace("\"/style.css\"", &format!("\"/style.css?v={}\"", *VERSION))
 });
 
@@ -95,6 +100,7 @@ pub fn router(state: Shared) -> Router {
         .route("/", get(page))
         .route("/app.js", get(|| async { immutable("text/javascript; charset=utf-8", SCRIPT) }))
         .route("/style.css", get(|| async { immutable("text/css; charset=utf-8", STYLE) }))
+        .route("/locales.js", get(|| async { immutable("text/javascript; charset=utf-8", LOCALES.as_str()) }))
         .route("/manifest.webmanifest", get(|| async { asset("application/manifest+json", MANIFEST) }))
         .route("/icon.svg", get(|| async { asset("image/svg+xml", ICON) }))
         .route("/apple-touch-icon.png", get(|| async { image(TOUCH_ICON) }))
@@ -109,6 +115,17 @@ pub fn router(state: Shared) -> Router {
 
 fn asset(content_type: &'static str, body: &'static str) -> Response {
     ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "no-cache")], body).into_response()
+}
+
+/// `{"error": "English text", "key": ..., "args": ...}`: the key and values let the
+/// remote word a known error in its own language.
+fn error_body(err: &anyhow::Error) -> serde_json::Value {
+    let mut body = crate::i18n::describe(err);
+    let message = body["message"].take();
+    let object = body.as_object_mut().expect("describe returns an object");
+    object.remove("message");
+    object.insert("error".into(), message);
+    body
 }
 
 /// Font files never change under a URL that carries their version.
@@ -196,7 +213,7 @@ struct WifiQuery {
 async fn get_wifi(Query(query): Query<WifiQuery>) -> Response {
     match crate::wireless::networks(query.rescan).await {
         Ok(networks) => Json(networks).into_response(),
-        Err(err) => (StatusCode::SERVICE_UNAVAILABLE, Json(json!({ "error": format!("{err:#}") }))).into_response(),
+        Err(err) => (StatusCode::SERVICE_UNAVAILABLE, Json(error_body(&err))).into_response(),
     }
 }
 
@@ -213,7 +230,7 @@ async fn post_command(State(state): State<Shared>, body: Bytes) -> Response {
     };
     match state.execute(cmd).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
-        Err(err) => (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("{err:#}") }))).into_response(),
+        Err(err) => (StatusCode::BAD_REQUEST, Json(error_body(&err))).into_response(),
     }
 }
 
@@ -325,7 +342,7 @@ async fn handle(state: &Shared, text: &str, reply: &mpsc::UnboundedSender<Server
     let cmd: Command = match serde_json::from_str(text) {
         Ok(cmd) => cmd,
         Err(err) => {
-            let _ = reply.send(ServerMsg::Error { message: format!("bad message: {err}") });
+            let _ = reply.send(ServerMsg::Error { message: format!("bad message: {err}"), key: None, args: None });
             return;
         }
     };
@@ -335,11 +352,11 @@ async fn handle(state: &Shared, text: &str, reply: &mpsc::UnboundedSender<Server
         let reply = reply.clone();
         tokio::spawn(async move {
             if let Err(err) = state.execute(cmd).await {
-                let _ = reply.send(ServerMsg::Error { message: format!("{err:#}") });
+                let _ = reply.send(ServerMsg::error(&err));
             }
         });
     } else if let Err(err) = state.execute(cmd).await {
-        let _ = reply.send(ServerMsg::Error { message: format!("{err:#}") });
+        let _ = reply.send(ServerMsg::error(&err));
     }
 }
 

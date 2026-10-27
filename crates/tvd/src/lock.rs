@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 
 const ROUNDS: u32 = 200_000;
 const MAX_TRIES: u32 = 5;
@@ -56,7 +56,7 @@ impl Lock {
     pub fn lock(&self) -> Result<()> {
         let mut inner = self.inner.lock().unwrap();
         if inner.pin.is_none() {
-            bail!("Set a PIN in the settings first");
+            return Err(crate::i18n::error("error.pin.not_set", &[]));
         }
         inner.locked = true;
         self.save(&inner)
@@ -79,7 +79,7 @@ impl Lock {
         match new {
             Some(pin) => {
                 if !(4..=8).contains(&pin.len()) || !pin.chars().all(|c| c.is_ascii_digit()) {
-                    bail!("The PIN must be 4 to 8 digits");
+                    return Err(crate::i18n::error("error.pin.format", &[]));
                 }
                 let salt = salt()?;
                 inner.pin = Some((salt, stretch(salt, pin)));
@@ -117,7 +117,7 @@ fn check(inner: &mut Inner, pin: &str) -> Result<()> {
     if let Some(until) = inner.blocked_until {
         let left = until.saturating_duration_since(Instant::now());
         if !left.is_zero() {
-            bail!("Too many wrong PINs; try again in {} s", left.as_secs().max(1));
+            return Err(crate::i18n::error("error.pin.too_many", &[("seconds", left.as_secs().max(1).to_string())]));
         }
         inner.blocked_until = None;
     }
@@ -130,9 +130,9 @@ fn check(inner: &mut Inner, pin: &str) -> Result<()> {
     if inner.failures >= MAX_TRIES {
         inner.failures = 0;
         inner.blocked_until = Some(Instant::now() + BLOCKED_FOR);
-        bail!("Wrong PIN. Entry is blocked for {} s", BLOCKED_FOR.as_secs());
+        return Err(crate::i18n::error("error.pin.wrong_blocked", &[("seconds", BLOCKED_FOR.as_secs().to_string())]));
     }
-    bail!("Wrong PIN");
+    Err(crate::i18n::error("error.pin.wrong", &[]))
 }
 
 fn parse(text: &str) -> Option<(u64, u64)> {

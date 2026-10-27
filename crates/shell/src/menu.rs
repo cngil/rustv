@@ -4,11 +4,10 @@
 //! Every change goes to tvd as the same `set` command the phone remote sends;
 //! tvd writes the config file and sends the settings back to everyone. Wi-Fi,
 //! Bluetooth, the PIN and custom colors need typing, so they stay on the phone.
+//! The labels are the phone's too: `setting.<config key>.label` in the shared
+//! catalog (`crates/locales`).
 
 use serde_json::{json, Value};
-
-/// English and Turkish, in that order.
-type Text = [&'static str; 2];
 
 #[derive(Clone, Copy)]
 enum Lit {
@@ -32,9 +31,31 @@ impl Lit {
     }
 }
 
+/// How a choice reads: a catalog key, or a number in a unit such as `unit.minutes`.
+#[derive(Clone, Copy)]
+enum Words {
+    Key(&'static str),
+    Unit(&'static str, f64),
+}
+
+impl Words {
+    fn read(self, lang: &str) -> String {
+        match self {
+            Words::Key(key) => rustv_locales::text(lang, key).to_string(),
+            Words::Unit(unit, n) => rustv_locales::format(lang, unit, &[("n", &number(n))]),
+        }
+    }
+}
+
+/// 30, 1.5: no trailing zeros.
+fn number(n: f64) -> String {
+    let text = format!("{n:.2}");
+    text.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
 enum Kind {
     Toggle,
-    Choice(&'static [(Lit, Text)]),
+    Choice(&'static [(Lit, Words)]),
     /// Sends this command, then closes the menu so its result shows.
     Action(&'static str),
     /// Shows or hides the debug overlay now; not saved.
@@ -48,15 +69,17 @@ enum Kind {
 struct Item {
     /// `section.name` in the config; unused for actions.
     key: &'static str,
-    label: Text,
-    hint: Text,
+    /// Catalog keys.
+    label: &'static str,
+    hint: Option<&'static str>,
     kind: Kind,
     /// Greyed out (and skipped) while this setting is off.
     needs: Option<&'static str>,
 }
 
 struct Section {
-    title: Text,
+    /// A catalog key.
+    title: &'static str,
     items: &'static [Item],
     /// Only shown once the config lists pictures.
     pictures: bool,
@@ -64,385 +87,309 @@ struct Section {
     display: bool,
 }
 
-const fn toggle(key: &'static str, label: Text, hint: Text, needs: Option<&'static str>) -> Item {
+const fn toggle(
+    key: &'static str,
+    label: &'static str,
+    hint: Option<&'static str>,
+    needs: Option<&'static str>,
+) -> Item {
     Item { key, label, hint, kind: Kind::Toggle, needs }
 }
 
-const fn choice(key: &'static str, label: Text, options: &'static [(Lit, Text)], needs: Option<&'static str>) -> Item {
-    Item { key, label, hint: ["", ""], kind: Kind::Choice(options), needs }
+const fn choice(
+    key: &'static str,
+    label: &'static str,
+    options: &'static [(Lit, Words)],
+    needs: Option<&'static str>,
+) -> Item {
+    Item { key, label, hint: None, kind: Kind::Choice(options), needs }
 }
 
-const NO_HINT: Text = ["", ""];
-const MINUTES: &[(Lit, Text)] = &[
-    (Lit::Num(1.0), ["1 min", "1 dk"]),
-    (Lit::Num(2.0), ["2 min", "2 dk"]),
-    (Lit::Num(5.0), ["5 min", "5 dk"]),
-    (Lit::Num(10.0), ["10 min", "10 dk"]),
-    (Lit::Num(15.0), ["15 min", "15 dk"]),
-    (Lit::Num(30.0), ["30 min", "30 dk"]),
-    (Lit::Num(60.0), ["1 h", "1 sa"]),
+const fn section(title: &'static str, items: &'static [Item]) -> Section {
+    Section { title, items, pictures: false, display: false }
+}
+
+use Words::{Key, Unit};
+
+const MINUTES: &[(Lit, Words)] = &[
+    (Lit::Num(1.0), Unit("unit.minutes", 1.0)),
+    (Lit::Num(2.0), Unit("unit.minutes", 2.0)),
+    (Lit::Num(5.0), Unit("unit.minutes", 5.0)),
+    (Lit::Num(10.0), Unit("unit.minutes", 10.0)),
+    (Lit::Num(15.0), Unit("unit.minutes", 15.0)),
+    (Lit::Num(30.0), Unit("unit.minutes", 30.0)),
+    (Lit::Num(60.0), Unit("unit.hours", 1.0)),
 ];
-const STYLES: &[(Lit, Text)] = &[
-    (Lit::Str("random"), ["Mix", "Karışık"]),
-    (Lit::Str("aurora"), ["Aurora", "Aurora"]),
-    (Lit::Str("orbits"), ["Orbits", "Yörünge"]),
-    (Lit::Str("clock"), ["Clock", "Saat"]),
-    (Lit::Str("images"), ["My pictures", "Resimlerim"]),
+const STYLES: &[(Lit, Words)] = &[
+    (Lit::Str("random"), Key("option.screensaver.style.random")),
+    (Lit::Str("aurora"), Key("option.screensaver.style.aurora")),
+    (Lit::Str("orbits"), Key("option.screensaver.style.orbits")),
+    (Lit::Str("clock"), Key("option.screensaver.style.clock")),
+    (Lit::Str("images"), Key("option.screensaver.style.images")),
 ];
 
 const SECTIONS: &[Section] = &[
-    Section {
-        title: ["Home screen", "Ana ekran"],
-        pictures: false,
-        display: false,
-        items: &[
-            toggle("shell.greeting", ["Greeting", "Karşılama"], NO_HINT, None),
-            toggle("shell.clock", ["Clock", "Saat"], NO_HINT, None),
-            toggle("shell.date", ["Date", "Tarih"], NO_HINT, None),
-            toggle(
-                "shell.hints",
-                ["Key hints", "Tuş ipuçları"],
-                ["The keys at the bottom of the screen.", "Ekranın altındaki tuşlar."],
-                None,
-            ),
-            toggle(
-                "shell.volume_overlay",
-                ["Volume bar", "Ses çubuğu"],
-                ["Shown when the volume changes.", "Ses değişince görünür."],
-                None,
-            ),
-            toggle(
-                "shell.sounds",
-                ["Sounds", "Sesler"],
-                [
-                    "Soft clicks when moving between apps and opening one.",
-                    "Uygulamalar arasında gezerken ve açarken hafif tıklamalar.",
-                ],
-                None,
-            ),
+    section(
+        "section.home_screen",
+        &[
+            toggle("shell.greeting", "setting.shell.greeting.label", None, None),
+            toggle("shell.clock", "setting.shell.clock.label", None, None),
+            toggle("shell.date", "setting.shell.date.label", None, None),
+            toggle("shell.hints", "setting.shell.hints.label", Some("setting.shell.hints.hint"), None),
+            toggle("shell.volume_overlay", "setting.shell.volume_overlay.label", None, None),
+            toggle("shell.sounds", "setting.shell.sounds.label", Some("setting.shell.sounds.hint"), None),
             choice(
                 "shell.sound_volume",
-                ["Sound level", "Ses düzeyi"],
+                "setting.shell.sound_volume.label",
                 &[
-                    (Lit::Num(0.25), ["Quiet", "Sessiz"]),
-                    (Lit::Num(0.5), ["Medium", "Orta"]),
-                    (Lit::Num(1.0), ["Loud", "Yüksek"]),
+                    (Lit::Num(0.25), Key("option.shell.sound_volume.quiet")),
+                    (Lit::Num(0.5), Key("option.shell.sound_volume.medium")),
+                    (Lit::Num(1.0), Key("option.shell.sound_volume.loud")),
                 ],
                 Some("shell.sounds"),
             ),
-            toggle(
-                "shell.pairing_qr",
-                ["Pairing code", "Eşleştirme kodu"],
-                [
-                    "QR code on the TV until a phone pairs, and when you ask for it.",
-                    "Bir telefon eşleşene kadar ve istediğinde TV'deki QR kod.",
-                ],
-                None,
-            ),
+            toggle("shell.pairing_qr", "setting.shell.pairing_qr.label", Some("setting.shell.pairing_qr.hint"), None),
             Item {
                 key: "",
-                label: ["Pair a phone", "Telefon eşleştir"],
-                hint: ["Shows the QR code for two minutes.", "QR kodu iki dakika gösterir."],
+                label: "setting.pairing.show.label",
+                hint: Some("setting.pairing.show.hint"),
                 kind: Kind::Action("show_pairing"),
                 needs: Some("shell.pairing_qr"),
             },
         ],
-    },
-    Section {
-        title: ["Look and language", "Görünüm ve dil"],
-        pictures: false,
-        display: false,
-        items: &[
+    ),
+    section(
+        "section.look",
+        &[
             choice(
                 "theme.preset",
-                ["Finish", "Kaplama"],
+                "setting.theme.preset.label",
                 &[
-                    (Lit::Str("silver"), ["Silver", "Gümüş"]),
-                    (Lit::Str("titanium"), ["Titanium", "Titanyum"]),
-                    (Lit::Str("champagne"), ["Champagne", "Şampanya"]),
-                    (Lit::Str("gunmetal"), ["Gunmetal", "Füme"]),
+                    (Lit::Str("silver"), Key("option.theme.preset.silver")),
+                    (Lit::Str("titanium"), Key("option.theme.preset.titanium")),
+                    (Lit::Str("champagne"), Key("option.theme.preset.champagne")),
+                    (Lit::Str("gunmetal"), Key("option.theme.preset.gunmetal")),
                 ],
                 None,
             ),
             choice(
                 "locale.language",
-                ["Language", "Dil"],
-                &[(Lit::Str("en"), ["English", "English"]), (Lit::Str("tr"), ["Türkçe", "Türkçe"])],
+                "setting.locale.language.label",
+                &[
+                    (Lit::Str("en"), Key("option.locale.language.en")),
+                    (Lit::Str("tr"), Key("option.locale.language.tr")),
+                ],
                 None,
             ),
             choice(
                 "locale.clock",
-                ["Time format", "Saat biçimi"],
-                &[(Lit::Str("24h"), ["24-hour", "24 saat"]), (Lit::Str("12h"), ["12-hour", "12 saat"])],
+                "setting.locale.clock.label",
+                &[(Lit::Str("24h"), Key("option.locale.clock.24h")), (Lit::Str("12h"), Key("option.locale.clock.12h"))],
                 None,
             ),
-            choice(
-                "locale.temperature",
-                ["Temperature", "Sıcaklık"],
-                &[(Lit::Str("celsius"), ["°C", "°C"]), (Lit::Str("fahrenheit"), ["°F", "°F"])],
-                None,
-            ),
+            Item {
+                key: "locale.temperature",
+                label: "setting.locale.temperature.label",
+                hint: Some("setting.locale.temperature.hint"),
+                kind: Kind::Choice(&[
+                    (Lit::Str("celsius"), Key("option.locale.temperature.celsius")),
+                    (Lit::Str("fahrenheit"), Key("option.locale.temperature.fahrenheit")),
+                ]),
+                needs: None,
+            },
         ],
-    },
+    ),
     Section {
-        title: ["Display", "Ekran"],
+        title: "section.display",
         pictures: false,
         display: true,
         items: &[
             Item {
                 key: "",
-                label: ["Resolution", "Çözünürlük"],
-                hint: [
-                    "A new mode goes back by itself after 15 seconds unless you keep it.",
-                    "Yeni bir mod, korumazsan 15 saniye sonra kendiliğinden geri döner.",
-                ],
+                label: "setting.display.resolution.label",
+                hint: Some("setting.display.resolution.hint"),
                 kind: Kind::Resolution,
                 needs: None,
             },
-            Item {
-                key: "", label: ["Refresh rate", "Yenileme hızı"], hint: NO_HINT, kind: Kind::Refresh, needs: None
-            },
+            Item { key: "", label: "setting.display.refresh.label", hint: None, kind: Kind::Refresh, needs: None },
         ],
     },
     Section {
-        title: ["Wallpaper", "Duvar kağıdı"],
+        title: "section.wallpaper",
         pictures: true,
         display: false,
         items: &[
-            toggle(
-                "wallpaper.home",
-                ["Behind the home screen", "Ana ekranın arkasında"],
-                ["Your pictures instead of the plain background.", "Düz arka plan yerine kendi resimlerin."],
-                None,
-            ),
+            toggle("wallpaper.home", "setting.wallpaper.home.label", Some("setting.wallpaper.home.hint"), None),
             choice(
                 "wallpaper.change_minutes",
-                ["Change every", "Değiştirme sıklığı"],
+                "setting.wallpaper.change_minutes.label",
                 &[
-                    (Lit::Num(5.0), ["5 min", "5 dk"]),
-                    (Lit::Num(15.0), ["15 min", "15 dk"]),
-                    (Lit::Num(30.0), ["30 min", "30 dk"]),
-                    (Lit::Num(60.0), ["1 h", "1 sa"]),
-                    (Lit::Num(240.0), ["4 h", "4 sa"]),
-                    (Lit::Num(1440.0), ["1 day", "1 gün"]),
+                    (Lit::Num(5.0), Unit("unit.minutes", 5.0)),
+                    (Lit::Num(15.0), Unit("unit.minutes", 15.0)),
+                    (Lit::Num(30.0), Unit("unit.minutes", 30.0)),
+                    (Lit::Num(60.0), Unit("unit.hours", 1.0)),
+                    (Lit::Num(240.0), Unit("unit.hours", 4.0)),
+                    (Lit::Num(1440.0), Unit("unit.days", 1.0)),
                 ],
                 Some("wallpaper.home"),
             ),
-            toggle("wallpaper.shuffle", ["Random order", "Rastgele sıra"], NO_HINT, None),
+            toggle("wallpaper.shuffle", "setting.wallpaper.shuffle.label", None, None),
         ],
     },
-    Section {
-        title: ["Screensaver", "Ekran koruyucu"],
-        pictures: false,
-        display: false,
-        items: &[
+    section(
+        "section.screensaver",
+        &[
             toggle(
                 "screensaver.enabled",
-                ["Screensaver", "Ekran koruyucu"],
-                [
-                    "Starts after a while on the home screen without input.",
-                    "Ana ekranda bir süre tuşa basılmazsa başlar.",
-                ],
-                None,
-            ),
-            choice("screensaver.idle_minutes", ["Start after", "Başlama süresi"], MINUTES, Some("screensaver.enabled")),
-            choice("screensaver.style", ["Style", "Stil"], STYLES, Some("screensaver.enabled")),
-            toggle("screensaver.clock", ["Show the time", "Saati göster"], NO_HINT, Some("screensaver.enabled")),
-            toggle("screensaver.date", ["Show the date", "Tarihi göster"], NO_HINT, Some("screensaver.enabled")),
-        ],
-    },
-    Section {
-        title: ["Sleep", "Uyku"],
-        pictures: false,
-        display: false,
-        items: &[
-            toggle(
-                "sleep.enabled",
-                ["Sleep when unused", "Kullanılmayınca uyu"],
-                [
-                    "Screen off after no remote input and no sound. Any button wakes it.",
-                    "Tuşa basılmaz ve ses çalmazsa ekran kapanır. Herhangi bir tuş uyandırır.",
-                ],
+                "setting.screensaver.enabled.label",
+                Some("setting.screensaver.enabled.hint"),
                 None,
             ),
             choice(
+                "screensaver.idle_minutes",
+                "setting.screensaver.idle_minutes.label",
+                MINUTES,
+                Some("screensaver.enabled"),
+            ),
+            choice("screensaver.style", "setting.screensaver.style.label", STYLES, Some("screensaver.enabled")),
+            toggle("screensaver.clock", "setting.screensaver.clock.label", None, Some("screensaver.enabled")),
+            toggle("screensaver.date", "setting.screensaver.date.label", None, Some("screensaver.enabled")),
+        ],
+    ),
+    section(
+        "section.sleep",
+        &[
+            toggle("sleep.enabled", "setting.sleep.enabled.label", Some("setting.sleep.enabled.hint"), None),
+            choice(
                 "sleep.after_minutes",
-                ["After", "Süre"],
+                "setting.sleep.after_minutes.label",
                 &[
-                    (Lit::Num(15.0), ["15 min", "15 dk"]),
-                    (Lit::Num(30.0), ["30 min", "30 dk"]),
-                    (Lit::Num(60.0), ["1 h", "1 sa"]),
-                    (Lit::Num(120.0), ["2 h", "2 sa"]),
-                    (Lit::Num(240.0), ["4 h", "4 sa"]),
+                    (Lit::Num(15.0), Unit("unit.minutes", 15.0)),
+                    (Lit::Num(30.0), Unit("unit.minutes", 30.0)),
+                    (Lit::Num(60.0), Unit("unit.hours", 1.0)),
+                    (Lit::Num(120.0), Unit("unit.hours", 2.0)),
+                    (Lit::Num(240.0), Unit("unit.hours", 4.0)),
                 ],
                 Some("sleep.enabled"),
             ),
-            toggle(
-                "sleep.close_apps",
-                ["Close the open app", "Açık uygulamayı kapat"],
-                ["Frees memory and CPU.", "Bellek ve işlemciyi boşaltır."],
-                None,
-            ),
+            toggle("sleep.close_apps", "setting.sleep.close_apps.label", Some("setting.sleep.close_apps.hint"), None),
             Item {
                 key: "",
-                label: ["Sleep now", "Şimdi uyut"],
-                hint: ["Any button wakes the TV.", "Herhangi bir tuş TV'yi uyandırır."],
+                label: "setting.sleep.now.label",
+                hint: Some("setting.sleep.now.hint"),
                 kind: Kind::Action("sleep"),
                 needs: None,
             },
         ],
-    },
-    Section {
-        title: ["Sound", "Ses"],
-        pictures: false,
-        display: false,
-        items: &[
-            choice(
-                "audio.max_volume",
-                ["Volume limit", "Ses sınırı"],
-                &[
-                    (Lit::Num(1.0), ["100%", "%100"]),
-                    (Lit::Num(1.2), ["120%", "%120"]),
-                    (Lit::Num(1.5), ["150%", "%150"]),
-                ],
-                None,
-            ),
+    ),
+    section(
+        "section.sound",
+        &[
+            Item {
+                key: "audio.max_volume",
+                label: "setting.audio.max_volume.label",
+                hint: Some("setting.audio.max_volume.hint"),
+                kind: Kind::Choice(&[
+                    (Lit::Num(1.0), Unit("unit.percent", 100.0)),
+                    (Lit::Num(1.2), Unit("unit.percent", 120.0)),
+                    (Lit::Num(1.5), Unit("unit.percent", 150.0)),
+                ]),
+                needs: None,
+            },
             choice(
                 "audio.step",
-                ["Volume buttons change by", "Ses tuşları adımı"],
-                &[(Lit::Num(0.02), ["2%", "%2"]), (Lit::Num(0.05), ["5%", "%5"]), (Lit::Num(0.1), ["10%", "%10"])],
+                "setting.audio.step.label",
+                &[
+                    (Lit::Num(0.02), Unit("unit.percent", 2.0)),
+                    (Lit::Num(0.05), Unit("unit.percent", 5.0)),
+                    (Lit::Num(0.1), Unit("unit.percent", 10.0)),
+                ],
                 None,
             ),
             toggle(
                 "audio.per_app_volume",
-                ["Volume per app", "Uygulamaya göre ses"],
-                [
-                    "Each app and the home screen keep their own volume.",
-                    "Her uygulama ve ana ekran kendi ses düzeyini korur.",
-                ],
+                "setting.audio.per_app_volume.label",
+                Some("setting.audio.per_app_volume.hint"),
                 None,
             ),
         ],
-    },
-    Section {
-        title: ["On-screen keyboard", "Ekran klavyesi"],
-        pictures: false,
-        display: false,
-        items: &[
-            toggle(
-                "keyboard.enabled",
-                ["Keyboard on the TV", "TV'de klavye"],
-                [
-                    "For typing with the TV remote or a gamepad: arrows move, OK types, Back closes.",
-                    "TV kumandası ya da oyun koluyla yazmak için: yön tuşları gezer, OK yazar, Geri kapatır.",
-                ],
-                None,
-            ),
+    ),
+    section(
+        "section.keyboard",
+        &[
+            toggle("keyboard.enabled", "setting.keyboard.enabled.label", Some("setting.keyboard.enabled.hint"), None),
             toggle(
                 "keyboard.hold_ok",
-                ["Hold OK to open it", "Açmak için OK'a basılı tut"],
-                ["On the TV remote, over HDMI-CEC.", "TV kumandasında, HDMI-CEC üzerinden."],
+                "setting.keyboard.hold_ok.label",
+                Some("setting.keyboard.hold_ok.hint"),
                 Some("keyboard.enabled"),
             ),
             toggle(
                 "keyboard.hold_guide",
-                ["Hold Guide on a gamepad", "Oyun kolunda ana menü tuşuna basılı tut"],
-                ["A short press still goes home.", "Kısa basış yine ana ekrana döner."],
+                "setting.keyboard.hold_guide.label",
+                Some("setting.keyboard.hold_guide.hint"),
                 Some("keyboard.enabled"),
             ),
         ],
-    },
-    Section {
-        title: ["TV control (HDMI-CEC)", "TV kontrolü (HDMI-CEC)"],
-        pictures: false,
-        display: false,
-        items: &[
-            toggle(
-                "cec.enabled",
-                ["Control the TV over HDMI", "TV'yi HDMI üzerinden kontrol et"],
-                ["Needs a CEC adapter on the box (/dev/cec*).", "Kutuda bir CEC bağdaştırıcısı gerekir (/dev/cec*)."],
-                None,
-            ),
+    ),
+    section(
+        "section.cec",
+        &[
+            toggle("cec.enabled", "setting.cec.enabled.label", Some("setting.cec.enabled.hint"), None),
             toggle(
                 "cec.power_tv",
-                ["Turn the TV on and off", "TV'yi aç ve kapat"],
-                [
-                    "Waking turns the TV on; sleep puts it in standby, unless it shows another input.",
-                    "Uyanınca TV açılır; uykuda bekleme moduna geçer, başka bir giriş açıksa dokunulmaz.",
-                ],
+                "setting.cec.power_tv.label",
+                Some("setting.cec.power_tv.hint"),
                 Some("cec.enabled"),
             ),
             toggle(
                 "cec.follow_tv",
-                ["Follow the TV", "TV'yi takip et"],
-                [
-                    "Turning the TV off puts rustv to sleep; switching to rustv wakes it.",
-                    "TV kapanınca rustv uyur; rustv'ye geçince uyanır.",
-                ],
+                "setting.cec.follow_tv.label",
+                Some("setting.cec.follow_tv.hint"),
                 Some("cec.enabled"),
             ),
             toggle(
                 "cec.remote_keys",
-                ["Use the TV remote", "TV kumandasını kullan"],
-                [
-                    "Arrows, OK, Back, play and volume buttons control rustv.",
-                    "Yön, OK, Geri, oynat ve ses tuşları rustv'yi kontrol eder.",
-                ],
+                "setting.cec.remote_keys.label",
+                Some("setting.cec.remote_keys.hint"),
                 Some("cec.enabled"),
             ),
         ],
-    },
-    Section {
-        title: ["Gamepad and casting", "Oyun kolu ve yansıtma"],
-        pictures: false,
-        display: false,
-        items: &[
-            toggle(
-                "gamepad.enabled",
-                ["Use a gamepad as the remote", "Oyun kolunu kumanda olarak kullan"],
-                ["D-pad or stick to move, A to open, B back.", "Yön tuşları ya da çubukla gez, A aç, B geri."],
-                None,
-            ),
+    ),
+    section(
+        "section.gamepad_casting",
+        &[
+            toggle("gamepad.enabled", "setting.gamepad.enabled.label", Some("setting.gamepad.enabled.hint"), None),
             toggle(
                 "gamepad.guide_closes_app",
-                ["Guide button goes home", "Ana menü tuşu ana ekrana döner"],
-                NO_HINT,
+                "setting.gamepad.guide_closes_app.label",
+                Some("setting.gamepad.guide_closes_app.hint"),
                 Some("gamepad.enabled"),
             ),
-            toggle(
-                "cast.airplay",
-                ["AirPlay", "AirPlay"],
-                [
-                    "Mirror an iPhone, iPad or Mac. Needs uxplay on the box.",
-                    "iPhone, iPad ya da Mac ekranını yansıt. Kutuda uxplay gerekir.",
-                ],
-                None,
-            ),
+            toggle("cast.airplay", "setting.cast.airplay.label", Some("setting.cast.airplay.hint"), None),
         ],
-    },
-    Section {
-        title: ["Debug overlay", "Hata ayıklama katmanı"],
-        pictures: false,
-        display: false,
-        items: &[
+    ),
+    section(
+        "section.overlay",
+        &[
             Item {
                 key: "",
-                label: ["Show on the TV now", "Şimdi TV'de göster"],
-                hint: [
-                    "CPU, GPU, RAM, network and more, over everything.",
-                    "İşlemci, ekran kartı, bellek, ağ ve dahası, her şeyin üstünde.",
-                ],
+                label: "setting.overlay.live.label",
+                hint: Some("setting.overlay.live.hint"),
                 kind: Kind::Overlay,
                 needs: None,
             },
             choice(
                 "overlay.position",
-                ["Position", "Konum"],
-                &[(Lit::Str("top"), ["Top", "Üstte"]), (Lit::Str("bottom"), ["Bottom", "Altta"])],
+                "setting.overlay.position.label",
+                &[
+                    (Lit::Str("top"), Key("option.overlay.position.top")),
+                    (Lit::Str("bottom"), Key("option.overlay.position.bottom")),
+                ],
                 None,
             ),
         ],
-    },
+    ),
 ];
 
 /// Heights in the 1920×1080 layout the shell scales from.
@@ -506,8 +453,10 @@ impl Menu {
         self.scroll = 0.0;
     }
 
-    fn lang(&self) -> usize {
-        usize::from(self.settings["locale"]["language"] == "tr")
+    /// The catalog's code for the TV's language.
+    fn lang(&self) -> &'static str {
+        let lang = self.settings["locale"]["language"].as_str().unwrap_or("en");
+        rustv_locales::LANGUAGES.iter().find(|known| **known == lang).copied().unwrap_or("en")
     }
 
     fn get(&self, key: &str) -> &Value {
@@ -567,7 +516,8 @@ impl Menu {
             Kind::Refresh => {
                 for (other, rate) in &modes {
                     if *other == size {
-                        choices.push((format!("{other}@{rate}"), format!("{rate} Hz")));
+                        let label = rustv_locales::format(self.lang(), "unit.hertz", &[("n", rate)]);
+                        choices.push((format!("{other}@{rate}"), label));
                     }
                 }
                 let at = choices.iter().position(|(mode, _)| *mode == format!("{size}@{hz}"));
@@ -582,7 +532,7 @@ impl Menu {
     }
 
     /// The options a choice offers now: "My pictures" only once there are pictures.
-    fn options(&self, item: &Item) -> Vec<(Lit, Text)> {
+    fn options(&self, item: &Item) -> Vec<(Lit, Words)> {
         let Kind::Choice(options) = item.kind else { return Vec::new() };
         let pictures = self.settings["wallpaper"]["count"].as_u64().unwrap_or(0) > 0;
         options.iter().copied().filter(|(lit, _)| pictures || !matches!(lit, Lit::Str("images"))).collect()
@@ -602,7 +552,7 @@ impl Menu {
         for section in sections {
             rows.push(Row {
                 header: true,
-                label: section.title[lang].into(),
+                label: rustv_locales::text(lang, section.title).into(),
                 value: String::new(),
                 kind: "header",
                 on: false,
@@ -621,7 +571,7 @@ impl Menu {
                 let (kind, value) = match item.kind {
                     Kind::Toggle | Kind::Overlay => ("toggle", String::new()),
                     Kind::Action(_) => ("action", String::new()),
-                    Kind::Choice(_) => ("choice", at.map_or_else(|| shown(current), |i| options[i].1[lang].into())),
+                    Kind::Choice(_) => ("choice", at.map_or_else(|| shown(current), |i| options[i].1.read(lang))),
                     Kind::Resolution | Kind::Refresh => {
                         ("choice", chosen.map(|i| choices[i].1.clone()).unwrap_or_default())
                     }
@@ -646,7 +596,7 @@ impl Menu {
                 }
                 rows.push(Row {
                     header: false,
-                    label: item.label[lang].into(),
+                    label: rustv_locales::text(lang, item.label).into(),
                     value,
                     kind,
                     on,
@@ -670,7 +620,8 @@ impl Menu {
 
     /// The explanation for the focused row, if it has one.
     pub fn hint(&self) -> String {
-        self.focusable().get(self.selected).map_or_else(String::new, |item| item.hint[self.lang()].into())
+        let item = self.focusable().get(self.selected).copied();
+        item.and_then(|item| item.hint).map_or_else(String::new, |hint| rustv_locales::text(self.lang(), hint).into())
     }
 
     /// "up", "down", "left", "right", "ok" or "back".
@@ -788,6 +739,17 @@ mod tests {
         menu.rows().into_iter().find(|row| row.focused).unwrap()
     }
 
+    /// Moves down to the row with this label; fails instead of looping if there is none.
+    fn go_to(menu: &mut Menu, label: &str) {
+        for _ in 0..100 {
+            if focused(menu).label == label {
+                return;
+            }
+            menu.key("down");
+        }
+        panic!("no row {label:?}");
+    }
+
     #[test]
     fn toggles_send_the_same_command_as_the_phone() {
         let mut menu = menu();
@@ -801,9 +763,7 @@ mod tests {
     #[test]
     fn choices_step_and_stop_at_the_ends() {
         let mut menu = menu();
-        while focused(&mut menu).label != "Start after" {
-            menu.key("down");
-        }
+        go_to(&mut menu, "Start after");
         assert_eq!(focused(&mut menu).value, "5 min");
         assert_eq!(
             menu.key("right"),
@@ -826,9 +786,7 @@ mod tests {
     fn rows_that_need_a_switch_are_skipped_while_it_is_off() {
         let mut menu = menu();
         // Sounds is off, so Sound level is grey and the focus jumps from Sounds to Pairing code.
-        while focused(&mut menu).label != "Sounds" {
-            menu.key("down");
-        }
+        go_to(&mut menu, "Sounds");
         menu.key("down");
         assert_eq!(focused(&mut menu).label, "Pairing code");
         let rows = menu.rows();
@@ -857,9 +815,7 @@ mod tests {
             "modes": ["3840x2160@60", "3840x2160@30", "1920x1080@120", "1920x1080@60", "1280x720@60"]
         });
         menu.set_settings(settings);
-        while focused(&mut menu).label != "Resolution" {
-            menu.key("down");
-        }
+        go_to(&mut menu, "Resolution");
         assert_eq!(focused(&mut menu).value, "1920 × 1080");
         // A larger size keeps 60 Hz, which it offers.
         assert_eq!(menu.key("left"), Outcome::Send(json!({ "type": "display_mode", "mode": "3840x2160@60" })));
@@ -872,9 +828,7 @@ mod tests {
     #[test]
     fn actions_close_the_menu_and_back_closes_it() {
         let mut menu = menu();
-        while focused(&mut menu).label != "Sleep now" {
-            menu.key("down");
-        }
+        go_to(&mut menu, "Put the TV to sleep now");
         assert_eq!(menu.key("ok"), Outcome::SendAndClose(json!({ "type": "sleep" })));
         assert_eq!(menu.key("back"), Outcome::Close);
     }

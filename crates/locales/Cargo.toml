@@ -1,0 +1,12 @@
+[package]
+name = "rustv-locales"
+description = "rustv's translations: one catalog per language, shared by tvd, the shell and the web remote"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde_json = "1"
+toml = "0.8"

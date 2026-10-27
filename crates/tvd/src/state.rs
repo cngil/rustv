@@ -361,7 +361,7 @@ impl AppState {
             if !enabled {
                 return;
             }
-            self.keyboard.open(&palette, lang_code(lang));
+            self.keyboard.open(&palette, crate::i18n::code(lang));
         } else {
             self.keyboard.close();
         }
@@ -374,7 +374,7 @@ impl AppState {
             let cfg = self.config();
             (crate::theme::resolve(&cfg.theme), cfg.locale.language)
         };
-        let Some(outputs) = self.keyboard.press(code, &palette, lang_code(lang)) else { return Ok(false) };
+        let Some(outputs) = self.keyboard.press(code, &palette, crate::i18n::code(lang)) else { return Ok(false) };
         for output in outputs {
             match output {
                 crate::keyboard::Output::Type(text) => {
@@ -616,7 +616,7 @@ impl AppState {
             return Ok(());
         }
         if self.lock.is_locked() && !matches!(cmd, Command::Unlock { .. } | Command::Sleep) {
-            anyhow::bail!("The TV is locked. Enter the PIN on a remote to unlock it.");
+            return Err(crate::i18n::error("error.locked", &[]));
         }
         // While the on-screen keyboard is open, the arrows, OK and Back move over it.
         if let Command::Key { code, .. } = &cmd {
@@ -751,13 +751,6 @@ fn watch_volume(state: std::sync::Weak<AppState>) {
             last = Some(volume);
         }
     });
-}
-
-fn lang_code(language: crate::config::Language) -> &'static str {
-    match language {
-        crate::config::Language::En => "en",
-        crate::config::Language::Tr => "tr",
-    }
 }
 
 fn now() -> u64 {

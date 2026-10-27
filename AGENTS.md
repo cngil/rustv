@@ -25,6 +25,9 @@ on-screen shell (`rustv-shell`) is a thin client of the same API.
   - `ui/shell.slint` home screen (Slint markup), `ui/fonts/` bundled Hanken Grotesk
   - `src/main.rs` window, clock, UI updates; `src/net.rs` WebSocket client;
     `src/settings.rs` finds tvd from the shared config
+- `crates/locales/`: every text on screen, one catalog per language
+  (`en.toml`, `tr.toml`), shared by tvd, the shell and the remote; see
+  CONTRIBUTING.md before adding or changing user-facing text
 - `config/config.example.toml`: documented example config
 - `packaging/`: systemd units (tvd user service, TV session), sway kiosk
   config, udev rule, xdg-desktop-portal config

@@ -224,45 +224,33 @@ const DIM: &str = "#8a93a8";
 
 /// The few words the overlay shows, per language.
 struct Words {
+    lang: &'static str,
     home: &'static str,
     volume: &'static str,
     muted: &'static str,
-    remote: &'static str,
-    remotes: &'static str,
     up: &'static str,
     units: [&'static str; 3],
 }
 
 fn words(language: Language) -> Words {
-    match language {
-        Language::En => Words {
-            home: "Home",
-            volume: "Vol",
-            muted: "muted",
-            remote: "remote",
-            remotes: "remotes",
-            up: "up",
-            units: ["d", "h", "m"],
-        },
-        Language::Tr => Words {
-            home: "Ana ekran",
-            volume: "Ses",
-            muted: "sessiz",
-            remote: "kumanda",
-            remotes: "kumanda",
-            up: "açık",
-            units: ["g", "sa", "dk"],
-        },
+    let lang = crate::i18n::code(language);
+    let text = |key: &'static str| rustv_locales::text(lang, key);
+    Words {
+        lang,
+        home: text("stats.home"),
+        volume: text("stats.volume"),
+        muted: text("stats.muted"),
+        up: text("stats.up"),
+        units: [text("stats.unit.days"), text("stats.unit.hours"), text("stats.unit.minutes")],
     }
 }
 
 fn block(item: OverlayItem, s: &Sample, d: &Daemon, display: Option<&str>, locale: &Locale) -> Option<Value> {
     let w = words(locale.language);
     let temp = |celsius: Option<f32>| temp(celsius, locale.temperature);
-    // "%50" in Turkish, "50%" in English.
-    let pct = |value: f32, width: usize| match locale.language {
-        Language::Tr => format!("{:>width$}", format!("%{value:.0}")),
-        Language::En => format!("{:>width$}", format!("{value:.0}%")),
+    // "%50" in Turkish, "50%" in English: the catalog says where the sign goes.
+    let pct = |value: f32, width: usize| {
+        format!("{:>width$}", rustv_locales::format(w.lang, "unit.percent", &[("n", &format!("{value:.0}"))]))
     };
     let level = |value: f32, warn: f32, bad: f32| match value {
         v if v >= bad => BAD,
@@ -316,7 +304,7 @@ fn block(item: OverlayItem, s: &Sample, d: &Daemon, display: Option<&str>, local
         }
         OverlayItem::Remotes => {
             let n = d.clients?;
-            (format!("{n} {}", if n == 1 { w.remote } else { w.remotes }), if n == 0 { DIM } else { OK })
+            (rustv_locales::format(w.lang, "stats.remotes", &[("n", &n.to_string())]), if n == 0 { DIM } else { OK })
         }
         OverlayItem::Uptime => (format!("{} {}", w.up, duration(s.uptime_secs?, w.units)), DIM),
         OverlayItem::Clock => {

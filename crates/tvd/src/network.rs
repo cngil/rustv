@@ -10,6 +10,8 @@ use std::fs;
 
 use serde::Serialize;
 
+use crate::i18n::Label;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Exposure {
     pub protocol: &'static str,
@@ -18,6 +20,11 @@ pub struct Exposure {
     pub address: String,
     /// What it is, from the program name or the port.
     pub service: String,
+    /// The two as catalog keys where rustv words them, for each screen to translate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address_label: Option<Label>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_label: Option<Label>,
 }
 
 /// Addresses one (protocol, port) listens on, and who owns it.
@@ -54,11 +61,10 @@ pub fn exposures() -> Vec<Exposure> {
         .filter(|((protocol, port), _)| {
             !(*protocol == "udp" && *port >= 32768 && well_known(protocol, *port).is_none())
         })
-        .map(|((protocol, port), found)| Exposure {
-            protocol,
-            port,
-            address: addresses(&found.addresses),
-            service: describe(protocol, port, found.program.as_deref()),
+        .map(|((protocol, port), found)| {
+            let (address, address_label) = addresses(&found.addresses);
+            let (service, service_label) = describe(protocol, port, found.program.as_deref());
+            Exposure { protocol, port, address, service, address_label, service_label }
         })
         .collect()
 }
@@ -69,15 +75,18 @@ struct Socket {
     inode: u64,
 }
 
-fn addresses(list: &[String]) -> String {
+fn addresses(list: &[String]) -> (String, Option<Label>) {
+    let worded = |label: Label| (label.english(), Some(label));
     if list.iter().any(|a| a == "*") {
-        return "all networks".into();
+        return worded(Label::new("network.address.all", &[]));
     }
     match list {
-        [one] => one.clone(),
-        [a, b] => format!("{a}, {b}"),
-        [first, rest @ ..] => format!("{first} and {} more addresses", rest.len()),
-        [] => String::new(),
+        [one] => (one.clone(), None),
+        [a, b] => (format!("{a}, {b}"), None),
+        [first, rest @ ..] => {
+            worded(Label::new("network.address.more", &[("first", first.clone()), ("count", rest.len().to_string())]))
+        }
+        [] => (String::new(), None),
     }
 }
 
@@ -150,32 +159,50 @@ fn socket_programs() -> HashMap<u64, String> {
     programs
 }
 
-fn well_known(protocol: &str, port: u16) -> Option<&'static str> {
+/// A name, or a catalog key (`network.service.*`) for one rustv words itself.
+#[derive(Clone, Copy)]
+enum Name {
+    Plain(&'static str),
+    Worded(&'static str),
+}
+
+fn well_known(protocol: &str, port: u16) -> Option<Name> {
+    use Name::*;
     match (protocol, port) {
-        ("tcp", 22) => Some("SSH"),
-        ("tcp", 8765) => Some("rustv remote and API"),
-        ("tcp", 7000 | 7001 | 7100) | ("udp", 6000 | 6001 | 7011) => Some("AirPlay"),
-        ("udp", 5353) => Some("mDNS (device discovery)"),
-        ("udp", 68) => Some("DHCP (getting an address)"),
-        ("udp", 546) => Some("DHCPv6 (getting an IPv6 address)"),
-        ("udp", 41641) => Some("Tailscale"),
-        ("tcp", 53) | ("udp", 53) => Some("DNS"),
-        ("tcp", 631) | ("udp", 631) => Some("Printing (CUPS)"),
+        ("tcp", 22) => Some(Plain("SSH")),
+        ("tcp", 8765) => Some(Worded("network.service.rustv")),
+        ("tcp", 7000 | 7001 | 7100) | ("udp", 6000 | 6001 | 7011) => Some(Plain("AirPlay")),
+        ("udp", 5353) => Some(Worded("network.service.mdns")),
+        ("udp", 68) => Some(Worded("network.service.dhcp")),
+        ("udp", 546) => Some(Worded("network.service.dhcpv6")),
+        ("udp", 41641) => Some(Plain("Tailscale")),
+        ("tcp", 53) | ("udp", 53) => Some(Plain("DNS")),
+        ("tcp", 631) | ("udp", 631) => Some(Worded("network.service.cups")),
         _ => None,
     }
 }
 
-fn describe(protocol: &str, port: u16, program: Option<&str>) -> String {
-    let known = well_known(protocol, port);
-    let program = program.map(|p| match p {
-        "qbittorrent-nox" if port == 8080 => "qBittorrent web UI".to_string(),
-        "qbittorrent-nox" => "qBittorrent (BitTorrent)".to_string(),
-        "uxplay" => "AirPlay".to_string(),
-        "tvd" => "rustv remote and API".to_string(),
-        "avahi-daemon" => "mDNS (device discovery)".to_string(),
-        other => other.to_string(),
+fn describe(protocol: &str, port: u16, program: Option<&str>) -> (String, Option<Label>) {
+    let name = |name: Name| match name {
+        Name::Plain(text) => (text.to_string(), None),
+        Name::Worded(key) => {
+            let label = Label::new(key, &[]);
+            (label.english(), Some(label))
+        }
+    };
+    let by_program = program.map(|p| match p {
+        "qbittorrent-nox" if port == 8080 => name(Name::Worded("network.service.qbittorrent")),
+        "qbittorrent-nox" => ("qBittorrent (BitTorrent)".to_string(), None),
+        "uxplay" => ("AirPlay".to_string(), None),
+        "tvd" => name(Name::Worded("network.service.rustv")),
+        "avahi-daemon" => name(Name::Worded("network.service.mdns")),
+        other => (other.to_string(), None),
     });
-    program.or(known.map(String::from)).unwrap_or_else(|| format!("{protocol} port {port}"))
+    by_program.or_else(|| well_known(protocol, port).map(name)).unwrap_or_else(|| {
+        let label =
+            Label::new("network.service.port", &[("protocol", protocol.to_string()), ("port", port.to_string())]);
+        (label.english(), Some(label))
+    })
 }
 
 #[cfg(test)]
@@ -206,14 +233,14 @@ mod tests {
     #[test]
     fn shortens_long_address_lists() {
         let list = ["10.0.0.1", "10.0.0.2", "10.0.0.3"].map(String::from);
-        assert_eq!(addresses(&list), "10.0.0.1 and 2 more addresses");
-        assert_eq!(addresses(&["*".to_string()]), "all networks");
+        assert_eq!(addresses(&list).0, "10.0.0.1 and 2 more addresses");
+        assert_eq!(addresses(&["*".to_string()]).0, "all networks");
     }
 
     #[test]
     fn names_services() {
-        assert_eq!(describe("tcp", 8080, Some("qbittorrent-nox")), "qBittorrent web UI");
-        assert_eq!(describe("tcp", 22, None), "SSH");
-        assert_eq!(describe("udp", 9999, None), "udp port 9999");
+        assert_eq!(describe("tcp", 8080, Some("qbittorrent-nox")).0, "qBittorrent web UI");
+        assert_eq!(describe("tcp", 22, None).0, "SSH");
+        assert_eq!(describe("udp", 9999, None).0, "udp port 9999");
     }
 }

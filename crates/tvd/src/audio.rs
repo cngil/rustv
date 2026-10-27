@@ -1,5 +1,6 @@
 //! Volume and output selection for PipeWire, through `wpctl` and `pw-dump`.
 
+use crate::i18n::Label;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -51,6 +52,9 @@ pub struct Output {
     pub id: u32,
     /// Short, human name: the TV's own name over HDMI, the device name for Bluetooth.
     pub name: String,
+    /// The same as a catalog key when rustv words it, so each screen can translate it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name_label: Option<crate::i18n::Label>,
     /// `hdmi`, `analog`, `bluetooth`, `usb` or `other`, for picking an icon.
     pub kind: &'static str,
     /// The full PipeWire description.
@@ -110,10 +114,11 @@ fn parse_outputs(json: &[u8]) -> Result<Vec<Output>> {
                 .into_iter()
                 .find(|s| !s.is_empty())
                 .unwrap_or_default();
-            let (kind, name) = describe(node_name, text("device.profile.name"), text("node.nick"), detail);
+            let (kind, name, name_label) = describe(node_name, text("device.profile.name"), text("node.nick"), detail);
             Some(Output {
                 id: o["id"].as_u64()?.try_into().ok()?,
                 name,
+                name_label,
                 kind,
                 detail: detail.to_string(),
                 default: default_name.as_deref() == Some(node_name),
@@ -125,18 +130,22 @@ fn parse_outputs(json: &[u8]) -> Result<Vec<Output>> {
 
 /// ALSA descriptions name the chip ("Raven/Raven2/Fenghuang HDMI/DP Audio Controller"),
 /// which means nothing on a remote. HDMI sinks carry the TV's name in `node.nick`.
-fn describe(node_name: &str, profile: &str, nick: &str, detail: &str) -> (&'static str, String) {
+fn describe(node_name: &str, profile: &str, nick: &str, detail: &str) -> (&'static str, String, Option<Label>) {
+    let worded = |kind, label: Label| (kind, label.english(), Some(label));
     if node_name.starts_with("bluez_output") {
-        ("bluetooth", detail.to_string())
+        ("bluetooth", detail.to_string(), None)
     } else if profile.contains("hdmi") || node_name.contains("hdmi") {
-        let generic = nick.is_empty() || nick.to_ascii_lowercase().contains("hdmi");
-        ("hdmi", if generic { "TV (HDMI)".to_string() } else { format!("{nick} TV") })
+        if nick.is_empty() || nick.to_ascii_lowercase().contains("hdmi") {
+            worded("hdmi", Label::new("output.tv", &[]))
+        } else {
+            worded("hdmi", Label::new("output.named_tv", &[("name", nick.to_string())]))
+        }
     } else if node_name.contains(".usb-") {
-        ("usb", detail.to_string())
+        ("usb", detail.to_string(), None)
     } else if profile.contains("analog") || node_name.contains("analog") {
-        ("analog", "Speakers and headphones".to_string())
+        worded("analog", Label::new("output.speakers", &[]))
     } else {
-        ("other", detail.to_string())
+        ("other", detail.to_string(), None)
     }
 }
 
@@ -186,6 +195,7 @@ mod tests {
                 Output {
                     id: 52,
                     name: "SAMSUNG TV".into(),
+                    name_label: Some(Label::new("output.named_tv", &[("name", "SAMSUNG".into())])),
                     kind: "hdmi",
                     detail: "Raven HDMI/DP Audio Controller".into(),
                     default: true
@@ -193,6 +203,7 @@ mod tests {
                 Output {
                     id: 58,
                     name: "Speakers and headphones".into(),
+                    name_label: Some(Label::new("output.speakers", &[])),
                     kind: "analog",
                     detail: "Headphones".into(),
                     default: false
@@ -214,7 +225,14 @@ mod tests {
         ]"#;
         assert_eq!(
             parse_outputs(json).unwrap(),
-            vec![Output { id: 2, name: "b".into(), kind: "other", detail: "b".into(), default: true }]
+            vec![Output {
+                id: 2,
+                name: "b".into(),
+                name_label: None,
+                kind: "other",
+                detail: "b".into(),
+                default: true
+            }]
         );
     }
 

@@ -21,7 +21,7 @@ impl Default for Locale {
     }
 }
 
-/// Every piece of text the shell shows.
+/// Every piece of text the shell shows, from the shared catalog (`crates/locales`).
 pub struct Strings {
     pub subtitle: &'static str,
     pub no_apps: &'static str,
@@ -41,8 +41,6 @@ pub struct Strings {
     pub hint_close: &'static str,
     pub back_key: &'static str,
     pub trial_title: &'static str,
-    /// `{}` is the number of seconds.
-    pub trial_countdown: &'static str,
     pub keep: &'static str,
     pub go_back: &'static str,
     greetings: [&'static str; 3],
@@ -51,82 +49,70 @@ pub struct Strings {
     am_pm: [&'static str; 2],
 }
 
-const EN: Strings = Strings {
-    subtitle: "What would you like to watch?",
-    no_apps: "No apps yet. Add some to ~/.config/rustv/config.toml",
-    hint_move: "Move",
-    hint_open: "Open",
-    opening: "Opening…",
-    connecting: "Connecting to tvd…",
-    volume: "Volume",
-    muted: "Muted",
-    pair_title: "Use your phone as the remote",
-    pair_body: "Scan the code with the camera, then add the page to your home screen.",
-    locked: "Locked",
-    unlock_hint: "Enter the PIN on your phone to unlock.",
-    settings: "Settings",
-    hint_change: "Change",
-    hint_select: "Select",
-    hint_close: "Close",
-    back_key: "Back",
-    trial_title: "Keep this resolution?",
-    trial_countdown: "Going back in {} s",
-    keep: "Keep",
-    go_back: "Go back",
-    greetings: ["Good morning", "Good afternoon", "Good evening"],
-    days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    months: [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
-    ],
-    am_pm: ["AM", "PM"],
-};
-
-const TR: Strings = Strings {
-    subtitle: "Ne izlemek istersin?",
-    no_apps: "Henüz uygulama yok. ~/.config/rustv/config.toml dosyasına ekleyebilirsin",
-    hint_move: "Gez",
-    hint_open: "Aç",
-    opening: "Açılıyor…",
-    connecting: "tvd'ye bağlanılıyor…",
-    volume: "Ses",
-    muted: "Sessiz",
-    pair_title: "Telefonunu kumanda yap",
-    pair_body: "Kodu kamerayla tara, sonra sayfayı ana ekranına ekle.",
-    locked: "Kilitli",
-    unlock_hint: "Kilidi açmak için PIN'i telefonundan gir.",
-    settings: "Ayarlar",
-    hint_change: "Değiştir",
-    hint_select: "Seç",
-    hint_close: "Kapat",
-    back_key: "Geri",
-    trial_title: "Bu çözünürlük kalsın mı?",
-    trial_countdown: "{} sn sonra geri dönülecek",
-    keep: "Koru",
-    go_back: "Geri dön",
-    greetings: ["Günaydın", "İyi günler", "İyi akşamlar"],
-    days: ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"],
-    months: [
-        "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
-    ],
-    am_pm: ["ÖÖ", "ÖS"],
-};
+impl Strings {
+    fn new(lang: &str) -> Self {
+        let text = |key: &'static str| rustv_locales::text(lang, key);
+        Self {
+            subtitle: text("tv.subtitle"),
+            no_apps: text("tv.no_apps"),
+            hint_move: text("tv.hint.move"),
+            hint_open: text("tv.hint.open"),
+            opening: text("tv.opening"),
+            connecting: text("tv.connecting"),
+            volume: text("tv.volume"),
+            muted: text("tv.muted"),
+            pair_title: text("tv.pair.title"),
+            pair_body: text("tv.pair.body"),
+            locked: text("tv.locked"),
+            unlock_hint: text("tv.unlock_hint"),
+            settings: text("common.settings"),
+            hint_change: text("tv.hint.change"),
+            hint_select: text("tv.hint.select"),
+            hint_close: text("common.close"),
+            back_key: text("common.back"),
+            trial_title: text("remote.display.keep_title"),
+            keep: text("common.keep"),
+            go_back: text("common.go_back"),
+            greetings: [text("tv.greeting.morning"), text("tv.greeting.afternoon"), text("tv.greeting.evening")],
+            days: [
+                text("tv.day.monday"),
+                text("tv.day.tuesday"),
+                text("tv.day.wednesday"),
+                text("tv.day.thursday"),
+                text("tv.day.friday"),
+                text("tv.day.saturday"),
+                text("tv.day.sunday"),
+            ],
+            months: [
+                text("tv.month.january"),
+                text("tv.month.february"),
+                text("tv.month.march"),
+                text("tv.month.april"),
+                text("tv.month.may"),
+                text("tv.month.june"),
+                text("tv.month.july"),
+                text("tv.month.august"),
+                text("tv.month.september"),
+                text("tv.month.october"),
+                text("tv.month.november"),
+                text("tv.month.december"),
+            ],
+            am_pm: [text("tv.am"), text("tv.pm")],
+        }
+    }
+}
 
 impl Locale {
-    pub fn strings(&self) -> &'static Strings {
-        match self.language.as_str() {
-            "tr" => &TR,
-            _ => &EN,
+    pub fn strings(&self) -> Strings {
+        Strings::new(self.lang())
+    }
+
+    /// The catalog's language code; anything it does not know reads as English.
+    pub fn lang(&self) -> &str {
+        if rustv_locales::LANGUAGES.contains(&self.language.as_str()) {
+            &self.language
+        } else {
+            "en"
         }
     }
 
@@ -139,11 +125,21 @@ impl Locale {
         }
     }
 
-    /// "Monday, 26 October" / "Pazartesi, 26 Ekim".
+    /// "Monday, 26 October" / "Pazartesi, 26 Ekim", in the order the catalog gives.
     pub fn date(&self, now: &DateTime<Local>) -> String {
         let s = self.strings();
-        let day = s.days[now.weekday().num_days_from_monday() as usize];
-        format!("{day}, {} {}", now.day(), s.months[now.month0() as usize])
+        let weekday = s.days[now.weekday().num_days_from_monday() as usize];
+        let month = s.months[now.month0() as usize];
+        rustv_locales::format(
+            self.lang(),
+            "tv.date",
+            &[("weekday", weekday), ("day", &now.day().to_string()), ("month", month)],
+        )
+    }
+
+    /// "Going back in 12 s" while a display mode is on trial.
+    pub fn trial_countdown(&self, seconds: u64) -> String {
+        rustv_locales::format(self.lang(), "tv.trial.countdown", &[("seconds", &seconds.to_string())])
     }
 
     pub fn greeting(&self, now: &DateTime<Local>) -> &'static str {
@@ -185,6 +181,6 @@ mod tests {
     #[test]
     fn unknown_language_falls_back_to_english() {
         let xx = Locale { language: "xx".into(), clock: "24h".into() };
-        assert_eq!(xx.strings().subtitle, EN.subtitle);
+        assert_eq!(xx.strings().subtitle, Locale::default().strings().subtitle);
     }
 }

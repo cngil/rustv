@@ -6,370 +6,53 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 // ---- language ----
 
-// English is the source text; other languages map English strings to their own.
-// `{name}` marks a value filled in by `t()`. Numbers in messages from tvd are
-// matched as `{n}`, so "try again in 42 s" finds "try again in {n} s".
-const TRANSLATIONS = {
-  tr: {
-    // pairing
-    "rustv remote": "rustv kumanda",
-    Run: "TV kutusunda",
-    "on the TV box and open the link it prints, or paste the token here.":
-      "komutunu çalıştırıp verdiği bağlantıyı aç ya da anahtarı buraya yapıştır.",
-    "Pairing token": "Eşleştirme anahtarı",
-    Connect: "Bağlan",
-    "That token was rejected.": "Bu anahtar kabul edilmedi.",
-    // header and remote
-    "Connecting…": "Bağlanıyor…",
-    Connected: "Bağlı",
-    "Reconnecting…": "Yeniden bağlanıyor…",
-    "Not connected to the TV": "TV'ye bağlı değil",
-    Home: "Ana ekran",
-    Settings: "Ayarlar",
-    "Close app": "Uygulamayı kapat",
-    Asleep: "Uykuda",
-    "Any button wakes the TV": "Uyandırmak için bir tuşa bas",
-    Up: "Yukarı",
-    Down: "Aşağı",
-    Left: "Sol",
-    Right: "Sağ",
-    Back: "Geri",
-    Play: "Oynat",
-    Mute: "Sesi kapat",
-    Unmute: "Sesi aç",
-    Muted: "Sessiz",
-    Volume: "Ses",
-    "Volume down": "Sesi azalt",
-    "Volume up": "Sesi artır",
-    Output: "Çıkış",
-    "No output": "Çıkış yok",
-    "Play sound on": "Sesi şuradan çal",
-    "No audio outputs found.": "Ses çıkışı bulunamadı.",
-    "Playing here": "Burada çalıyor",
-    "Speakers and headphones": "Hoparlör ve kulaklık",
-    "Sound now plays on {name}": "Ses artık {name} üzerinden çalıyor",
-    "Could not switch to {name}": "{name} seçilemedi",
-    Close: "Kapat",
-    // dock and apps
-    Apps: "Uygulamalar",
-    "Opening…": "Açılıyor…",
-    Done: "Bitti",
-    "Drag to move {name}": "{name} uygulamasını taşımak için sürükle",
-    "Drag apps to reorder them, then tap Done": "Uygulamaları sürükleyip sırala, sonra Bitti'ye dokun",
-    "Order saved on the TV": "Sıra TV'ye kaydedildi",
-    "{name} is open on the TV": "{name} TV'de açıldı",
-    "{name} is already on the TV": "{name} zaten TV'de açık",
-    "{name} did not open": "{name} açılmadı",
-    "Closed {name}": "{name} kapatıldı",
-    // touchpad and keyboard
-    "Drag to move · tap to click": "Sürükle: imleci taşı · dokun: tıkla",
-    "Two fingers to scroll · two-finger tap for right click": "İki parmak: kaydır · iki parmakla dokun: sağ tık",
-    "Click to control the TV pointer with your mouse": "TV imlecini fareyle kullanmak için tıkla",
-    "Press Esc to let go": "Bırakmak için Esc'ye bas",
-    "Left click": "Sol tık",
-    Middle: "Orta",
-    "Right click": "Sağ tık",
-    "Type on the TV": "TV'ye yaz",
-    "Search, URL, password…": "Arama, adres, şifre…",
-    Send: "Gönder",
-    Delete: "Sil",
-    "Send everything I type on this computer to the TV": "Bu bilgisayarda yazdığım her şeyi TV'ye gönder",
-    "Sent to the TV": "TV'ye gönderildi",
-    Views: "Görünümler",
-    Remote: "Kumanda",
-    Touchpad: "Dokunmatik",
-    Keyboard: "Klavye",
-    // settings
-    "Waiting for the TV…": "TV bekleniyor…",
-    "rustv {version} · saved to {path}": "rustv {version} · kayıt yeri: {path}",
-    "Home screen": "Ana ekran",
-    Greeting: "Karşılama",
-    Clock: "Saat",
-    Date: "Tarih",
-    "Volume bar when the volume changes": "Ses değişince ses çubuğu",
-    Sounds: "Sesler",
-    "Soft clicks when moving between apps and opening one.": "Uygulamalar arasında gezinirken ve açarken yumuşak tıklamalar.",
-    "Sound level": "Ses düzeyi",
-    Quiet: "Kısık",
-    Medium: "Orta",
-    Loud: "Yüksek",
-    "Pairing code": "Eşleştirme kodu",
-    "QR code on the TV until a phone pairs, and when you ask for it.":
-      "Bir telefon eşleşene kadar ve sen istediğinde TV'de QR kod.",
-    "Pair another phone or computer": "Başka bir telefon ya da bilgisayar eşleştir",
-    "Show code": "Kodu göster",
-    "The pairing code is on the TV for 2 minutes": "Eşleştirme kodu 2 dakika boyunca TV'de",
-    Screensaver: "Ekran koruyucu",
-    "Start after": "Başlama süresi",
-    "1 min": "1 dk",
-    "2 min": "2 dk",
-    "5 min": "5 dk",
-    "10 min": "10 dk",
-    "15 min": "15 dk",
-    "30 min": "30 dk",
-    "1 h": "1 sa",
-    "2 h": "2 sa",
-    "4 h": "4 sa",
-    Style: "Stil",
-    Mix: "Karışık",
-    Orbits: "Yörünge",
-    "Show the time": "Saati göster",
-    "Show the date": "Tarihi göster",
-    Sound: "Ses",
-    "Volume limit": "Ses sınırı",
-    "Above 100% the sound is boosted in software and can distort.":
-      "%100'ün üstünde ses yazılımla yükseltilir ve bozulabilir.",
-    "Volume buttons change by": "Ses tuşlarının adımı",
-    "Language and format": "Dil ve biçim",
-    Language: "Dil",
-    "Time format": "Saat biçimi",
-    "24-hour": "24 saat",
-    "12-hour": "12 saat",
-    Temperature: "Sıcaklık",
-    "Used by the debug overlay.": "Hata ayıklama katmanında kullanılır.",
-    "Lock and PIN": "Kilit ve PIN",
-    "Locking needs a PIN. It is kept on the TV box, hashed, never in the config.":
-      "Kilit için PIN gerekir. PIN, TV kutusunda geri çözülemez biçimde saklanır; ayar dosyasına yazılmaz.",
-    Change: "Değiştir",
-    "Set PIN": "PIN belirle",
-    "Remove the PIN": "PIN'i kaldır",
-    Remove: "Kaldır",
-    "Lock the TV now": "TV'yi şimdi kilitle",
-    "Closes the open app; nothing works until the PIN is entered.":
-      "Açık uygulamayı kapatır; PIN girilene kadar hiçbir şey çalışmaz.",
-    Lock: "Kilitle",
-    "Lock when the TV goes to sleep": "TV uykuya geçince kilitle",
-    "Screen casting": "Ekran yansıtma",
-    "Mirror an iPhone, iPad or Mac, or play videos and music from them. Needs uxplay on the box.":
-      "iPhone, iPad ya da Mac ekranını yansıt veya onlardan video ve müzik çal. Kutuda uxplay gerekir.",
-    "Sleep mode": "Uyku modu",
-    "Sleep when unused": "Kullanılmayınca uyu",
-    "Screen off after no remote input and no sound. Any button wakes it.":
-      "Kumandaya dokunulmaz ve ses çalmazsa ekran kapanır. Herhangi bir tuş uyandırır.",
-    After: "Süre",
-    "Close the open app": "Açık uygulamayı kapat",
-    "Frees memory and CPU.": "Bellek ve işlemciyi boşaltır.",
-    "Put the TV to sleep now": "TV'yi şimdi uyut",
-    Sleep: "Uyut",
-    "TV is going to sleep. Any button wakes it.": "TV uykuya geçiyor. Herhangi bir tuş uyandırır.",
-    "Debug overlay": "Hata ayıklama katmanı",
-    "Show on the TV now": "Şimdi TV'de göster",
-    "CPU, GPU, RAM, network and more, over everything.": "CPU, GPU, RAM, ağ ve daha fazlası, her şeyin üstünde.",
-    "Show at startup": "Açılışta göster",
-    Position: "Konum",
-    Top: "Üst",
-    Bottom: "Alt",
-    // media and sleep timer
-    Previous: "Önceki",
-    Next: "Sonraki",
-    "Back 10 seconds": "10 saniye geri",
-    "Forward 10 seconds": "10 saniye ileri",
-    "Sleep timer": "Uyku zamanlayıcısı",
-    // display
-    Display: "Ekran",
-    Resolution: "Çözünürlük",
-    "Refresh rate": "Yenileme hızı",
-    "A new mode goes back by itself after 15 seconds unless you keep it.":
-      "Yeni bir mod, korumazsan 15 saniye sonra kendiliğinden geri döner.",
-    "The TV's resolutions show here once sway reports them.": "TV'nin çözünürlükleri sway bildirince burada görünür.",
-    "Keep this resolution?": "Bu çözünürlük kalsın mı?",
-    "{mode}. Going back in {seconds} s.": "{mode}. {seconds} sn sonra geri dönülecek.",
-    Keep: "Koru",
-    "Go back": "Geri dön",
-    "Sleeps in {minutes} min": "{minutes} dk sonra uyuyacak",
-    "Turn the TV off after a while, like on a TV remote.": "TV'yi bir süre sonra kapat, TV kumandasındaki gibi.",
-    "The TV sleeps in {minutes} min.": "TV {minutes} dk sonra uyuyacak.",
-    "{n} min": "{n} dk",
-    "{h} h": "{h} sa",
-    "Turn the timer off": "Zamanlayıcıyı kapat",
-    "Sleep timer off": "Uyku zamanlayıcısı kapatıldı",
-    "Remember the volume for each app": "Her uygulamanın sesini hatırla",
-    "A loud game and a quiet film each come back at their own level.":
-      "Yüksek sesli bir oyun ve kısık bir film, her biri kendi seviyesinde açılır.",
-    // Wi-Fi and Bluetooth
-    "Wi-Fi": "Wi-Fi",
-    "Networks nearby": "Yakındaki ağlar",
-    "Switching networks drops the remote for a moment; with a wrong password the TV returns to the old one.":
-      "Ağ değiştirince kumanda bir an kopar; şifre yanlışsa TV eski ağa döner.",
-    "Search again": "Yeniden ara",
-    "Searching…": "Aranıyor…",
-    "Wi-Fi is not available": "Wi-Fi kullanılamıyor",
-    Connected: "Bağlı",
-    Signal: "Sinyal",
-    Join: "Bağlan",
-    "Joining…": "Bağlanıyor…",
-    "Password for {name} (leave empty if the TV knows it)": "{name} şifresi (TV biliyorsa boş bırak)",
-    "Joined {name}": "{name} ağına bağlanıldı",
-    "Wrong Wi-Fi password": "Wi-Fi şifresi yanlış",
-    Bluetooth: "Bluetooth",
-    "Bluetooth is not available": "Bluetooth kullanılamıyor",
-    "No adapter, or bluetoothd is not running.": "Bluetooth donanımı yok ya da bluetoothd çalışmıyor.",
-    "Add a device": "Cihaz ekle",
-    "Put headphones or a gamepad in pairing mode, then search.":
-      "Kulaklığı ya da oyun kolunu eşleştirme moduna al, sonra ara.",
-    Search: "Ara",
-    Paired: "Eşleşmiş",
-    Nearby: "Yakında",
-    Disconnect: "Bağlantıyı kes",
-    Pair: "Eşleştir",
-    Forget: "Unut",
-    "Connected to {name}": "{name} bağlandı",
-    "Paired with {name}": "{name} eşleştirildi",
-    "Something went wrong": "Bir şeyler ters gitti",
-    // wallpaper
-    Wallpaper: "Duvar kağıdı",
-    "My pictures": "Resimlerim",
-    "Behind the home screen": "Ana ekranın arkasında",
-    "Your pictures instead of the theme's background.": "Temanın arka planı yerine kendi resimlerin.",
-    "Change every": "Değiştirme sıklığı",
-    "Screensaver: each picture for": "Ekran koruyucu: her resim",
-    "Random order": "Rastgele sıra",
-    "1 day": "1 gün",
-    "10 s": "10 sn",
-    "30 s": "30 sn",
-    "Pictures in [wallpaper] images: {count}": "[wallpaper] images içindeki resimler: {count}",
-    "Add picture files or folders to [wallpaper] images in the config file.":
-      "Yapılandırma dosyasında [wallpaper] images listesine resim dosyaları ya da klasörler ekle.",
-    "Settings on the TV": "TV'de ayarlar",
-    "A Settings tile after the apps, for whoever has only the TV remote. Only the phone can turn it back on.":
-      "Uygulamaların sonunda bir Ayarlar kutucuğu, yalnızca TV kumandası olanlar için. Yeniden yalnızca telefondan açılabilir.",
-    // on-screen keyboard
-    "On-screen keyboard": "Ekran klavyesi",
-    "Keyboard on the TV": "TV'de klavye",
-    "For typing with the TV remote or a gamepad: arrows move, OK types, Back closes.":
-      "TV kumandası ya da oyun koluyla yazmak için: yön tuşları gezer, OK yazar, Geri kapatır.",
-    "Hold OK to open it": "Açmak için OK'a basılı tut",
-    "On the TV remote, over HDMI-CEC.": "TV kumandasında, HDMI-CEC üzerinden.",
-    "Hold the gamepad's Guide button to open it": "Açmak için oyun kolunun ana menü tuşuna basılı tut",
-    "A short press still goes home.": "Kısa basış yine ana ekrana döner.",
-    // HDMI-CEC
-    "TV control (HDMI-CEC)": "TV kontrolü (HDMI-CEC)",
-    "Control the TV over HDMI": "TV'yi HDMI üzerinden kontrol et",
-    "Needs a CEC adapter on the box (/dev/cec*). Most PC graphics cards have none.":
-      "Kutuda bir CEC bağdaştırıcısı gerekir (/dev/cec*). Çoğu PC ekran kartında yoktur.",
-    "Turn the TV on and off": "TV'yi aç ve kapat",
-    "Waking turns the TV on and switches it to rustv; sleep puts it in standby, unless it shows another input.":
-      "Uyanınca TV açılır ve rustv'ye geçer; uykuda TV bekleme moduna geçer, başka bir giriş açıksa dokunulmaz.",
-    "Follow the TV": "TV'yi takip et",
-    "Turning the TV off puts rustv to sleep; switching the TV to rustv wakes it.":
-      "TV kapanınca rustv uyur; TV rustv'ye geçince rustv uyanır.",
-    "Use the TV remote": "TV kumandasını kullan",
-    "Arrows, OK, Back, play and volume buttons control rustv.":
-      "Yön, OK, Geri, oynat ve ses tuşları rustv'yi kontrol eder.",
-    // gamepad
-    Gamepad: "Oyun kolu",
-    "Use a gamepad as the remote": "Oyun kolunu kumanda olarak kullan",
-    "On the home screen: D-pad or stick to move, A to open, B back, shoulder buttons for volume. Inside apps the gamepad is the app's.":
-      "Ana ekranda: yön tuşları ya da çubukla gez, A aç, B geri, omuz tuşları ses. Uygulamaların içinde oyun kolu uygulamaya aittir.",
-    "Guide button goes home": "Ana menü tuşu ana ekrana döner",
-    "The Xbox or PS button closes the open app.": "Xbox ya da PS tuşu açık uygulamayı kapatır.",
-    // theme
-    Theme: "Tema",
-    Finish: "Kaplama",
-    "Pick a metal, or your own colors on top of it. Dark backgrounds only.":
-      "Bir metal seç ya da üstüne kendi renklerini koy. Yalnızca koyu arka planlar.",
-    Silver: "Gümüş",
-    Titanium: "Titanyum",
-    Champagne: "Şampanya",
-    Gunmetal: "Füme",
-    "Your colors": "Kendi renklerin",
-    Accent: "Vurgu",
-    Pressed: "Basılı",
-    Background: "Arka plan",
-    "Back to the finish": "Kaplamaya dön",
-    // network
-    Network: "Ağ",
-    "Open to the network": "Ağa açık olanlar",
-    "What this TV box listens on. Ports change in each program's config; the firewall decides who can reach them.":
-      "Bu TV kutusunun dinlediği portlar. Portlar her programın kendi ayarından değişir; kimin erişebileceğine güvenlik duvarı karar verir.",
-    "Checking…": "Bakılıyor…",
-    "all networks": "tüm ağlar",
-    "rustv remote and API": "rustv kumanda ve API",
-    "mDNS (device discovery)": "mDNS (cihaz bulma)",
-    "DHCP (getting an address)": "DHCP (adres alma)",
-    "DHCPv6 (getting an IPv6 address)": "DHCPv6 (IPv6 adresi alma)",
-    "Printing (CUPS)": "Yazdırma (CUPS)",
-    "qBittorrent web UI": "qBittorrent web arayüzü",
-    // PIN
-    "The TV is locked": "TV kilitli",
-    "Enter the PIN": "PIN'i gir",
-    "Enter the current PIN": "Mevcut PIN'i gir",
-    "Choose a PIN (4 to 8 digits)": "Bir PIN seç (4-8 hane)",
-    "Enter the new PIN again": "Yeni PIN'i tekrar gir",
-    Confirm: "Onayla",
-    Cancel: "Vazgeç",
-    "At least 4 digits": "En az 4 hane",
-    "PIN removed": "PIN kaldırıldı",
-    "The PINs did not match; try again": "PIN'ler eşleşmedi; tekrar dene",
-    "PIN saved": "PIN kaydedildi",
-    Unlocked: "Kilit açıldı",
-    // messages from tvd
-    "Set a PIN in the settings first": "Önce ayarlardan bir PIN belirle",
-    "Wrong PIN": "Yanlış PIN",
-    "Wrong PIN. Entry is blocked for {n} s": "Yanlış PIN. Giriş {n} sn engellendi",
-    "Too many wrong PINs; try again in {n} s": "Çok fazla yanlış PIN; {n} sn sonra tekrar dene",
-    "The PIN must be 4 to 8 digits": "PIN 4-8 haneli olmalı",
-    "The TV is locked. Enter the PIN on a remote to unlock it.": "TV kilitli. Açmak için kumandadan PIN'i gir.",
-  },
-};
+// Every text comes from the shared catalog (crates/locales/*.toml), which tvd
+// serves as /locales.js: `{ en: { key: text }, tr: { ... } }`. Keys are stable ids
+// such as "remote.timer.title"; `{name}` marks a value `t()` fills in.
+const LOCALES = window.LOCALES || { en: {} };
 
 const LANG_KEY = "rustv.lang";
 let lang = localStorage.getItem(LANG_KEY) || (navigator.language || "").slice(0, 2);
-if (!TRANSLATIONS[lang]) lang = "en";
+if (!LOCALES[lang]) lang = "en";
 
-function t(text, vars = {}) {
-  if (text == null) return text;
-  const table = TRANSLATIONS[lang] || {};
-  let out = table[text];
-  if (out === undefined) {
-    // Messages with a number in them, such as "try again in 42 s".
-    const numbers = String(text).match(/\d+/g);
-    const pattern = String(text).replace(/\d+/g, "{n}");
-    if (numbers && table[pattern] !== undefined) {
-      let i = 0;
-      out = table[pattern].replace(/\{n\}/g, () => numbers[i++]);
-    } else {
-      out = text;
-    }
-  }
-  return String(out).replace(/\{(\w+)\}/g, (match, name) => (name in vars ? vars[name] : match));
+/** The CLDR plural category; must match plural_form() in crates/locales. */
+function pluralForm(n) {
+  return lang !== "tr" && Number(n) === 1 ? "one" : "other";
+}
+
+/** The text for `key` in the current language (English if it lacks one), with `vars` filled in. */
+function t(key, vars = {}) {
+  if (key == null) return key;
+  const lookup = (k) => (LOCALES[lang] && LOCALES[lang][k]) ?? LOCALES.en[k];
+  let text = vars.n !== undefined ? lookup(`${key}.${pluralForm(vars.n)}`) : undefined;
+  text = text ?? lookup(key);
+  // A missing key shows as itself rather than vanishing.
+  if (text === undefined) return key;
+  return String(text).replace(/\{(\w+)\}/g, (match, name) => (name in vars ? vars[name] : match));
+}
+
+/** A text tvd words for the screens (`{ key, args }`), or its English fallback. */
+function worded(label, english) {
+  return label ? t(label.key, label.args || {}) : english;
 }
 
 /** "50%" in English, "%50" in Turkish. */
 function percent(value) {
-  return lang === "tr" ? `%${value}` : `${value}%`;
+  return t("unit.percent", { n: value });
 }
 
-// Static text in the page, remembered in English so it can switch back and forth.
-// Elements whose text the script sets itself are left to the script.
-const DYNAMIC = "#now, #conn, #vol-value, #output-name, #pin-title, #pin-hint, #dock, #outputs, #settings-body, #pin-pad, #pin-dots, #toast, code, script, svg";
-const staticText = [];
-const staticAttrs = [];
-
-function collectStatic() {
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (node.nodeValue.trim() && !node.parentElement.closest(DYNAMIC)) staticText.push([node, node.nodeValue]);
-  }
-  for (const el of document.querySelectorAll("[aria-label], [placeholder], [title]")) {
-    for (const attr of ["aria-label", "placeholder", "title"]) {
-      if (el.hasAttribute(attr)) staticAttrs.push([el, attr, el.getAttribute(attr)]);
-    }
-  }
-}
-
+/** Static text in the page carries its key: `data-i18n` for the text, `data-i18n-<attribute>` for attributes. */
 function applyLanguage() {
   document.documentElement.lang = lang;
-  for (const [node, english] of staticText) {
-    // Keep the spaces around the words, they separate them from <code> and <br>.
-    const [, lead, words, trail] = english.match(/^(\s*)([\s\S]*?)(\s*)$/);
-    node.nodeValue = lead + t(words) + trail;
+  for (const el of $$("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  for (const attr of ["aria-label", "placeholder", "title"]) {
+    const data = `data-i18n-${attr}`;
+    for (const el of $$(`[${data}]`)) el.setAttribute(attr, t(el.getAttribute(data)));
   }
-  for (const [el, attr, english] of staticAttrs) el.setAttribute(attr, t(english));
 }
 
 function setLanguage(next) {
-  if (!TRANSLATIONS[next] && next !== "en") next = "en";
+  if (!LOCALES[next]) next = "en";
   if (next === lang) return;
   lang = next;
   localStorage.setItem(LANG_KEY, lang);
@@ -456,7 +139,7 @@ function start() {
       if (res.status === 401) {
         if (ws) ws.onclose = null;
         if (ws) ws.close();
-        showPair(t("That token was rejected."));
+        showPair(t("remote.pair.rejected"));
       }
     })
     .catch(() => {
@@ -481,7 +164,7 @@ function connect() {
 function setOnline(online) {
   $("#dot").classList.toggle("on", online);
   $("#app").classList.toggle("offline", !online);
-  $("#conn").textContent = t(online ? "Connected" : "Reconnecting…");
+  $("#conn").textContent = t(online ? "common.connected" : "remote.status.reconnecting");
 }
 
 let offlineNotice = 0;
@@ -492,7 +175,7 @@ function send(msg) {
   }
   if (Date.now() - offlineNotice > 2500) {
     offlineNotice = Date.now();
-    toast(t("Not connected to the TV"), "error");
+    toast(t("remote.status.not_connected"), "error");
   }
   return false;
 }
@@ -526,7 +209,7 @@ function handle(msg) {
     }
     clearLaunch();
     clearOutput();
-    toast(t(msg.message), "error");
+    toast(msg.key ? t(msg.key, msg.args || {}) : msg.message, "error");
   }
 }
 
@@ -550,11 +233,11 @@ $("#pair-form").addEventListener("submit", (event) => {
 function settleApps(before) {
   const running = state.running;
   if (pendingLaunch && running && running.id === pendingLaunch.id) {
-    toast(t("{name} is open on the TV", { name: running.name }), "ok");
+    toast(t("remote.app.opened", { name: running.name }), "ok");
     clearLaunch();
   } else if (pendingStop && !running) {
     pendingStop = false;
-    if (before) toast(t("Closed {name}", { name: before.name }));
+    if (before) toast(t("remote.app.closed", { name: before.name }));
   }
 }
 
@@ -569,7 +252,7 @@ function settleOutput() {
   if (!pendingOutput) return;
   const output = audio.outputs.find((o) => o.id === pendingOutput.id);
   if (output && output.default) {
-    toast(t("Sound now plays on {name}", { name: t(output.name) }), "ok");
+    toast(t("remote.output.switched", { name: worded(output.name_label, output.name) }), "ok");
     clearOutput();
     closeSheet();
   }
@@ -586,12 +269,12 @@ function clearOutput() {
 
 function renderState() {
   const running = state.running;
-  $("#now").textContent = state.asleep ? t("Asleep") : running ? running.name : t("Home");
+  $("#now").textContent = state.asleep ? t("remote.status.asleep") : running ? running.name : t("common.home");
   $("#conn").textContent = state.asleep
-    ? t("Any button wakes the TV")
+    ? t("remote.status.any_button_wakes")
     : sleepLeft() !== null
-      ? t("Sleeps in {minutes} min", { minutes: Math.max(1, Math.ceil(sleepLeft() / 60)) })
-      : t("Connected");
+      ? t("remote.status.sleeps_in", { minutes: Math.max(1, Math.ceil(sleepLeft() / 60)) })
+      : t("common.connected");
   $("#timer-open").classList.toggle("active", sleepLeft() !== null);
   renderTimer();
   $("#stop").hidden = !running;
@@ -606,7 +289,7 @@ function renderVolume() {
   const volume = state && state.volume;
   const box = $("#volume");
   box.classList.toggle("muted", Boolean(volume && volume.muted));
-  $("#mute").setAttribute("aria-label", t(volume && volume.muted ? "Unmute" : "Mute"));
+  $("#mute").setAttribute("aria-label", t(volume && volume.muted ? "remote.volume.unmute" : "remote.volume.mute"));
   $("#mute use").setAttribute("href", volume && volume.muted ? "#i-muted" : "#i-speaker");
   if (!volume) {
     $("#vol-value").textContent = "–";
@@ -617,7 +300,7 @@ function renderVolume() {
     paintSlider();
   }
   $("#vol-value").textContent = volume.muted
-    ? t("Muted")
+    ? t("remote.volume.muted")
     : percent(Math.round(sliderBusy() ? slider.value : volume.level * 100));
 }
 
@@ -626,7 +309,7 @@ const OUTPUT_ICONS = { hdmi: "#i-tv", analog: "#i-headphones", bluetooth: "#i-bl
 function renderAudio() {
   slider.max = Math.round(audio.max_volume * 100);
   const current = audio.outputs.find((o) => o.default);
-  $("#output-name").textContent = current ? t(current.name) : t("No output");
+  $("#output-name").textContent = current ? worded(current.name_label, current.name) : t("remote.output.none");
   $(".js-output-icon use").setAttribute("href", OUTPUT_ICONS[current ? current.kind : "other"] || "#i-speaker");
   $("#output").disabled = audio.outputs.length === 0;
 
@@ -635,7 +318,7 @@ function renderAudio() {
   if (!audio.outputs.length) {
     const empty = document.createElement("p");
     empty.className = "empty";
-    empty.textContent = t("No audio outputs found.");
+    empty.textContent = t("remote.output.empty");
     list.append(empty);
   }
   for (const output of audio.outputs) {
@@ -647,8 +330,8 @@ function renderAudio() {
       <span class="out-icon"><svg><use href="${OUTPUT_ICONS[output.kind] || "#i-speaker"}"/></svg></span>
       <span class="out-text"><div class="out-name"></div><div class="out-detail"></div></span>
       <svg class="out-mark"><use href="#i-check"/></svg>`;
-    item.querySelector(".out-name").textContent = t(output.name);
-    item.querySelector(".out-detail").textContent = output.default ? t("Playing here") : output.detail;
+    item.querySelector(".out-name").textContent = worded(output.name_label, output.name);
+    item.querySelector(".out-detail").textContent = output.default ? t("remote.output.playing_here") : output.detail;
     item.addEventListener("click", () => chooseOutput(output));
     list.append(item);
   }
@@ -664,7 +347,7 @@ function chooseOutput(output) {
     id: output.id,
     timer: setTimeout(() => {
       clearOutput();
-      toast(t("Could not switch to {name}", { name: t(output.name) }), "error");
+      toast(t("remote.output.failed", { name: worded(output.name_label, output.name) }), "error");
     }, OUTPUT_TIMEOUT),
   };
   renderAudio();
@@ -691,11 +374,11 @@ function renderDock() {
     item.dataset.id = app.id;
     if (app.id === runningId) item.classList.add("running");
     if (pendingLaunch && pendingLaunch.id === app.id) item.classList.add("opening");
-    item.title = editing ? t("Drag to move {name}", { name: app.name }) : app.description || app.name;
+    item.title = editing ? t("remote.dock.drag_to_move", { name: app.name }) : app.description || app.name;
     item.append(appIcon(app));
     const name = document.createElement("span");
     name.className = "dock-name";
-    name.textContent = pendingLaunch && pendingLaunch.id === app.id ? t("Opening…") : app.name;
+    name.textContent = pendingLaunch && pendingLaunch.id === app.id ? t("remote.dock.opening") : app.name;
     item.append(name);
     bindDockItem(item, app, runningId);
     dock.append(item);
@@ -703,7 +386,7 @@ function renderDock() {
   if (editing) {
     const done = document.createElement("button");
     done.className = "dock-done";
-    done.textContent = t("Done");
+    done.textContent = t("common.done");
     done.addEventListener("click", finishEditing);
     dock.append(done);
   }
@@ -762,14 +445,14 @@ function startEditing() {
   if (navigator.vibrate) navigator.vibrate(25);
   editing = true;
   renderDock();
-  toast(t("Drag apps to reorder them, then tap Done"));
+  toast(t("remote.dock.reorder_hint"));
 }
 
 function finishEditing() {
   haptic();
   editing = false;
   renderDock();
-  toast(t("Order saved on the TV"), "ok");
+  toast(t("remote.dock.order_saved"), "ok");
 }
 
 function startDrag(item, event) {
@@ -825,7 +508,7 @@ document.addEventListener("keydown", (event) => {
 
 function launch(app, runningId) {
   haptic();
-  if (app.id === runningId) return toast(t("{name} is already on the TV", { name: app.name }));
+  if (app.id === runningId) return toast(t("remote.app.already_open", { name: app.name }));
   if (pendingLaunch && pendingLaunch.id === app.id) return;
   if (!send({ type: "launch", id: app.id })) return;
   clearLaunch();
@@ -833,7 +516,7 @@ function launch(app, runningId) {
     id: app.id,
     timer: setTimeout(() => {
       clearLaunch();
-      toast(t("{name} did not open", { name: app.name }), "error");
+      toast(t("remote.app.did_not_open", { name: app.name }), "error");
     }, LAUNCH_TIMEOUT),
   };
   renderDock();
@@ -988,7 +671,7 @@ function displayRows() {
   if (!display.modes || !display.modes.length) {
     const note = document.createElement("p");
     note.className = "setting-hint";
-    note.textContent = t("The TV's resolutions show here once sway reports them.");
+    note.textContent = t("remote.display.unavailable");
     return [note];
   }
   const modes = display.modes.map(splitMode);
@@ -997,8 +680,8 @@ function displayRows() {
   const rates = modes.filter((m) => m.size === on.size).map((m) => m.hz);
   const tryMode = (mode) => send({ type: "display_mode", mode });
   const resolution = choiceRow(
-    t("Resolution"),
-    t("A new mode goes back by itself after 15 seconds unless you keep it."),
+    t("setting.display.resolution.label"),
+    t("setting.display.resolution.hint"),
     sizes.map((size) => [size, size.replace("x", " × ")]),
     on.size,
     (size) => {
@@ -1008,7 +691,7 @@ function displayRows() {
       tryMode(`${size}@${hz}`);
     },
   );
-  const refresh = choiceRow(t("Refresh rate"), "", rates.map((hz) => [hz, `${hz} Hz`]), on.hz, (hz) =>
+  const refresh = choiceRow(t("setting.display.refresh.label"), "", rates.map((hz) => [hz, `${hz} Hz`]), on.hz, (hz) =>
     tryMode(`${on.size}@${hz}`),
   );
   return [resolution, refresh];
@@ -1019,7 +702,7 @@ function renderTrial() {
   const trial = state && state.display_trial;
   $("#trial").hidden = !trial;
   if (!trial) return;
-  $("#trial-text").textContent = t("{mode}. Going back in {seconds} s.", {
+  $("#trial-text").textContent = t("remote.display.going_back", {
     mode: modeLabel(trial.mode),
     seconds: trial.seconds,
   });
@@ -1057,18 +740,18 @@ function renderTimer() {
   const left = sleepLeft();
   $("#timer-status").textContent =
     left === null
-      ? t("Turn the TV off after a while, like on a TV remote.")
-      : t("The TV sleeps in {minutes} min.", { minutes: Math.max(1, Math.ceil(left / 60)) });
+      ? t("remote.timer.explain")
+      : t("remote.timer.sleeps_in", { minutes: Math.max(1, Math.ceil(left / 60)) });
   chips.replaceChildren();
   for (const minutes of TIMER_CHOICES) {
     const chip = document.createElement("button");
     chip.className = "chip";
-    chip.textContent = minutes % 60 ? t("{n} min", { n: minutes }) : t("{h} h", { h: minutes / 60 });
+    chip.textContent = minutes % 60 ? t("unit.minutes", { n: minutes }) : t("unit.hours", { n: minutes / 60 });
     chip.addEventListener("click", () => {
       haptic();
       if (send({ type: "sleep_timer", minutes })) {
         closeTimer();
-        toast(t("The TV sleeps in {minutes} min.", { minutes }), "ok");
+        toast(t("remote.timer.sleeps_in", { minutes }), "ok");
       }
     });
     chips.append(chip);
@@ -1076,12 +759,12 @@ function renderTimer() {
   if (left !== null) {
     const off = document.createElement("button");
     off.className = "chip";
-    off.textContent = t("Turn the timer off");
+    off.textContent = t("remote.timer.off_button");
     off.addEventListener("click", () => {
       haptic();
       if (send({ type: "sleep_timer", minutes: 0 })) {
         closeTimer();
-        toast(t("Sleep timer off"));
+        toast(t("remote.timer.off"));
       }
     });
     chips.append(off);
@@ -1121,240 +804,208 @@ document.addEventListener("keydown", (event) => {
 
 // Each `key` is a config value (`section.name`) that tvd saves to config.toml.
 // `live` items change the TV right now without touching the config.
+// Labels are catalog keys: setting.<config key>.label and .hint, shared with the TV's own settings.
+const label = (key) => `setting.${key}.label`;
+const hint = (key) => `setting.${key}.hint`;
+const unit = (key, n) => ({ key, vars: { n } });
+const minutes = (n) => unit("unit.minutes", n);
+const hours = (n) => unit("unit.hours", n);
+const seconds = (n) => unit("unit.seconds", n);
+const pct = (n) => unit("unit.percent", n);
+
+/** A label, hint or choice: a catalog key, or `{ key, vars }` for one with values. */
+function say(text) {
+  return text && typeof text === "object" ? t(text.key, text.vars) : t(text);
+}
+
 const SETTINGS = [
   {
-    title: "Home screen",
+    title: "section.home_screen",
     items: [
-      { key: "shell.greeting", label: "Greeting" },
-      { key: "shell.clock", label: "Clock" },
-      { key: "shell.date", label: "Date" },
-      { key: "shell.volume_overlay", label: "Volume bar when the volume changes" },
-      { key: "shell.sounds", label: "Sounds", hint: "Soft clicks when moving between apps and opening one." },
+      { key: "shell.greeting", label: label("shell.greeting") },
+      { key: "shell.clock", label: label("shell.clock") },
+      { key: "shell.date", label: label("shell.date") },
+      { key: "shell.volume_overlay", label: label("shell.volume_overlay") },
+      { key: "shell.sounds", label: label("shell.sounds"), hint: hint("shell.sounds") },
       {
         key: "shell.sound_volume",
-        label: "Sound level",
+        label: label("shell.sound_volume"),
         needs: "shell.sounds",
-        options: [[0.25, "Quiet"], [0.5, "Medium"], [1, "Loud"]],
+        options: [
+          [0.25, "option.shell.sound_volume.quiet"],
+          [0.5, "option.shell.sound_volume.medium"],
+          [1, "option.shell.sound_volume.loud"],
+        ],
       },
-      { key: "shell.pairing_qr", label: "Pairing code", hint: "QR code on the TV until a phone pairs, and when you ask for it." },
+      { key: "shell.pairing_qr", label: label("shell.pairing_qr"), hint: hint("shell.pairing_qr") },
       {
         action: "show_pairing",
-        label: "Pair another phone or computer",
-        button: "Show code",
-        done: "The pairing code is on the TV for 2 minutes",
+        label: label("pairing.show"),
+        button: "remote.settings.show_code",
+        done: "remote.settings.code_shown",
         needs: "shell.pairing_qr",
       },
-      {
-        key: "shell.settings",
-        label: "Settings on the TV",
-        hint: "A Settings tile after the apps, for whoever has only the TV remote. Only the phone can turn it back on.",
-      },
+      { key: "shell.settings", label: label("shell.settings"), hint: hint("shell.settings") },
     ],
   },
-  { title: "Theme", custom: themeRows },
-  { title: "Display", custom: displayRows },
+  { title: "section.theme", custom: themeRows },
+  { title: "section.display", custom: displayRows },
   {
-    title: "Screensaver",
+    title: "section.screensaver",
     items: [
-      { key: "screensaver.enabled", label: "Screensaver" },
+      { key: "screensaver.enabled", label: label("screensaver.enabled") },
       {
         key: "screensaver.idle_minutes",
-        label: "Start after",
+        label: label("screensaver.idle_minutes"),
         needs: "screensaver.enabled",
-        options: [[1, "1 min"], [2, "2 min"], [5, "5 min"], [10, "10 min"], [15, "15 min"], [30, "30 min"], [60, "1 h"]],
+        options: [[1, minutes(1)], [2, minutes(2)], [5, minutes(5)], [10, minutes(10)], [15, minutes(15)], [30, minutes(30)], [60, hours(1)]],
       },
       {
         key: "screensaver.style",
-        label: "Style",
+        label: label("screensaver.style"),
         needs: "screensaver.enabled",
-        options: [["random", "Mix"], ["aurora", "Aurora"], ["orbits", "Orbits"], ["clock", "Clock"], ["images", "My pictures"]],
+        options: ["random", "aurora", "orbits", "clock", "images"].map((style) => [style, `option.screensaver.style.${style}`]),
       },
-      { key: "screensaver.clock", label: "Show the time", needs: "screensaver.enabled" },
-      { key: "screensaver.date", label: "Show the date", needs: "screensaver.enabled" },
+      { key: "screensaver.clock", label: label("screensaver.clock"), needs: "screensaver.enabled" },
+      { key: "screensaver.date", label: label("screensaver.date"), needs: "screensaver.enabled" },
     ],
   },
   {
-    title: "Sound",
+    title: "section.sound",
     items: [
       {
         key: "audio.max_volume",
-        label: "Volume limit",
-        options: [[1, "100%"], [1.2, "120%"], [1.5, "150%"]],
-        hint: "Above 100% the sound is boosted in software and can distort.",
+        label: label("audio.max_volume"),
+        options: [[1, pct(100)], [1.2, pct(120)], [1.5, pct(150)]],
+        hint: hint("audio.max_volume"),
       },
-      {
-        key: "audio.per_app_volume",
-        label: "Remember the volume for each app",
-        hint: "A loud game and a quiet film each come back at their own level.",
-      },
-      { key: "audio.step", label: "Volume buttons change by", options: [[0.02, "2%"], [0.05, "5%"], [0.1, "10%"]] },
+      { key: "audio.per_app_volume", label: label("audio.per_app_volume"), hint: hint("audio.per_app_volume") },
+      { key: "audio.step", label: label("audio.step"), options: [[0.02, pct(2)], [0.05, pct(5)], [0.1, pct(10)]] },
     ],
   },
   {
-    title: "Language and format",
+    title: "section.language",
     items: [
-      { key: "locale.language", label: "Language", options: [["en", "English"], ["tr", "Türkçe"]] },
-      { key: "locale.clock", label: "Time format", options: [["24h", "24-hour"], ["12h", "12-hour"]] },
+      { key: "locale.language", label: label("locale.language"), options: [["en", "option.locale.language.en"], ["tr", "option.locale.language.tr"]] },
+      { key: "locale.clock", label: label("locale.clock"), options: [["24h", "option.locale.clock.24h"], ["12h", "option.locale.clock.12h"]] },
       {
         key: "locale.temperature",
-        label: "Temperature",
-        hint: "Used by the debug overlay.",
-        options: [["celsius", "°C"], ["fahrenheit", "°F"]],
+        label: label("locale.temperature"),
+        hint: hint("locale.temperature"),
+        options: [["celsius", "option.locale.temperature.celsius"], ["fahrenheit", "option.locale.temperature.fahrenheit"]],
       },
     ],
   },
   {
-    title: "Lock and PIN",
+    title: "section.lock",
     items: [
       {
-        label: "PIN",
-        hint: "Locking needs a PIN. It is kept on the TV box, hashed, never in the config.",
-        button: () => (settingValue("lock.pin_set") ? "Change" : "Set PIN"),
+        label: label("lock.pin"),
+        hint: hint("lock.pin"),
+        button: () => (settingValue("lock.pin_set") ? "remote.settings.change" : "remote.settings.set_pin"),
         run: () => startPinFlow(settingValue("lock.pin_set") ? "change" : "set"),
       },
       {
-        label: "Remove the PIN",
+        label: label("lock.remove_pin"),
         needs: "lock.pin_set",
-        button: "Remove",
+        button: "remote.settings.remove",
         run: () => startPinFlow("remove"),
       },
       {
-        label: "Lock the TV now",
-        hint: "Closes the open app; nothing works until the PIN is entered.",
+        label: label("lock.lock_now"),
+        hint: hint("lock.lock_now"),
         needs: "lock.pin_set",
-        button: "Lock",
+        button: "remote.settings.lock",
         run: () => {
           if (send({ type: "lock" })) closeSettings();
         },
       },
-      { key: "lock.on_sleep", label: "Lock when the TV goes to sleep", needs: "lock.pin_set" },
+      { key: "lock.on_sleep", label: label("lock.on_sleep"), needs: "lock.pin_set" },
     ],
   },
   {
-    title: "Gamepad",
+    title: "section.gamepad",
     items: [
-      {
-        key: "gamepad.enabled",
-        label: "Use a gamepad as the remote",
-        hint: "On the home screen: D-pad or stick to move, A to open, B back, shoulder buttons for volume. Inside apps the gamepad is the app's.",
-      },
+      { key: "gamepad.enabled", label: label("gamepad.enabled"), hint: hint("gamepad.enabled") },
       {
         key: "gamepad.guide_closes_app",
-        label: "Guide button goes home",
-        hint: "The Xbox or PS button closes the open app.",
+        label: label("gamepad.guide_closes_app"),
+        hint: hint("gamepad.guide_closes_app"),
         needs: "gamepad.enabled",
       },
     ],
   },
   {
-    title: "Screen casting",
-    items: [
-      {
-        key: "cast.airplay",
-        label: "AirPlay",
-        hint: "Mirror an iPhone, iPad or Mac, or play videos and music from them. Needs uxplay on the box.",
-      },
-    ],
+    title: "section.casting",
+    items: [{ key: "cast.airplay", label: label("cast.airplay"), hint: hint("cast.airplay") }],
   },
   {
-    title: "Sleep mode",
+    title: "section.sleep",
     items: [
-      {
-        key: "sleep.enabled",
-        label: "Sleep when unused",
-        hint: "Screen off after no remote input and no sound. Any button wakes it.",
-      },
+      { key: "sleep.enabled", label: label("sleep.enabled"), hint: hint("sleep.enabled") },
       {
         key: "sleep.after_minutes",
-        label: "After",
+        label: label("sleep.after_minutes"),
         needs: "sleep.enabled",
-        options: [[15, "15 min"], [30, "30 min"], [60, "1 h"], [120, "2 h"], [240, "4 h"]],
+        options: [[15, minutes(15)], [30, minutes(30)], [60, hours(1)], [120, hours(2)], [240, hours(4)]],
       },
-      { key: "sleep.close_apps", label: "Close the open app", hint: "Frees memory and CPU." },
-      { action: "sleep", label: "Put the TV to sleep now", button: "Sleep", done: "TV is going to sleep. Any button wakes it." },
+      { key: "sleep.close_apps", label: label("sleep.close_apps"), hint: hint("sleep.close_apps") },
+      { action: "sleep", label: label("sleep.now"), button: "remote.settings.sleep", done: "remote.settings.going_to_sleep" },
     ],
   },
   {
-    title: "Wallpaper",
+    title: "section.wallpaper",
     custom: () => [
       wallpaperCount(),
       ...[
-        {
-          key: "wallpaper.home",
-          label: "Behind the home screen",
-          hint: "Your pictures instead of the theme's background.",
-        },
+        { key: "wallpaper.home", label: label("wallpaper.home"), hint: hint("wallpaper.home") },
         {
           key: "wallpaper.change_minutes",
-          label: "Change every",
+          label: label("wallpaper.change_minutes"),
           needs: "wallpaper.home",
-          options: [[5, "5 min"], [15, "15 min"], [30, "30 min"], [60, "1 h"], [240, "4 h"], [1440, "1 day"]],
+          options: [[5, minutes(5)], [15, minutes(15)], [30, minutes(30)], [60, hours(1)], [240, hours(4)], [1440, unit("unit.days", 1)]],
         },
         {
           key: "wallpaper.slide_seconds",
-          label: "Screensaver: each picture for",
-          options: [[10, "10 s"], [30, "30 s"], [60, "1 min"], [300, "5 min"]],
+          label: label("wallpaper.slide_seconds"),
+          options: [[10, seconds(10)], [30, seconds(30)], [60, minutes(1)], [300, minutes(5)]],
         },
-        { key: "wallpaper.shuffle", label: "Random order" },
+        { key: "wallpaper.shuffle", label: label("wallpaper.shuffle") },
       ].map(settingRow),
     ],
   },
   {
-    title: "On-screen keyboard",
+    title: "section.keyboard",
     items: [
-      {
-        key: "keyboard.enabled",
-        label: "Keyboard on the TV",
-        hint: "For typing with the TV remote or a gamepad: arrows move, OK types, Back closes.",
-      },
-      {
-        key: "keyboard.hold_ok",
-        label: "Hold OK to open it",
-        hint: "On the TV remote, over HDMI-CEC.",
-        needs: "keyboard.enabled",
-      },
+      { key: "keyboard.enabled", label: label("keyboard.enabled"), hint: hint("keyboard.enabled") },
+      { key: "keyboard.hold_ok", label: label("keyboard.hold_ok"), hint: hint("keyboard.hold_ok"), needs: "keyboard.enabled" },
       {
         key: "keyboard.hold_guide",
-        label: "Hold the gamepad's Guide button to open it",
-        hint: "A short press still goes home.",
+        label: label("keyboard.hold_guide"),
+        hint: hint("keyboard.hold_guide"),
         needs: "keyboard.enabled",
       },
     ],
   },
   {
-    title: "TV control (HDMI-CEC)",
+    title: "section.cec",
     items: [
-      {
-        key: "cec.enabled",
-        label: "Control the TV over HDMI",
-        hint: "Needs a CEC adapter on the box (/dev/cec*). Most PC graphics cards have none.",
-      },
-      {
-        key: "cec.power_tv",
-        label: "Turn the TV on and off",
-        hint: "Waking turns the TV on and switches it to rustv; sleep puts it in standby, unless it shows another input.",
-        needs: "cec.enabled",
-      },
-      {
-        key: "cec.follow_tv",
-        label: "Follow the TV",
-        hint: "Turning the TV off puts rustv to sleep; switching the TV to rustv wakes it.",
-        needs: "cec.enabled",
-      },
-      {
-        key: "cec.remote_keys",
-        label: "Use the TV remote",
-        hint: "Arrows, OK, Back, play and volume buttons control rustv.",
-        needs: "cec.enabled",
-      },
+      { key: "cec.enabled", label: label("cec.enabled"), hint: hint("cec.enabled") },
+      { key: "cec.power_tv", label: label("cec.power_tv"), hint: hint("cec.power_tv"), needs: "cec.enabled" },
+      { key: "cec.follow_tv", label: label("cec.follow_tv"), hint: hint("cec.follow_tv"), needs: "cec.enabled" },
+      { key: "cec.remote_keys", label: label("cec.remote_keys"), hint: hint("cec.remote_keys"), needs: "cec.enabled" },
     ],
   },
   {
-    title: "Debug overlay",
+    title: "section.overlay",
     items: [
-      { live: "overlay", label: "Show on the TV now", hint: "CPU, GPU, RAM, network and more, over everything." },
-      { key: "overlay.enabled", label: "Show at startup" },
-      { key: "overlay.position", label: "Position", options: [["top", "Top"], ["bottom", "Bottom"]] },
+      { live: "overlay", label: label("overlay.live"), hint: hint("overlay.live") },
+      { key: "overlay.enabled", label: label("overlay.enabled") },
+      {
+        key: "overlay.position",
+        label: label("overlay.position"),
+        options: [["top", "option.overlay.position.top"], ["bottom", "option.overlay.position.bottom"]],
+      },
     ],
   },
 ];
@@ -1365,8 +1016,8 @@ function wallpaperCount() {
   const note = document.createElement("p");
   note.className = "setting-hint";
   note.textContent = count
-    ? t("Pictures in [wallpaper] images: {count}", { count })
-    : t("Add picture files or folders to [wallpaper] images in the config file.");
+    ? t("remote.wallpaper.count", { count })
+    : t("remote.wallpaper.none");
   return note;
 }
 
@@ -1399,7 +1050,7 @@ function renderSettings() {
   if (!settings) {
     const empty = document.createElement("p");
     empty.className = "empty";
-    empty.textContent = t("Waiting for the TV…");
+    empty.textContent = t("remote.settings.waiting");
     body.append(empty);
     return;
   }
@@ -1407,7 +1058,7 @@ function renderSettings() {
     const section = document.createElement("section");
     section.className = "settings-group";
     const title = document.createElement("h3");
-    title.textContent = t(group.title);
+    title.textContent = say(group.title);
     section.append(title);
     for (const row of group.custom ? group.custom() : group.items.map(settingRow)) section.append(row);
     body.append(section);
@@ -1416,7 +1067,7 @@ function renderSettings() {
 
   const about = document.createElement("p");
   about.className = "settings-about";
-  about.textContent = t("rustv {version} · saved to {path}", { version: settings.version, path: settings.config_path });
+  about.textContent = t("remote.settings.about", { version: settings.version, path: settings.config_path });
   body.append(about);
 }
 
@@ -1430,12 +1081,12 @@ function settingRow(item) {
   text.className = "setting-text";
   const label = document.createElement("div");
   label.className = "setting-label";
-  label.textContent = t(item.label);
+  label.textContent = say(item.label);
   text.append(label);
   if (item.hint) {
     const hint = document.createElement("div");
     hint.className = "setting-hint";
-    hint.textContent = t(item.hint);
+    hint.textContent = say(item.hint);
     text.append(hint);
   }
   row.append(text);
@@ -1444,14 +1095,14 @@ function settingRow(item) {
   if ((item.action || item.run) && item.button !== null) {
     const button = document.createElement("button");
     button.className = "chip";
-    button.textContent = t(typeof item.button === "function" ? item.button() : item.button);
+    button.textContent = say(typeof item.button === "function" ? item.button() : item.button);
     button.disabled = Boolean(off);
     button.addEventListener("click", () => {
       haptic();
       if (item.run) return item.run();
       if (send({ type: item.action })) {
         closeSettings();
-        toast(t(item.done));
+        toast(say(item.done));
       }
     });
     row.append(button);
@@ -1465,7 +1116,7 @@ function settingRow(item) {
     for (const [optionValue, optionLabel] of options) {
       const chip = document.createElement("button");
       chip.className = "chip";
-      chip.textContent = /^\d+(\.\d+)?%$/.test(optionLabel) ? percent(optionLabel.slice(0, -1)) : t(optionLabel);
+      chip.textContent = say(optionLabel);
       chip.disabled = Boolean(off);
       chip.setAttribute("aria-pressed", String(sameValue(optionValue, value)));
       chip.addEventListener("click", () => {
@@ -1479,7 +1130,7 @@ function settingRow(item) {
     toggle.className = "toggle";
     toggle.setAttribute("role", "switch");
     toggle.setAttribute("aria-checked", String(Boolean(value)));
-    toggle.setAttribute("aria-label", t(item.label));
+    toggle.setAttribute("aria-label", say(item.label));
     toggle.disabled = Boolean(off);
     toggle.addEventListener("click", () => {
       if (item.live === "overlay") {
@@ -1497,9 +1148,9 @@ function settingRow(item) {
 // ---- theme picker ----
 
 const COLOR_KEYS = [
-  ["accent", "Accent"],
-  ["accent_2", "Pressed"],
-  ["background", "Background"],
+  ["accent", "remote.theme.accent"],
+  ["accent_2", "remote.theme.pressed"],
+  ["background", "remote.theme.background"],
 ];
 
 function themeRows() {
@@ -1511,8 +1162,8 @@ function themeRows() {
   const text = document.createElement("div");
   text.className = "setting-text";
   text.innerHTML = '<div class="setting-label"></div><div class="setting-hint"></div>';
-  text.querySelector(".setting-label").textContent = t("Finish");
-  text.querySelector(".setting-hint").textContent = t("Pick a metal, or your own colors on top of it. Dark backgrounds only.");
+  text.querySelector(".setting-label").textContent = t("setting.theme.preset.label");
+  text.querySelector(".setting-hint").textContent = t("setting.theme.preset.hint");
   const chips = document.createElement("div");
   chips.className = "chips";
   for (const preset of settings.presets || []) {
@@ -1523,7 +1174,7 @@ function themeRows() {
     swatch.className = "swatch";
     swatch.style.background = preset.accent;
     swatch.style.boxShadow = `0 0 0 3px ${preset.background}`;
-    chip.append(swatch, t(preset.name[0].toUpperCase() + preset.name.slice(1)));
+    chip.append(swatch, t(`option.theme.preset.${preset.name}`));
     chip.addEventListener("click", () => {
       // A preset brings its own colors, so drop the custom ones.
       if (preset.name !== theme.preset) changeSetting("theme.preset", preset.name);
@@ -1537,7 +1188,7 @@ function themeRows() {
   colors.className = "setting stacked";
   const label = document.createElement("div");
   label.className = "setting-label";
-  label.textContent = t("Your colors");
+  label.textContent = t("remote.theme.your_colors");
   const pickers = document.createElement("div");
   pickers.className = "color-pickers";
   for (const [key, name] of COLOR_KEYS) {
@@ -1556,7 +1207,7 @@ function themeRows() {
   if (own.length) {
     const reset = document.createElement("button");
     reset.className = "chip";
-    reset.textContent = t("Back to the finish");
+    reset.textContent = t("remote.theme.back_to_finish");
     reset.addEventListener("click", () => {
       for (const [key] of own) changeSetting(`theme.${key}`, null);
     });
@@ -1583,11 +1234,11 @@ function networkGroup() {
   const section = document.createElement("section");
   section.className = "settings-group";
   const title = document.createElement("h3");
-  title.textContent = t("Network");
+  title.textContent = t("section.network");
   section.append(title);
   const intro = settingRow({
-    label: "Open to the network",
-    hint: "What this TV box listens on. Ports change in each program's config; the firewall decides who can reach them.",
+    label: "remote.network.title",
+    hint: "remote.network.hint",
   });
   section.append(intro);
   for (const e of exposures || []) {
@@ -1597,18 +1248,17 @@ function networkGroup() {
     text.className = "setting-text";
     const label = document.createElement("div");
     label.className = "setting-label";
-    label.textContent = t(e.service);
+    label.textContent = worded(e.service_label, e.service);
     const hint = document.createElement("div");
     hint.className = "setting-hint";
-    const more = e.address.match(/^(.*) and (\d+) more addresses$/);
-    const address = more ? (lang === "tr" ? `${more[1]} ve ${more[2]} adres daha` : e.address) : t(e.address);
+    const address = worded(e.address_label, e.address);
     hint.textContent = `${e.protocol.toUpperCase()} ${e.port} · ${address}`;
     text.append(label, hint);
     row.append(text);
     section.append(row);
   }
   if (!exposures) {
-    const row = settingRow({ label: "Checking…" });
+    const row = settingRow({ label: "common.checking" });
     section.append(row);
   }
   return section;
@@ -1665,9 +1315,9 @@ async function sendAndWait(msg) {
     });
     if (res.ok) return true;
     const body = await res.json().catch(() => ({}));
-    toast(t(body.error || "Something went wrong"), "error");
+    toast(body.key ? t(body.key, body.args || {}) : body.error || t("common.something_went_wrong"), "error");
   } catch {
-    toast(t("Not connected to the TV"), "error");
+    toast(t("remote.status.not_connected"), "error");
   }
   return false;
 }
@@ -1680,13 +1330,13 @@ function wifiGroup() {
   const section = document.createElement("section");
   section.className = "settings-group";
   const title = document.createElement("h3");
-  title.textContent = t("Wi-Fi");
+  title.textContent = t("section.wifi");
   section.append(title);
   section.append(
     settingRow({
-      label: "Networks nearby",
-      hint: "Switching networks drops the remote for a moment; with a wrong password the TV returns to the old one.",
-      button: wirelessBusy === "wifi-scan" ? "Searching…" : "Search again",
+      label: "remote.wifi.nearby",
+      hint: "remote.wifi.nearby_hint",
+      button: wirelessBusy === "wifi-scan" ? "common.searching" : "remote.wifi.search_again",
       run: () => {
         wirelessBusy = "wifi-scan";
         renderSettings();
@@ -1695,29 +1345,29 @@ function wifiGroup() {
     }),
   );
   if (!wifi) {
-    section.append(infoRow("Checking…"));
+    section.append(infoRow("common.checking"));
   } else if (wifi.error) {
-    section.append(infoRow("Wi-Fi is not available", wifi.error));
+    section.append(infoRow("remote.wifi.unavailable", wifi.error));
   } else {
     for (const network of wifi.slice(0, 12)) {
       const busy = wirelessBusy === `wifi:${network.ssid}`;
       section.append(
         settingRow({
           label: network.ssid,
-          hint: `${network.connected ? t("Connected") + " · " : ""}${t("Signal")} ${percent(network.signal)}${network.secure ? " · 🔒" : ""}`,
-          button: network.connected ? null : busy ? "Joining…" : "Join",
+          hint: `${network.connected ? t("common.connected") + " · " : ""}${t("remote.wifi.signal")} ${percent(network.signal)}${network.secure ? " · 🔒" : ""}`,
+          button: network.connected ? null : busy ? "remote.wifi.joining" : "remote.wifi.join",
           run: network.connected
             ? null
             : () => {
                 let password = null;
                 if (network.secure) {
-                  password = window.prompt(t("Password for {name} (leave empty if the TV knows it)", { name: network.ssid }));
+                  password = window.prompt(t("remote.wifi.password", { name: network.ssid }));
                   if (password === null) return;
                 }
                 wirelessCommand(
                   `wifi:${network.ssid}`,
                   { type: "wifi_connect", ssid: network.ssid, password: password || null },
-                  { text: "Joined {name}", vars: { name: network.ssid } },
+                  { text: "remote.wifi.joined", vars: { name: network.ssid } },
                   () => loadWifi(),
                 );
               },
@@ -1734,17 +1384,17 @@ function bluetoothGroup() {
   const section = document.createElement("section");
   section.className = "settings-group";
   const title = document.createElement("h3");
-  title.textContent = t("Bluetooth");
+  title.textContent = t("section.bluetooth");
   section.append(title);
   if (!bluetooth) {
-    section.append(infoRow("Checking…"));
+    section.append(infoRow("common.checking"));
     return section;
   }
   if (!bluetooth.available) {
-    section.append(infoRow("Bluetooth is not available", "No adapter, or bluetoothd is not running."));
+    section.append(infoRow("remote.bluetooth.unavailable", "remote.bluetooth.no_adapter"));
     return section;
   }
-  const power = settingRow({ label: "Bluetooth" });
+  const power = settingRow({ label: "section.bluetooth" });
   const toggle = document.createElement("button");
   toggle.className = "toggle";
   toggle.setAttribute("role", "switch");
@@ -1758,9 +1408,9 @@ function bluetoothGroup() {
 
   section.append(
     settingRow({
-      label: "Add a device",
-      hint: "Put headphones or a gamepad in pairing mode, then search.",
-      button: wirelessBusy === "bt-scan" ? "Searching…" : "Search",
+      label: "remote.bluetooth.add",
+      hint: "remote.bluetooth.add_hint",
+      button: wirelessBusy === "bt-scan" ? "common.searching" : "remote.bluetooth.search",
       run: () => wirelessCommand("bt-scan", { type: "bluetooth", action: "scan" }, null, loadBluetooth),
     }),
   );
@@ -1771,19 +1421,19 @@ function bluetoothGroup() {
     const icon = BT_ICONS[device.icon] ? `${BT_ICONS[device.icon]} ` : "";
     const row = settingRow({
       label: icon + device.name,
-      hint: device.connected ? "Connected" : device.paired ? "Paired" : "Nearby",
-      button: busy ? "…" : device.connected ? "Disconnect" : device.paired ? "Connect" : "Pair",
+      hint: device.connected ? "common.connected" : device.paired ? "remote.bluetooth.paired" : "remote.bluetooth.nearby",
+      button: busy ? "…" : device.connected ? "remote.bluetooth.disconnect" : device.paired ? "remote.pair.connect" : "remote.bluetooth.pair",
       run: () =>
         device.connected
           ? act("disconnect")
           : device.paired
-            ? act("connect", { text: "Connected to {name}", vars: { name: device.name } })
-            : act("pair", { text: "Paired with {name}", vars: { name: device.name } }),
+            ? act("connect", { text: "remote.bluetooth.connected_to", vars: { name: device.name } })
+            : act("pair", { text: "remote.bluetooth.paired_with", vars: { name: device.name } }),
     });
     if (device.paired && !busy) {
       const forget = document.createElement("button");
       forget.className = "chip";
-      forget.textContent = t("Forget");
+      forget.textContent = t("remote.bluetooth.forget");
       forget.addEventListener("click", () => act("remove"));
       row.append(forget);
     }
@@ -1804,10 +1454,10 @@ const PIN_STEPS = {
   remove: ["current"],
 };
 const PIN_HINTS = {
-  unlock: "Enter the PIN",
-  current: "Enter the current PIN",
-  new: "Choose a PIN (4 to 8 digits)",
-  confirm: "Enter the new PIN again",
+  unlock: "remote.pin.enter",
+  current: "remote.pin.enter_current",
+  new: "remote.pin.choose",
+  confirm: "remote.pin.again",
 };
 
 function buildPad() {
@@ -1815,8 +1465,8 @@ function buildPad() {
   for (const key of ["1", "2", "3", "4", "5", "6", "7", "8", "9", "del", "0", "ok"]) {
     const button = document.createElement("button");
     button.className = "pin-key" + (key === "ok" ? " primary" : "");
-    button.textContent = key === "del" ? "⌫" : key === "ok" ? "OK" : key;
-    button.setAttribute("aria-label", key === "del" ? t("Delete") : key === "ok" ? t("Confirm") : key);
+    button.textContent = key === "del" ? "⌫" : key === "ok" ? t("remote.dpad.ok") : key;
+    button.setAttribute("aria-label", key === "del" ? t("remote.key.delete") : key === "ok" ? t("remote.pin.confirm") : key);
     button.addEventListener("click", () => pinKey(key));
     pad.append(button);
   }
@@ -1839,7 +1489,7 @@ function renderPin() {
   $("#pin").hidden = !show;
   if (!show) return;
   const locked = pinFlow.mode === "unlock";
-  $("#pin-title").textContent = t(locked ? "The TV is locked" : pinFlow.mode === "remove" ? "Remove the PIN" : "PIN");
+  $("#pin-title").textContent = t(locked ? "remote.pin.locked" : pinFlow.mode === "remove" ? "setting.lock.remove_pin.label" : "remote.pin.title");
   $("#pin-hint").textContent = t(PIN_HINTS[pinStep()]);
   $("#pin-cancel").hidden = locked;
   const dots = $("#pin-dots");
@@ -1860,7 +1510,7 @@ function pinKey(key) {
 }
 
 function submitPin() {
-  if (pinDigits.length < 4) return toast(t("At least 4 digits"), "error");
+  if (pinDigits.length < 4) return toast(t("remote.pin.too_short"), "error");
   const step = pinStep();
   const digits = pinDigits;
   pinDigits = "";
@@ -1871,7 +1521,7 @@ function submitPin() {
     if (pinFlow.mode === "remove") {
       send({ type: "set_pin", current: digits });
       pinFlow = null;
-      toast(t("PIN removed"), "ok");
+      toast(t("remote.pin.removed"), "ok");
     } else {
       pinFlow.step++;
     }
@@ -1880,12 +1530,12 @@ function submitPin() {
     pinFlow.step++;
   } else if (step === "confirm") {
     if (digits !== pinFlow.first) {
-      toast(t("The PINs did not match; try again"), "error");
+      toast(t("remote.pin.mismatch"), "error");
       pinFlow.step = PIN_STEPS[pinFlow.mode].indexOf("new");
     } else {
       send({ type: "set_pin", current: pinFlow.current, pin: digits });
       pinFlow = null;
-      toast(t("PIN saved"), "ok");
+      toast(t("remote.pin.saved"), "ok");
     }
   }
   renderPin();
@@ -1903,7 +1553,7 @@ function syncLock() {
   if (!locked && pinFlow && pinFlow.mode === "unlock") {
     pinFlow = null;
     renderPin();
-    toast(t("Unlocked"), "ok");
+    toast(t("remote.pin.unlocked"), "ok");
   }
 }
 
@@ -2075,7 +1725,7 @@ $("#text-form").addEventListener("submit", (event) => {
   const input = $("#text");
   if (!input.value) return send({ type: "key", code: "Enter" });
   if (send({ type: "text", text: input.value })) {
-    toast(t("Sent to the TV"), "ok");
+    toast(t("remote.text.sent"), "ok");
     input.value = "";
   }
 });
@@ -2124,6 +1774,8 @@ for (const tab of $$("[data-tab]")) {
 showTab(localStorage.getItem(TAB_KEY) || "remote");
 paintSlider();
 
-collectStatic();
 applyLanguage();
+// Placeholders until tvd answers; the script sets these two itself from then on.
+$("#conn").textContent = t("remote.status.connecting");
+$("#output-name").textContent = t("remote.output.label");
 start();

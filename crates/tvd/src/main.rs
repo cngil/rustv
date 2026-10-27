@@ -12,6 +12,7 @@ mod cec;
 mod config;
 mod display;
 mod gamepad;
+mod i18n;
 mod input;
 mod keyboard;
 mod keymap;

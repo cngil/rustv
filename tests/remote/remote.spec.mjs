@@ -85,6 +85,27 @@ test("switching to Turkish translates the remote, and back", async ({ page }) =>
   await expect(page.locator('[data-tab="remote"]')).toHaveText("Remote");
 });
 
+test("no catalog key shows as raw text, in either language", async ({ page }) => {
+  await open(page);
+  await openSettings(page);
+  // What a missing translation looks like: the key itself, such as "setting.sleep.enabled.label".
+  const rawKeys = () =>
+    page.evaluate(() => {
+      const pattern = /\b(common|error|network|option|osk|output|remote|section|setting|stats|tv|unit)\.[a-z0-9_]+(\.[a-z0-9_]+)*\b/;
+      const texts = [document.body.innerText];
+      for (const el of document.querySelectorAll("[aria-label], [placeholder], [title]")) {
+        texts.push(el.getAttribute("aria-label") || "", el.getAttribute("placeholder") || "", el.getAttribute("title") || "");
+      }
+      return texts.flatMap((text) => text.match(new RegExp(pattern, "g")) || []);
+    });
+  expect(await rawKeys()).toEqual([]);
+  await row(page, "Language").getByRole("button", { name: "Türkçe", exact: true }).click();
+  await expect(page.locator("#settings-title")).toHaveText("Ayarlar");
+  expect(await rawKeys()).toEqual([]);
+  await row(page, "Dil").getByRole("button", { name: "English", exact: true }).click();
+  await expect(page.locator("#settings-title")).toHaveText("Settings");
+});
+
 test("a finish recolors the remote", async ({ page }) => {
   await open(page);
   await openSettings(page);

@@ -3840,6 +3840,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustv-locales"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "toml 0.8.23",
+]
+
+[[package]]
 name = "rustv-shell"
 version = "0.1.0"
 dependencies = [
@@ -3848,6 +3856,7 @@ dependencies = [
  "chrono",
  "futures-util",
  "image",
+ "rustv-locales",
  "serde",
  "serde_json",
  "slint",
@@ -4866,6 +4875,7 @@ dependencies = [
  "getrandom 0.2.17",
  "libc",
  "qrcode",
+ "rustv-locales",
  "serde",
  "serde_json",
  "tokio",

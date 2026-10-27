@@ -65,6 +65,29 @@ Split unrelated changes into separate commits.
 
 Code, comments, commit messages, issues and docs are in English.
 
+## Translations
+
+Everything a person reads on the TV, the remote or the overlay comes from one
+catalog per language: `crates/locales/en.toml`, `crates/locales/tr.toml`. tvd,
+the TV shell and the remote (which tvd sends the catalogs to) all use the same
+file, so a label is translated once.
+
+- Keys are stable ids, not English text: `setting.<config key>.label` and
+  `.hint` for settings, `option.<config key>.<value>` for choices, `unit.*`
+  for numbers with a unit, and one group per screen (`remote.*`, `tv.*`,
+  `osk.*`, `stats.*`). Change the English wording freely; change a key only
+  when the meaning changes.
+- `{name}` marks a value the code fills in. Keys ending in `.one` / `.other`
+  are plural forms (CLDR categories).
+- New text in the code means a new key in every catalog. Errors a person sees
+  are `i18n::error("error.…", …)` in tvd, so each screen words them itself.
+- Adding a language: copy `en.toml` to `<code>.toml`, translate it, and add
+  the code to `LANGUAGES` and `SOURCES` in `crates/locales/src/lib.rs`, its
+  plural rule to `plural_form` (and `pluralForm` in `app.js`), and the choice
+  to `locale.language` in tvd's config.
+- `cargo test -p rustv-locales` fails on a key missing from a language, a
+  placeholder that differs, or a key the code uses that no catalog has.
+
 ## Security
 
 Do not report vulnerabilities in public issues. Contact the maintainer

@@ -195,16 +195,17 @@ impl Board {
 
     /// What `rustv-keyboard` draws.
     fn render(&self, palette: &Palette, lang: &str) -> serde_json::Value {
-        let tr = lang == "tr";
+        let word = |key: &str| rustv_locales::text(lang, key).to_string();
         let label = |key: Key| -> String {
             match key {
                 Key::Char(c) if self.shift => c.to_ascii_uppercase().to_string(),
                 Key::Char(c) => c.to_string(),
-                Key::Shift => if tr { "Büyük" } else { "Shift" }.into(),
-                Key::Delete => if tr { "Sil" } else { "Delete" }.into(),
-                Key::Space => if tr { "Boşluk" } else { "Space" }.into(),
-                Key::Enter => "Enter".into(),
-                Key::Close => if tr { "Kapat" } else { "Close" }.into(),
+                Key::Shift => word("osk.shift"),
+                Key::Delete => word("osk.delete"),
+                Key::Space => word("osk.space"),
+                Key::Enter => word("osk.enter"),
+                Key::Close => word("osk.close"),
+                // The same in every language.
                 Key::Symbols => "?123".into(),
                 Key::Letters => "ABC".into(),
             }
@@ -227,7 +228,7 @@ impl Board {
                     .collect()
             })
             .collect();
-        let hint = if tr { "OK  tuşa bas      Geri  kapat" } else { "OK  press the key      Back  close" };
+        let hint = word("osk.hint");
         json!({ "rows": rows, "preview": self.typed, "hint": hint, "palette": palette })
     }
 }

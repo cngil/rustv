@@ -107,7 +107,9 @@ and your phone becomes the remote.
   headphones or a gamepad. Changing Wi-Fi needs the polkit rule in
   `packaging/polkit`.
 - **Languages**: English and Turkish on the TV, the remote and the overlay,
-  with a 24 or 12 hour clock and °C or °F, switchable from the remote.
+  with a 24 or 12 hour clock and °C or °F, switchable from the remote. All
+  texts live in one catalog per language (`crates/locales/<lang>.toml`),
+  shared by every screen.
 - **UI sounds**: soft, generated clicks when moving between apps and opening
   one (no audio files shipped). Level or off in the settings.
 - **QR pairing**: the home screen shows a QR code until the first phone
@@ -432,7 +434,7 @@ Delete `~/.config/rustv/token` and restart `tvd` to revoke all paired devices.
   program's config)
 - [x] Reorder apps (from the remote)
 - [x] Localization: English and Turkish, 24 or 12 hour clock, °C or °F
-- [ ] More languages (one table each in the shell, the remote and the overlay)
+- [ ] More languages: one file each, `crates/locales/<lang>.toml` (see CONTRIBUTING)
 - [x] Screen casting with AirPlay (iPhone, iPad, Mac)
 - [x] HDMI-CEC: TV power follows rustv and the other way round, TV remote buttons
 - [ ] Screen casting from Android and Windows (Google Cast, Miracast); there

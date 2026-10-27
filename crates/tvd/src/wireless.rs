@@ -38,9 +38,9 @@ pub async fn connect(ssid: &str, password: Option<&str>) -> Result<()> {
     run("nmcli", &args).await.map(drop).map_err(|err| {
         let text = err.to_string();
         if text.contains("Secrets were required") || text.contains("802-1x") || text.contains("property is invalid") {
-            anyhow::anyhow!("Wrong Wi-Fi password")
+            crate::i18n::error("error.wifi.wrong_password", &[])
         } else if text.contains("Not authorized") || text.contains("not authorized") {
-            anyhow::anyhow!("Not allowed to change Wi-Fi; install the polkit rule from packaging/polkit")
+            crate::i18n::error("error.wifi.not_allowed", &[])
         } else {
             err
         }

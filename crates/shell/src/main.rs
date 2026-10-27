@@ -378,13 +378,13 @@ pub fn set_trial(ui: &Weak<Shell>, trial: Option<net::Trial>) {
     let _ = ui.upgrade_in_event_loop(move |ui| {
         ui.set_trial_open(trial.is_some());
         let Some(trial) = trial else { return };
-        let strings = LOCALE.with(|locale| locale.borrow().strings());
+        let countdown = LOCALE.with(|locale| locale.borrow().trial_countdown(trial.seconds));
         let label = match trial.mode.split_once('@') {
             Some((size, hz)) => format!("{}, {hz} Hz", size.replace('x', " × ")),
             None => trial.mode,
         };
         ui.set_trial_mode(label.into());
-        ui.set_trial_countdown(strings.trial_countdown.replace("{}", &trial.seconds.to_string()).into());
+        ui.set_trial_countdown(countdown.into());
     });
 }
 

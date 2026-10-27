@@ -187,7 +187,23 @@ pub enum ServerMsg {
     },
     Error {
         message: String,
+        /// The catalog key and values, when the screens can word it themselves.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        key: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        args: Option<serde_json::Value>,
     },
+}
+
+impl ServerMsg {
+    pub fn error(err: &anyhow::Error) -> Self {
+        let mut body = crate::i18n::describe(err);
+        ServerMsg::Error {
+            message: body["message"].as_str().unwrap_or_default().to_string(),
+            key: body.get("key").and_then(|key| key.as_str()).map(String::from),
+            args: body.get_mut("args").map(serde_json::Value::take),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

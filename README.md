@@ -137,6 +137,11 @@ and your phone becomes the remote.
   Needs a CEC adapter the kernel knows (`/dev/cec*`): a Raspberry Pi, some
   NUCs, a DisplayPort adapter with CEC tunneling, or a Pulse-Eight USB adapter
   through `inputattach --pulse8-cec`. Most PC graphics cards have none.
+- **Resolution and refresh rate**, picked from the modes the TV offers, in the
+  remote's settings or on the TV. A new mode applies at once and goes back by
+  itself after 15 seconds unless kept, so a mode the TV cannot show never
+  leaves you with a black screen; only a kept mode is saved
+  (`display.mode`).
 - **Settings on the TV**: a Settings tile after the apps (or the Menu key)
   opens the settings on the TV itself, moved through with the arrows, for
   whoever has only the TV remote or a gamepad. The same changes as from the
@@ -364,6 +369,9 @@ Commands are JSON objects tagged by `type`:
 {"type": "audio_output", "id": 52}
 {"type": "overlay", "visible": true}
 {"type": "sleep"}
+{"type": "display_mode", "mode": "1920x1080@60"}
+{"type": "display_keep"}
+{"type": "display_revert"}
 {"type": "sleep_timer", "minutes": 30}
 {"type": "media", "action": "play_pause"}
 {"type": "media", "action": "seek", "seconds": -10}

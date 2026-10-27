@@ -165,6 +165,17 @@ const TRANSLATIONS = {
     "Back 10 seconds": "10 saniye geri",
     "Forward 10 seconds": "10 saniye ileri",
     "Sleep timer": "Uyku zamanlayıcısı",
+    // display
+    Display: "Ekran",
+    Resolution: "Çözünürlük",
+    "Refresh rate": "Yenileme hızı",
+    "A new mode goes back by itself after 15 seconds unless you keep it.":
+      "Yeni bir mod, korumazsan 15 saniye sonra kendiliğinden geri döner.",
+    "The TV's resolutions show here once sway reports them.": "TV'nin çözünürlükleri sway bildirince burada görünür.",
+    "Keep this resolution?": "Bu çözünürlük kalsın mı?",
+    "{mode}. Going back in {seconds} s.": "{mode}. {seconds} sn sonra geri dönülecek.",
+    Keep: "Koru",
+    "Go back": "Geri dön",
     "Sleeps in {minutes} min": "{minutes} dk sonra uyuyacak",
     "Turn the TV off after a while, like on a TV remote.": "TV'yi bir süre sonra kapat, TV kumandasındaki gibi.",
     "The TV sleeps in {minutes} min.": "TV {minutes} dk sonra uyuyacak.",
@@ -577,6 +588,7 @@ function renderState() {
   $("#stop").hidden = !running;
   renderSettings();
   syncLock();
+  renderTrial();
   renderVolume();
   renderDock();
 }
@@ -918,6 +930,101 @@ for (const button of $$("[data-media]")) {
   });
 }
 
+// ---- display mode ----
+
+/** "1920x1080@59.94" → { size: "1920x1080", hz: "59.94" } */
+function splitMode(mode) {
+  const [size, hz] = String(mode).split("@");
+  return { size, hz };
+}
+
+function modeLabel(mode) {
+  const { size, hz } = splitMode(mode);
+  return `${size.replace("x", " × ")}, ${hz} Hz`;
+}
+
+/** A row of chips that sends the picked value through `pick`. */
+function choiceRow(label, hint, options, current, pick) {
+  const row = document.createElement("div");
+  row.className = "setting stacked";
+  const text = document.createElement("div");
+  text.className = "setting-text";
+  text.innerHTML = '<div class="setting-label"></div>';
+  text.querySelector(".setting-label").textContent = label;
+  if (hint) {
+    const note = document.createElement("div");
+    note.className = "setting-hint";
+    note.textContent = hint;
+    text.append(note);
+  }
+  const chips = document.createElement("div");
+  chips.className = "chips";
+  for (const [value, name] of options) {
+    const chip = document.createElement("button");
+    chip.className = "chip";
+    chip.textContent = name;
+    chip.setAttribute("aria-pressed", String(value === current));
+    chip.addEventListener("click", () => {
+      haptic();
+      if (value !== current) pick(value);
+    });
+    chips.append(chip);
+  }
+  row.append(text, chips);
+  return row;
+}
+
+function displayRows() {
+  const display = settings.display || { modes: [] };
+  if (!display.modes || !display.modes.length) {
+    const note = document.createElement("p");
+    note.className = "setting-hint";
+    note.textContent = t("The TV's resolutions show here once sway reports them.");
+    return [note];
+  }
+  const modes = display.modes.map(splitMode);
+  const on = splitMode(display.current || (display.mode !== "auto" ? display.mode : display.modes[0]));
+  const sizes = [...new Set(modes.map((m) => m.size))];
+  const rates = modes.filter((m) => m.size === on.size).map((m) => m.hz);
+  const tryMode = (mode) => send({ type: "display_mode", mode });
+  const resolution = choiceRow(
+    t("Resolution"),
+    t("A new mode goes back by itself after 15 seconds unless you keep it."),
+    sizes.map((size) => [size, size.replace("x", " × ")]),
+    on.size,
+    (size) => {
+      // Keep the refresh rate where the new size offers it, else the fastest up to 60 Hz.
+      const offered = modes.filter((m) => m.size === size).map((m) => m.hz);
+      const hz = offered.includes(on.hz) ? on.hz : offered.find((h) => Number(h) <= 60) || offered[0];
+      tryMode(`${size}@${hz}`);
+    },
+  );
+  const refresh = choiceRow(t("Refresh rate"), "", rates.map((hz) => [hz, `${hz} Hz`]), on.hz, (hz) =>
+    tryMode(`${on.size}@${hz}`),
+  );
+  return [resolution, refresh];
+}
+
+/** The "keep this resolution?" prompt, while a mode is on trial. */
+function renderTrial() {
+  const trial = state && state.display_trial;
+  $("#trial").hidden = !trial;
+  if (!trial) return;
+  $("#trial-text").textContent = t("{mode}. Going back in {seconds} s.", {
+    mode: modeLabel(trial.mode),
+    seconds: trial.seconds,
+  });
+}
+
+$("#trial-keep").addEventListener("click", () => {
+  haptic();
+  send({ type: "display_keep" });
+});
+$("#trial-revert").addEventListener("click", () => {
+  haptic();
+  send({ type: "display_revert" });
+});
+
 // ---- sleep timer ----
 
 let sleepInfo = null; // { at: ms when it fires } from the last state
@@ -1036,6 +1143,7 @@ const SETTINGS = [
     ],
   },
   { title: "Theme", custom: themeRows },
+  { title: "Display", custom: displayRows },
   {
     title: "Screensaver",
     items: [

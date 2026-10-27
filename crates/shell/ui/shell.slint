@@ -31,6 +31,9 @@ export global Strings {
     in property <string> hint-select: "Select";
     in property <string> hint-close: "Close";
     in property <string> back-key: "Back";
+    in property <string> trial-title: "Keep this resolution?";
+    in property <string> keep: "Keep";
+    in property <string> go-back: "Go back";
 }
 
 export struct AppTile {
@@ -196,6 +199,12 @@ export component Shell inherits Window {
     // "up", "down", "left", "right", "ok" or "back".
     callback settings-key(string);
     callback open-settings();
+
+    // A display mode on trial: OK keeps it, Back goes back; tvd reverts it by itself otherwise.
+    in property <bool> trial-open;
+    in property <string> trial-mode;
+    in property <string> trial-countdown;
+    callback trial-key(bool);
 
     callback launch(string);
     // UI sound: "move", "select" or "edge".
@@ -451,6 +460,57 @@ export component Shell inherits Window {
         TouchArea { mouse-cursor: none; }
     }
 
+    if root.trial-open: Rectangle {
+        background: #000000a0;
+        TouchArea { mouse-cursor: none; }
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: 860px * s;
+            height: 340px * s;
+            border-radius: 32px * s;
+            background: Palette.surface;
+            drop-shadow-offset-y: 24px * s;
+            drop-shadow-blur: 60px * s;
+            drop-shadow-color: #00000099;
+            VerticalLayout {
+                padding: 56px * s;
+                spacing: 14px * s;
+                Text {
+                    text: Strings.trial-title;
+                    color: Palette.text;
+                    font-size: 44px * s;
+                    font-weight: 600;
+                }
+                Text {
+                    text: root.trial-mode;
+                    color: Palette.text;
+                    font-size: 30px * s;
+                }
+                Text {
+                    text: root.trial-countdown;
+                    color: Palette.muted;
+                    font-size: 26px * s;
+                }
+                Rectangle { height: 18px * s; }
+                HorizontalLayout {
+                    alignment: start;
+                    spacing: 40px * s;
+                    HorizontalLayout {
+                        spacing: 14px * s;
+                        KeyCap { label: "OK"; s: root.s; }
+                        Text { text: Strings.keep; color: Palette.text; font-size: 26px * s; vertical-alignment: center; }
+                    }
+                    HorizontalLayout {
+                        spacing: 14px * s;
+                        KeyCap { label: Strings.back-key; s: root.s; }
+                        Text { text: Strings.go-back; color: Palette.muted; font-size: 26px * s; vertical-alignment: center; }
+                    }
+                }
+            }
+        }
+    }
+
     // Volume overlay
     Rectangle {
         opacity: root.osd-visible && root.show-volume-overlay ? 1 : 0;
@@ -582,6 +642,12 @@ export component Shell inherits Window {
                 return accept;
             }
             if root.locked {
+                return accept;
+            }
+            // A display mode on trial takes OK and Back; everything else waits until it is decided.
+            if root.trial-open {
+                if event.text == Key.Return || event.text == " " { root.trial-key(true); }
+                else if event.text == Key.Escape || event.text == Key.Backspace { root.trial-key(false); }
                 return accept;
             }
             if root.settings-open {

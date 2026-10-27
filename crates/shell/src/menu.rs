@@ -39,6 +39,10 @@ enum Kind {
     Action(&'static str),
     /// Shows or hides the debug overlay now; not saved.
     Overlay,
+    /// The TV output's resolution and refresh rate, from the modes tvd reports.
+    /// A change is tried first and kept on the TV's own prompt.
+    Resolution,
+    Refresh,
 }
 
 struct Item {
@@ -56,6 +60,8 @@ struct Section {
     items: &'static [Item],
     /// Only shown once the config lists pictures.
     pictures: bool,
+    /// Only shown once tvd reports the TV's display modes.
+    display: bool,
 }
 
 const fn toggle(key: &'static str, label: Text, hint: Text, needs: Option<&'static str>) -> Item {
@@ -88,6 +94,7 @@ const SECTIONS: &[Section] = &[
     Section {
         title: ["Home screen", "Ana ekran"],
         pictures: false,
+        display: false,
         items: &[
             toggle("shell.greeting", ["Greeting", "Karşılama"], NO_HINT, None),
             toggle("shell.clock", ["Clock", "Saat"], NO_HINT, None),
@@ -144,6 +151,7 @@ const SECTIONS: &[Section] = &[
     Section {
         title: ["Look and language", "Görünüm ve dil"],
         pictures: false,
+        display: false,
         items: &[
             choice(
                 "theme.preset",
@@ -177,8 +185,29 @@ const SECTIONS: &[Section] = &[
         ],
     },
     Section {
+        title: ["Display", "Ekran"],
+        pictures: false,
+        display: true,
+        items: &[
+            Item {
+                key: "",
+                label: ["Resolution", "Çözünürlük"],
+                hint: [
+                    "A new mode goes back by itself after 15 seconds unless you keep it.",
+                    "Yeni bir mod, korumazsan 15 saniye sonra kendiliğinden geri döner.",
+                ],
+                kind: Kind::Resolution,
+                needs: None,
+            },
+            Item {
+                key: "", label: ["Refresh rate", "Yenileme hızı"], hint: NO_HINT, kind: Kind::Refresh, needs: None
+            },
+        ],
+    },
+    Section {
         title: ["Wallpaper", "Duvar kağıdı"],
         pictures: true,
+        display: false,
         items: &[
             toggle(
                 "wallpaper.home",
@@ -205,6 +234,7 @@ const SECTIONS: &[Section] = &[
     Section {
         title: ["Screensaver", "Ekran koruyucu"],
         pictures: false,
+        display: false,
         items: &[
             toggle(
                 "screensaver.enabled",
@@ -224,6 +254,7 @@ const SECTIONS: &[Section] = &[
     Section {
         title: ["Sleep", "Uyku"],
         pictures: false,
+        display: false,
         items: &[
             toggle(
                 "sleep.enabled",
@@ -264,6 +295,7 @@ const SECTIONS: &[Section] = &[
     Section {
         title: ["Sound", "Ses"],
         pictures: false,
+        display: false,
         items: &[
             choice(
                 "audio.max_volume",
@@ -295,6 +327,7 @@ const SECTIONS: &[Section] = &[
     Section {
         title: ["TV control (HDMI-CEC)", "TV kontrolü (HDMI-CEC)"],
         pictures: false,
+        display: false,
         items: &[
             toggle(
                 "cec.enabled",
@@ -334,6 +367,7 @@ const SECTIONS: &[Section] = &[
     Section {
         title: ["Gamepad and casting", "Oyun kolu ve yansıtma"],
         pictures: false,
+        display: false,
         items: &[
             toggle(
                 "gamepad.enabled",
@@ -361,6 +395,7 @@ const SECTIONS: &[Section] = &[
     Section {
         title: ["Debug overlay", "Hata ayıklama katmanı"],
         pictures: false,
+        display: false,
         items: &[
             Item {
                 key: "",
@@ -454,7 +489,64 @@ impl Menu {
 
     fn sections(&self) -> impl Iterator<Item = &'static Section> + '_ {
         let pictures = self.settings["wallpaper"]["count"].as_u64().unwrap_or(0) > 0;
-        SECTIONS.iter().filter(move |section| pictures || !section.pictures)
+        let display = !self.modes().is_empty();
+        SECTIONS.iter().filter(move |section| (pictures || !section.pictures) && (display || !section.display))
+    }
+
+    /// The TV's modes as `(size, hz)`, such as `("1920x1080", "59.94")`.
+    fn modes(&self) -> Vec<(String, String)> {
+        let modes = self.settings["display"]["modes"].as_array().cloned().unwrap_or_default();
+        modes
+            .iter()
+            .filter_map(|mode| mode.as_str()?.split_once('@').map(|(size, hz)| (size.to_string(), hz.to_string())))
+            .collect()
+    }
+
+    /// The mode on screen, or the configured one while the screen is off.
+    fn current_mode(&self) -> Option<(String, String)> {
+        let display = &self.settings["display"];
+        let mode = display["current"].as_str().or(display["mode"].as_str().filter(|mode| *mode != "auto"))?;
+        mode.split_once('@').map(|(size, hz)| (size.to_string(), hz.to_string()))
+    }
+
+    /// For a resolution or refresh row: the full modes it can switch to (with
+    /// their labels) and which one is on now.
+    fn mode_choices(&self, kind: &Kind) -> (Vec<(String, String)>, Option<usize>) {
+        let modes = self.modes();
+        let Some((size, hz)) = self.current_mode().or_else(|| modes.first().cloned()) else {
+            return (Vec::new(), None);
+        };
+        let mut choices: Vec<(String, String)> = Vec::new();
+        match kind {
+            Kind::Resolution => {
+                for (other, _) in &modes {
+                    if choices.iter().any(|(mode, _)| mode.starts_with(&format!("{other}@"))) {
+                        continue;
+                    }
+                    // Keep the refresh rate where the new size offers it, else the fastest up to 60 Hz.
+                    let rates: Vec<&String> = modes.iter().filter(|(s, _)| s == other).map(|(_, h)| h).collect();
+                    let rate = rates
+                        .iter()
+                        .find(|h| **h == &hz)
+                        .or_else(|| rates.iter().find(|h| h.parse::<f64>().is_ok_and(|v| v <= 60.0)))
+                        .or(rates.first())
+                        .map_or(hz.clone(), |h| h.to_string());
+                    choices.push((format!("{other}@{rate}"), other.replace('x', " × ")));
+                }
+                let at = choices.iter().position(|(mode, _)| mode.starts_with(&format!("{size}@")));
+                (choices, at)
+            }
+            Kind::Refresh => {
+                for (other, rate) in &modes {
+                    if *other == size {
+                        choices.push((format!("{other}@{rate}"), format!("{rate} Hz")));
+                    }
+                }
+                let at = choices.iter().position(|(mode, _)| *mode == format!("{size}@{hz}"));
+                (choices, at)
+            }
+            _ => (Vec::new(), None),
+        }
     }
 
     fn enabled(&self, item: &Item) -> bool {
@@ -497,10 +589,18 @@ impl Menu {
                 let options = self.options(item);
                 let current = self.get(item.key);
                 let at = options.iter().position(|(lit, _)| lit.matches(current));
+                let (choices, chosen) = self.mode_choices(&item.kind);
                 let (kind, value) = match item.kind {
                     Kind::Toggle | Kind::Overlay => ("toggle", String::new()),
                     Kind::Action(_) => ("action", String::new()),
                     Kind::Choice(_) => ("choice", at.map_or_else(|| shown(current), |i| options[i].1[lang].into())),
+                    Kind::Resolution | Kind::Refresh => {
+                        ("choice", chosen.map(|i| choices[i].1.clone()).unwrap_or_default())
+                    }
+                };
+                let (at, count) = match item.kind {
+                    Kind::Resolution | Kind::Refresh => (chosen, choices.len()),
+                    _ => (at, options.len()),
                 };
                 let on = match item.kind {
                     Kind::Overlay => self.overlay,
@@ -526,7 +626,7 @@ impl Menu {
                     focused: is_focused,
                     y,
                     before: at.is_some_and(|i| i > 0),
-                    after: at.map_or(!options.is_empty(), |i| i + 1 < options.len()),
+                    after: at.map_or(count > 0, |i| i + 1 < count),
                 });
                 y += ROW;
             }
@@ -573,6 +673,23 @@ impl Menu {
                 Outcome::Send(json!({ "type": "overlay", "visible": self.overlay }))
             }
             Kind::Action(command) if key == "ok" => Outcome::SendAndClose(json!({ "type": command })),
+            Kind::Resolution | Kind::Refresh => {
+                let (choices, at) = self.mode_choices(&item.kind);
+                if choices.is_empty() {
+                    return Outcome::Nothing;
+                }
+                let next = match (key, at) {
+                    (_, None) => 0,
+                    ("left", Some(i)) => i.saturating_sub(1),
+                    ("right", Some(i)) => (i + 1).min(choices.len() - 1),
+                    (_, Some(i)) => (i + 1) % choices.len(),
+                };
+                if at == Some(next) {
+                    return Outcome::Nothing;
+                }
+                // tvd tries it and the TV asks whether to keep it.
+                Outcome::Send(json!({ "type": "display_mode", "mode": choices[next].0 }))
+            }
             Kind::Choice(_) => {
                 let options = self.options(item);
                 let at = options.iter().position(|(lit, _)| lit.matches(self.get(item.key)));
@@ -700,6 +817,28 @@ mod tests {
         settings["wallpaper"]["count"] = json!(3);
         menu.set_settings(settings);
         assert!(menu.rows().iter().any(|row| row.label == "Wallpaper"));
+    }
+
+    #[test]
+    fn display_modes_are_tried_not_set() {
+        let mut menu = menu();
+        assert!(!menu.rows().iter().any(|row| row.label == "Resolution"));
+        let mut settings = menu.settings.clone();
+        settings["display"] = json!({
+            "mode": "auto", "current": "1920x1080@60",
+            "modes": ["3840x2160@60", "3840x2160@30", "1920x1080@120", "1920x1080@60", "1280x720@60"]
+        });
+        menu.set_settings(settings);
+        while focused(&mut menu).label != "Resolution" {
+            menu.key("down");
+        }
+        assert_eq!(focused(&mut menu).value, "1920 × 1080");
+        // A larger size keeps 60 Hz, which it offers.
+        assert_eq!(menu.key("left"), Outcome::Send(json!({ "type": "display_mode", "mode": "3840x2160@60" })));
+        menu.key("down");
+        let row = focused(&mut menu);
+        assert_eq!((row.label.as_str(), row.value.as_str()), ("Refresh rate", "60 Hz"));
+        assert_eq!(menu.key("left"), Outcome::Send(json!({ "type": "display_mode", "mode": "1920x1080@120" })));
     }
 
     #[test]

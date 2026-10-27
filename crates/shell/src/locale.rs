@@ -40,6 +40,11 @@ pub struct Strings {
     pub hint_select: &'static str,
     pub hint_close: &'static str,
     pub back_key: &'static str,
+    pub trial_title: &'static str,
+    /// `{}` is the number of seconds.
+    pub trial_countdown: &'static str,
+    pub keep: &'static str,
+    pub go_back: &'static str,
     greetings: [&'static str; 3],
     days: [&'static str; 7],
     months: [&'static str; 12],
@@ -64,6 +69,10 @@ const EN: Strings = Strings {
     hint_select: "Select",
     hint_close: "Close",
     back_key: "Back",
+    trial_title: "Keep this resolution?",
+    trial_countdown: "Going back in {} s",
+    keep: "Keep",
+    go_back: "Go back",
     greetings: ["Good morning", "Good afternoon", "Good evening"],
     days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
     months: [
@@ -101,6 +110,10 @@ const TR: Strings = Strings {
     hint_select: "Seç",
     hint_close: "Kapat",
     back_key: "Geri",
+    trial_title: "Bu çözünürlük kalsın mı?",
+    trial_countdown: "{} sn sonra geri dönülecek",
+    keep: "Koru",
+    go_back: "Geri dön",
     greetings: ["Günaydın", "İyi günler", "İyi akşamlar"],
     days: ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"],
     months: [

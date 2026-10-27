@@ -110,6 +110,15 @@ pub enum Command {
         #[serde(default)]
         visible: Option<bool>,
     },
+    /// Try a resolution and refresh rate, such as `1920x1080@60`. It goes back by
+    /// itself after a few seconds unless `display_keep` follows.
+    DisplayMode {
+        mode: String,
+    },
+    /// Keep the mode being tried, and save it to the config.
+    DisplayKeep,
+    /// Go back to the mode before the one being tried, now.
+    DisplayRevert,
 }
 
 impl Command {
@@ -126,6 +135,9 @@ impl Command {
                 | Command::WifiConnect { .. }
                 | Command::Bluetooth { .. }
                 | Command::Sleep
+                | Command::DisplayMode { .. }
+                | Command::DisplayKeep
+                | Command::DisplayRevert
         )
     }
 
@@ -188,6 +200,7 @@ pub struct SettingsInfo {
     pub presets: Vec<crate::theme::Preset>,
     pub overlay: crate::config::Overlay,
     pub cec: crate::config::Cec,
+    pub display: crate::display::Info,
     pub wallpaper: crate::wallpaper::Info,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],
@@ -224,10 +237,18 @@ pub struct StateSnapshot {
     pub locked: bool,
     /// Seconds until the sleep timer puts the TV to sleep, if one is set.
     pub sleep_in: Option<u64>,
+    /// A display mode on trial: it goes back unless kept within `seconds`.
+    pub display_trial: Option<DisplayTrial>,
     /// Connected remotes (clients other than the TV shell).
     pub remotes: usize,
     /// Connected WebSocket clients (remotes, the shell).
     pub clients: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DisplayTrial {
+    pub mode: String,
+    pub seconds: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -272,12 +293,13 @@ mod tests {
             show_pairing: false,
             locked: false,
             sleep_in: None,
+            display_trial: None,
             remotes: 0,
             clients: 1,
         });
         assert_eq!(
             serde_json::to_string(&msg).unwrap(),
-            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"show_pairing":false,"locked":false,"sleep_in":null,"remotes":0,"clients":1}"#
+            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"show_pairing":false,"locked":false,"sleep_in":null,"display_trial":null,"remotes":0,"clients":1}"#
         );
         let cmd: Command = serde_json::from_str(r#"{"type":"overlay"}"#).unwrap();
         assert!(matches!(cmd, Command::Overlay { visible: None }));

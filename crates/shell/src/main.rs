@@ -110,6 +110,11 @@ fn main() -> Result<()> {
             open_settings(&ui);
         }
     });
+    let to_tvd = commands.clone();
+    ui.on_trial_key(move |keep| {
+        let msg = serde_json::json!({ "type": if keep { "display_keep" } else { "display_revert" } });
+        let _ = to_tvd.send(msg.to_string());
+    });
     let weak = ui.as_weak();
     ui.on_settings_key(move |key| {
         let Some(ui) = weak.upgrade() else { return };
@@ -368,6 +373,21 @@ pub fn set_settings(ui: &Weak<Shell>, settings: serde_json::Value) {
     });
 }
 
+/// The "keep this resolution?" prompt, with its countdown, while tvd tries a mode.
+pub fn set_trial(ui: &Weak<Shell>, trial: Option<net::Trial>) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        ui.set_trial_open(trial.is_some());
+        let Some(trial) = trial else { return };
+        let strings = LOCALE.with(|locale| locale.borrow().strings());
+        let label = match trial.mode.split_once('@') {
+            Some((size, hz)) => format!("{}, {hz} Hz", size.replace('x', " × ")),
+            None => trial.mode,
+        };
+        ui.set_trial_mode(label.into());
+        ui.set_trial_countdown(strings.trial_countdown.replace("{}", &trial.seconds.to_string()).into());
+    });
+}
+
 pub fn set_overlay(ui: &Weak<Shell>, visible: bool) {
     let _ = ui.upgrade_in_event_loop(move |ui| {
         MENU.with(|menu| menu.borrow_mut().set_overlay(visible));
@@ -398,6 +418,9 @@ pub fn set_locale(ui: &Weak<Shell>, locale: locale::Locale) {
         g.set_hint_select(s.hint_select.into());
         g.set_hint_close(s.hint_close.into());
         g.set_back_key(s.back_key.into());
+        g.set_trial_title(s.trial_title.into());
+        g.set_keep(s.keep.into());
+        g.set_go_back(s.go_back.into());
         LOCALE.with(|current| *current.borrow_mut() = locale);
         update_clock(&ui);
         // The Settings tile carries a translated name.

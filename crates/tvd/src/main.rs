@@ -10,6 +10,7 @@ mod audio;
 mod cast;
 mod cec;
 mod config;
+mod display;
 mod gamepad;
 mod input;
 mod keymap;

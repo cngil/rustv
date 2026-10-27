@@ -52,6 +52,8 @@ pub struct Config {
     pub cec: Cec,
     #[serde(default)]
     pub wallpaper: Wallpaper,
+    #[serde(default)]
+    pub display: Display,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
 }
@@ -124,6 +126,21 @@ pub enum ScreensaverStyle {
     Clock,
     /// A slideshow of your own pictures (`[wallpaper] images`).
     Images,
+}
+
+/// The TV output's resolution and refresh rate.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Display {
+    /// `auto` leaves it to sway's config; otherwise a mode such as `1920x1080@60`,
+    /// written here only after someone kept it on screen.
+    pub mode: String,
+}
+
+impl Default for Display {
+    fn default() -> Self {
+        Self { mode: "auto".into() }
+    }
 }
 
 /// Your own pictures, behind the home screen and in the `images` screensaver.
@@ -540,6 +557,10 @@ impl Config {
         }
         if !(1.0..=1440.0).contains(&self.sleep.after_minutes) {
             bail!("sleep.after_minutes must be between 1 and 1440");
+        }
+        if self.display.mode != "auto" {
+            crate::display::Mode::parse(&self.display.mode)
+                .context("display.mode must be auto or like 1920x1080@60")?;
         }
         if !(1.0..=1440.0).contains(&self.wallpaper.change_minutes) {
             bail!("wallpaper.change_minutes must be between 1 and 1440");

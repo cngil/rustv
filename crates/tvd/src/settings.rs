@@ -61,6 +61,19 @@ pub const EDITABLE: &[&str] = &[
 /// Sets `key` (such as `screensaver.idle_minutes`) in the config file and
 /// returns the config as it is now.
 pub fn apply(path: &Path, key: &str, value: &Value) -> Result<Config> {
+    if !EDITABLE.contains(&key) {
+        bail!("{key} cannot be changed from the remote");
+    }
+    write(path, key, value)
+}
+
+/// The same for settings tvd changes itself after its own checks, such as a
+/// display mode once someone kept it.
+pub fn apply_kept(path: &Path, key: &str, value: &Value) -> Result<Config> {
+    write(path, key, value)
+}
+
+fn write(path: &Path, key: &str, value: &Value) -> Result<Config> {
     let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     let updated = set(&text, key, value)?;
     let config = Config::parse(&updated).with_context(|| format!("{key}: value rejected"))?;
@@ -72,9 +85,6 @@ pub fn apply(path: &Path, key: &str, value: &Value) -> Result<Config> {
 }
 
 fn set(text: &str, key: &str, value: &Value) -> Result<String> {
-    if !EDITABLE.contains(&key) {
-        bail!("{key} cannot be changed from the remote");
-    }
     let (table, field) = key.split_once('.').context("key must look like section.name")?;
     let mut new = match value {
         Value::Bool(b) => toml_edit::value(*b),
@@ -140,7 +150,13 @@ mod tests {
 
     #[test]
     fn refuses_other_keys_and_bad_values() {
-        assert!(set(CONFIG, "server.bind", &json!("0.0.0.0:1")).is_err());
+        let path = std::env::temp_dir().join(format!("tvd-settings-{}.toml", std::process::id()));
+        std::fs::write(&path, CONFIG).unwrap();
+        assert!(apply(&path, "server.bind", &json!("0.0.0.0:1")).is_err());
+        // Only after tvd's own checks.
+        assert!(apply(&path, "display.mode", &json!("1920x1080@60")).is_err());
+        assert_eq!(apply_kept(&path, "display.mode", &json!("1920x1080@60")).unwrap().display.mode, "1920x1080@60");
+        std::fs::remove_file(path).unwrap();
         assert!(set(CONFIG, "screensaver.idle_minutes", &json!([1])).is_err());
         // Parses as TOML but fails validation.
         let out = set(CONFIG, "screensaver.style", &json!("neon")).unwrap();

@@ -30,6 +30,8 @@ enum Incoming {
         locked: bool,
         #[serde(default)]
         overlay: bool,
+        #[serde(default)]
+        display_trial: Option<Trial>,
     },
     Pairing {
         url: String,
@@ -116,6 +118,13 @@ impl Default for WallpaperConfig {
     }
 }
 
+/// A display mode on trial, from the `state` message.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Trial {
+    pub mode: String,
+    pub seconds: u64,
+}
+
 #[derive(Debug, Deserialize)]
 struct AppInfo {
     id: String,
@@ -186,8 +195,9 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
             .unwrap_or_default();
             crate::set_apps(ui, entries);
         }
-        Incoming::State { running, volume: new_volume, asleep, show_pairing, locked, overlay } => {
+        Incoming::State { running, volume: new_volume, asleep, show_pairing, locked, overlay, display_trial } => {
             crate::set_overlay(ui, overlay);
+            crate::set_trial(ui, display_trial);
             crate::set_locked(ui, locked);
             crate::set_running(ui, running.is_some());
             crate::set_asleep(ui, asleep);

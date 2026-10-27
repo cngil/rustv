@@ -41,6 +41,13 @@ style = "random"   # random (a different one each time), aurora, orbits, clock o
 clock = true
 date = true
 
+[display]
+# Resolution and refresh rate of the TV output: "auto" leaves it to sway's
+# config, or a mode the TV offers, such as "1920x1080@60" or "3840x2160@59.94".
+# Pick it in the remote's settings or on the TV instead: a new mode goes back
+# by itself after 15 seconds unless you keep it, and only then is it saved here.
+mode = "auto"
+
 [wallpaper]
 # Your own pictures (JPEG or PNG), files or folders of them. They show behind
 # the home screen and in the "images" screensaver; "random" mixes them with

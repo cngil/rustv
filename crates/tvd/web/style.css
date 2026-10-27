@@ -1449,3 +1449,36 @@ code {
 .timer-chips {
   padding-bottom: 6px;
 }
+
+/* ---- display mode on trial ---- */
+
+/* Above the settings sheet it was started from. */
+.trial {
+  z-index: 22;
+}
+
+.trial h2 {
+  margin: 4px 4px 6px;
+}
+
+.trial-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.trial-actions button {
+  height: 52px;
+  font-weight: 500;
+}
+
+@media (min-width: 1000px) {
+  .trial {
+    align-items: center;
+  }
+
+  .trial .sheet-panel {
+    width: 440px;
+    border-radius: 24px;
+  }
+}

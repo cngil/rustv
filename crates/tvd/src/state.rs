@@ -61,6 +61,20 @@ pub struct AppState {
     /// Last remote command or sound; what sleep waits on.
     last_activity: AtomicU64,
     asleep: AtomicBool,
+    /// The TV output as last read from sway, and the mode tvd set last (the
+    /// output reports none while the screen is off).
+    display: std::sync::Mutex<crate::display::Info>,
+    display_set: std::sync::Mutex<Option<crate::display::Mode>>,
+    /// A mode on trial, and a counter that ends older trials.
+    display_trial: std::sync::Mutex<Option<Trial>>,
+    display_trial_id: AtomicU64,
+}
+
+/// A display mode being tried, and the one to go back to.
+struct Trial {
+    mode: crate::display::Mode,
+    previous: Option<crate::display::Mode>,
+    until: u64,
 }
 
 impl AppState {
@@ -97,6 +111,10 @@ impl AppState {
             last_input: AtomicU64::new(now()),
             last_activity: AtomicU64::new(now()),
             asleep: AtomicBool::new(false),
+            display: std::sync::Mutex::new(crate::display::Info::default()),
+            display_set: std::sync::Mutex::new(None),
+            display_trial: std::sync::Mutex::new(None),
+            display_trial_id: AtomicU64::new(0),
         });
         sleep::watch(Arc::downgrade(&state));
         watch_volume(Arc::downgrade(&state));
@@ -155,6 +173,7 @@ impl AppState {
             presets: crate::theme::presets(),
             overlay: cfg.overlay.clone(),
             cec: cfg.cec.clone(),
+            display: crate::display::Info { mode: cfg.display.mode.clone(), ..self.display.lock().unwrap().clone() },
             wallpaper: crate::wallpaper::info(&cfg.wallpaper),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
@@ -176,11 +195,20 @@ impl AppState {
         }
     }
 
-    async fn change_setting(self: &Arc<Self>, key: String, value: serde_json::Value) -> Result<()> {
+    /// `kept`: tvd checked the value itself (a display mode that stayed on screen),
+    /// so keys the remote may not set are allowed.
+    async fn change_setting(self: &Arc<Self>, key: String, value: serde_json::Value, kept: bool) -> Result<()> {
         let _one_at_a_time = self.settings_write.lock().await;
         let path = self.config_path.clone();
         let log_key = key.clone();
-        let fresh = tokio::task::spawn_blocking(move || settings::apply(&path, &key, &value)).await??;
+        let fresh = tokio::task::spawn_blocking(move || {
+            if kept {
+                settings::apply_kept(&path, &key, &value)
+            } else {
+                settings::apply(&path, &key, &value)
+            }
+        })
+        .await??;
         let (overlay_moved, cast_changed, osd_changed) = {
             let mut cfg = self.config.write().unwrap();
             let osd_changed = cfg.theme != fresh.theme || cfg.audio.max_volume != fresh.audio.max_volume;
@@ -198,6 +226,7 @@ impl AppState {
             cfg.audio = fresh.audio;
             cfg.sleep = fresh.sleep;
             cfg.overlay = fresh.overlay;
+            cfg.display = fresh.display;
             cfg.cec = fresh.cec;
             cfg.wallpaper = fresh.wallpaper;
             (moved, cast_changed, osd_changed)
@@ -280,6 +309,10 @@ impl AppState {
             show_pairing: self.show_pairing(),
             locked: self.lock.is_locked(),
             sleep_in: self.sleep_at.lock().unwrap().map(|at| at.saturating_sub(now())),
+            display_trial: self.display_trial.lock().unwrap().as_ref().map(|trial| crate::protocol::DisplayTrial {
+                mode: trial.mode.to_string(),
+                seconds: trial.until.saturating_sub(now()),
+            }),
             remotes: self.remotes.load(Ordering::Relaxed),
             clients: self.clients.load(Ordering::Relaxed),
         }
@@ -292,14 +325,113 @@ impl AppState {
     }
 
     /// After startup: the screen may still be off if tvd stopped while the TV slept,
-    /// and an app adopted at startup is the one whose volume counts.
+    /// the config may ask for a display mode, and an app adopted at startup is
+    /// the one whose volume counts.
     pub async fn after_start(&self) {
         if let Err(err) = sleep::display_power(true).await {
             tracing::debug!("turning the screen on at start: {err:#}");
         }
+        let wanted = self.config().display.mode.clone();
+        if let Ok(mode) = crate::display::Mode::parse(&wanted) {
+            if let Err(err) = self.set_display_mode(mode).await {
+                warn!("display.mode {wanted}: {err:#}");
+            }
+        }
+        self.read_display().await;
         if let Some((id, _)) = self.apps.running().await {
             self.volumes.lock().await.current = id;
         }
+    }
+
+    /// Reads the TV output from sway into `display`, for the remotes and the shell.
+    async fn read_display(&self) {
+        match crate::display::read().await {
+            Ok((output, current, modes)) => {
+                let current = current.or(*self.display_set.lock().unwrap());
+                let mut info = self.display.lock().unwrap();
+                info.output = output;
+                info.current = current.map(|mode| mode.to_string());
+                info.modes = modes.iter().map(ToString::to_string).collect();
+            }
+            Err(err) => tracing::debug!("reading the display: {err:#}"),
+        }
+    }
+
+    async fn set_display_mode(&self, mode: crate::display::Mode) -> Result<()> {
+        let (output, current, modes) = crate::display::read().await?;
+        if !modes.contains(&mode) {
+            anyhow::bail!("the TV does not offer {mode}");
+        }
+        if current != Some(mode) {
+            crate::display::apply(&output, mode).await?;
+            info!(%mode, %output, "display mode set");
+        }
+        *self.display_set.lock().unwrap() = Some(mode);
+        Ok(())
+    }
+
+    /// Puts `mode` on screen for a few seconds; without `display_keep` the
+    /// previous one comes back, so an unsupported mode cannot leave the TV black.
+    async fn try_display_mode(self: &Arc<Self>, mode: &str) -> Result<()> {
+        let mode = crate::display::Mode::parse(mode)?;
+        let before = {
+            let trial = self.display_trial.lock().unwrap();
+            match trial.as_ref() {
+                // Trying another while one is on trial still goes back to the one before both.
+                Some(trial) => trial.previous,
+                None => None,
+            }
+        };
+        let previous = match before {
+            Some(mode) => Some(mode),
+            None => crate::display::read().await?.1.or(*self.display_set.lock().unwrap()),
+        };
+        self.set_display_mode(mode).await?;
+        let id = self.display_trial_id.fetch_add(1, Ordering::Relaxed) + 1;
+        *self.display_trial.lock().unwrap() =
+            Some(Trial { mode, previous, until: now() + crate::display::TRIAL_SECONDS });
+        self.read_display().await;
+        let _ = self.events.send(ServerMsg::Settings(self.settings_info()));
+        self.notify().await;
+        // Count down on every screen, then go back unless someone kept it.
+        let state = Arc::clone(self);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                if state.display_trial_id.load(Ordering::Relaxed) != id {
+                    return;
+                }
+                let over = state.display_trial.lock().unwrap().as_ref().map_or(true, |t| now() >= t.until);
+                if over {
+                    info!("display mode not kept, going back");
+                    state.end_display_trial().await;
+                    return;
+                }
+                state.notify().await;
+            }
+        });
+        Ok(())
+    }
+
+    async fn keep_display_mode(self: &Arc<Self>) -> Result<()> {
+        self.display_trial_id.fetch_add(1, Ordering::Relaxed);
+        let Some(trial) = self.display_trial.lock().unwrap().take() else { return Ok(()) };
+        info!(mode = %trial.mode, "display mode kept");
+        self.change_setting("display.mode".into(), trial.mode.to_string().into(), true).await
+    }
+
+    /// Back to the mode before the trial.
+    async fn end_display_trial(&self) {
+        self.display_trial_id.fetch_add(1, Ordering::Relaxed);
+        let trial = self.display_trial.lock().unwrap().take();
+        if let Some(previous) = trial.and_then(|trial| trial.previous) {
+            if let Err(err) = self.set_display_mode(previous).await {
+                warn!("going back to {previous}: {err:#}");
+            }
+        }
+        self.read_display().await;
+        let _ = self.events.send(ServerMsg::Settings(self.settings_info()));
+        self.notify().await;
     }
 
     /// AirPlay as configured, but never while locked: a mirrored phone would
@@ -500,7 +632,10 @@ impl AppState {
                 self.apps.reorder(&ids)?;
                 let _ = self.events.send(ServerMsg::Apps { apps: self.app_infos() });
             }
-            Command::Set { key, value } => self.change_setting(key, value).await?,
+            Command::Set { key, value } => self.change_setting(key, value, false).await?,
+            Command::DisplayMode { mode } => self.try_display_mode(&mode).await?,
+            Command::DisplayKeep => self.keep_display_mode().await?,
+            Command::DisplayRevert => self.end_display_trial().await,
             Command::Sleep => self.go_to_sleep().await,
             Command::Lock => {
                 self.lock.lock()?;

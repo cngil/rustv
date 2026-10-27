@@ -26,6 +26,7 @@ mod state;
 mod stats;
 mod theme;
 mod volumes;
+mod wallpaper;
 mod wireless;
 
 use std::io::IsTerminal;

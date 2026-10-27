@@ -205,6 +205,20 @@ const TRANSLATIONS = {
     "Connected to {name}": "{name} bağlandı",
     "Paired with {name}": "{name} eşleştirildi",
     "Something went wrong": "Bir şeyler ters gitti",
+    // wallpaper
+    Wallpaper: "Duvar kağıdı",
+    "My pictures": "Resimlerim",
+    "Behind the home screen": "Ana ekranın arkasında",
+    "Your pictures instead of the theme's background.": "Temanın arka planı yerine kendi resimlerin.",
+    "Change every": "Değiştirme sıklığı",
+    "Screensaver: each picture for": "Ekran koruyucu: her resim",
+    "Random order": "Rastgele sıra",
+    "1 day": "1 gün",
+    "10 s": "10 sn",
+    "30 s": "30 sn",
+    "Pictures in [wallpaper] images: {count}": "[wallpaper] images içindeki resimler: {count}",
+    "Add picture files or folders to [wallpaper] images in the config file.":
+      "Yapılandırma dosyasında [wallpaper] images listesine resim dosyaları ya da klasörler ekle.",
     // HDMI-CEC
     "TV control (HDMI-CEC)": "TV kontrolü (HDMI-CEC)",
     "Control the TV over HDMI": "TV'yi HDMI üzerinden kontrol et",
@@ -1035,7 +1049,7 @@ const SETTINGS = [
         key: "screensaver.style",
         label: "Style",
         needs: "screensaver.enabled",
-        options: [["random", "Mix"], ["aurora", "Aurora"], ["orbits", "Orbits"], ["clock", "Clock"]],
+        options: [["random", "Mix"], ["aurora", "Aurora"], ["orbits", "Orbits"], ["clock", "Clock"], ["images", "My pictures"]],
       },
       { key: "screensaver.clock", label: "Show the time", needs: "screensaver.enabled" },
       { key: "screensaver.date", label: "Show the date", needs: "screensaver.enabled" },
@@ -1143,6 +1157,31 @@ const SETTINGS = [
     ],
   },
   {
+    title: "Wallpaper",
+    custom: () => [
+      wallpaperCount(),
+      ...[
+        {
+          key: "wallpaper.home",
+          label: "Behind the home screen",
+          hint: "Your pictures instead of the theme's background.",
+        },
+        {
+          key: "wallpaper.change_minutes",
+          label: "Change every",
+          needs: "wallpaper.home",
+          options: [[5, "5 min"], [15, "15 min"], [30, "30 min"], [60, "1 h"], [240, "4 h"], [1440, "1 day"]],
+        },
+        {
+          key: "wallpaper.slide_seconds",
+          label: "Screensaver: each picture for",
+          options: [[10, "10 s"], [30, "30 s"], [60, "1 min"], [300, "5 min"]],
+        },
+        { key: "wallpaper.shuffle", label: "Random order" },
+      ].map(settingRow),
+    ],
+  },
+  {
     title: "TV control (HDMI-CEC)",
     items: [
       {
@@ -1179,6 +1218,17 @@ const SETTINGS = [
     ],
   },
 ];
+
+// How many pictures the config lists; the list itself is edited in the config file.
+function wallpaperCount() {
+  const count = settings.wallpaper ? settings.wallpaper.count : 0;
+  const note = document.createElement("p");
+  note.className = "setting-hint";
+  note.textContent = count
+    ? t("Pictures in [wallpaper] images: {count}", { count })
+    : t("Add picture files or folders to [wallpaper] images in the config file.");
+  return note;
+}
 
 function settingValue(key) {
   // Action rows (Sleep now, Show code) have no value.

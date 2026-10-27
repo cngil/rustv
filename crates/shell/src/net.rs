@@ -39,6 +39,7 @@ enum Incoming {
     },
     Shell(Visibility),
     Screensaver(ScreensaverConfig),
+    Wallpaper(WallpaperConfig),
     Locale(crate::locale::Locale),
     Theme(crate::Colors),
     #[serde(other)]
@@ -78,7 +79,7 @@ impl Default for Visibility {
 pub struct ScreensaverConfig {
     pub enabled: bool,
     pub idle_minutes: f32,
-    /// "random", "aurora", "orbits" or "clock".
+    /// "random", "aurora", "orbits", "clock" or "images".
     pub style: String,
     pub clock: bool,
     pub date: bool,
@@ -87,6 +88,23 @@ pub struct ScreensaverConfig {
 impl Default for ScreensaverConfig {
     fn default() -> Self {
         Self { enabled: true, idle_minutes: 5.0, style: "random".into(), clock: true, date: true }
+    }
+}
+
+/// The `[wallpaper]` section, as sent by tvd: settings and how many pictures there are.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(default)]
+pub struct WallpaperConfig {
+    pub home: bool,
+    pub change_minutes: f32,
+    pub slide_seconds: f32,
+    pub shuffle: bool,
+    pub count: usize,
+}
+
+impl Default for WallpaperConfig {
+    fn default() -> Self {
+        Self { home: true, change_minutes: 30.0, slide_seconds: 30.0, shuffle: true, count: 0 }
     }
 }
 
@@ -175,6 +193,9 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
         Incoming::Audio { max_volume } => crate::set_max_volume(ui, max_volume),
         Incoming::Shell(visibility) => crate::set_visibility(ui, visibility),
         Incoming::Screensaver(cfg) => crate::set_screensaver(ui, cfg),
+        Incoming::Wallpaper(cfg) => {
+            let _ = ui.upgrade_in_event_loop(move |ui| crate::wallpaper::configure(&ui, cfg));
+        }
         Incoming::Locale(locale) => crate::set_locale(ui, locale),
         Incoming::Theme(colors) => crate::set_theme(ui, colors),
         Incoming::Pairing { url, size, modules } => crate::set_pairing(ui, url, size, modules),

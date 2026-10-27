@@ -45,12 +45,25 @@ test("settings show every section, with switches only on real settings", async (
   await open(page);
   await openSettings(page);
   const titles = await page.locator("#settings-body h3").allTextContents();
-  for (const title of ["Home screen", "Theme", "Screensaver", "Sound", "Language and format", "Lock and PIN", "Sleep mode", "TV control (HDMI-CEC)", "Network"]) {
+  for (const title of ["Home screen", "Theme", "Screensaver", "Sound", "Language and format", "Lock and PIN", "Sleep mode", "Wallpaper", "TV control (HDMI-CEC)", "Network"]) {
     expect(titles).toContain(title);
   }
   // Rows that only explain something must not grow a switch.
   await expect(row(page, "Open to the network").locator(".toggle")).toHaveCount(0);
   await expect(row(page, "Greeting").locator(".toggle")).toHaveCount(1);
+});
+
+test("wallpapers: only the listed pictures, only with the token", async ({ page, request }) => {
+  await open(page);
+  await openSettings(page);
+  await expect(page.locator("#settings-body")).toContainText("Pictures in [wallpaper] images: 1");
+  const auth = { headers: { Authorization: `Bearer ${TOKEN}` } };
+  const first = await request.get("/api/v1/wallpapers/0", auth);
+  expect(first.status()).toBe(200);
+  expect(first.headers()["content-type"]).toBe("image/png");
+  // notes.txt is in the folder but is no picture, so there is no second one.
+  expect((await request.get("/api/v1/wallpapers/1", auth)).status()).toBe(404);
+  expect((await request.get("/api/v1/wallpapers/0")).status()).toBe(401);
 });
 
 test("a changed setting is saved to config.toml", async ({ page }) => {

@@ -110,7 +110,11 @@ and your phone becomes the remote.
 - **Screensaver**: after a few idle minutes on the home screen, the time
   drifts over generated animation (soft drifting lights, a turning galaxy of
   points, or just a large clock), different each time. Nothing to set up, no
-  images, no network; any key wakes it.
+  images, no network; any key wakes it. Or a slideshow of your own pictures.
+- **Wallpaper**: list your own pictures (files or folders) in the config and
+  they rotate behind the home screen, crossfading every 30 minutes, and in the
+  screensaver, where each one slowly zooms in. Phone photos come out upright.
+  Interval, order and where they show are switchable in the remote.
 - **AirPlay**: mirror an iPhone, iPad or Mac, or play its videos and music
   on the TV, through [UxPlay](https://github.com/FDH2/UxPlay). Off by
   default; turn it on in the config or the remote's settings.
@@ -324,6 +328,7 @@ All endpoints except `/api/v1/health` need `Authorization: Bearer <token>`
 | `GET` | `/api/v1/state` | Running app, volume, seconds since last input, overlay, connected clients |
 | `GET` | `/api/v1/apps` | Configured apps |
 | `GET` | `/api/v1/apps/{id}/icon` | App icon (SVG, PNG or JPEG) |
+| `GET` | `/api/v1/wallpapers/{n}` | Picture `n` of `[wallpaper] images` (JPEG or PNG) |
 | `GET` | `/api/v1/audio` | Audio outputs and volume limits |
 | `GET` | `/api/v1/network` | Ports the box listens on, with address and program |
 | `POST` | `/api/v1/command` | Run one command (below) |

@@ -148,6 +148,17 @@ export component Shell inherits Window {
     in property <bool> screensaver-clock: true;
     in property <bool> screensaver-date: true;
     in property <float> screensaver-time;
+    // The `images` screensaver: the current picture fades in over the one before.
+    in property <image> photo;
+    in property <image> photo-before;
+    in property <float> photo-since;
+    in property <float> slide-seconds: 30;
+
+    // Your own pictures behind the home screen. Two layers, so a new one crossfades in.
+    in property <bool> wallpaper-on;
+    in property <image> wallpaper-a;
+    in property <image> wallpaper-b;
+    in property <bool> wallpaper-b-front;
 
     // Pairing card: tvd decides when it shows (until the first remote connects, and on request).
     in property <bool> show-pairing;
@@ -207,6 +218,28 @@ export component Shell inherits Window {
         height: self.width;
         border-radius: self.width / 2;
         background: Palette.accent-2.transparentize(0.95);
+    }
+    if root.wallpaper-on: Rectangle {
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.wallpaper-a;
+            image-fit: cover;
+            opacity: root.wallpaper-b-front ? 0 : 1;
+            animate opacity { duration: 1500ms; easing: ease-in-out; }
+        }
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.wallpaper-b;
+            image-fit: cover;
+            opacity: root.wallpaper-b-front ? 1 : 0;
+            animate opacity { duration: 1500ms; easing: ease-in-out; }
+        }
+        // Darker at the top and bottom, where the clock, the greeting and the hints are.
+        Rectangle {
+            background: @linear-gradient(180deg, #000000b0 0%, #00000050 40%, #00000060 65%, #000000c0 100%);
+        }
     }
 
     // Hides the pointer everywhere; cards still react to clicks.
@@ -479,6 +512,10 @@ export component Shell inherits Window {
         show-date: root.screensaver-date;
         t: root.screensaver-time;
         s: root.s;
+        photo: root.photo;
+        photo-before: root.photo-before;
+        photo-since: root.photo-since;
+        slide-seconds: root.slide-seconds;
         opacity: 0;
         init => { self.opacity = 1; }
         animate opacity { duration: 1500ms; easing: ease-in-out; }

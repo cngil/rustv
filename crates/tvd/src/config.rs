@@ -50,6 +50,8 @@ pub struct Config {
     pub overlay: Overlay,
     #[serde(default)]
     pub cec: Cec,
+    #[serde(default)]
+    pub wallpaper: Wallpaper,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
 }
@@ -117,6 +119,30 @@ pub enum ScreensaverStyle {
     Orbits,
     /// Only a large clock on black.
     Clock,
+    /// A slideshow of your own pictures (`[wallpaper] images`).
+    Images,
+}
+
+/// Your own pictures, behind the home screen and in the `images` screensaver.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Wallpaper {
+    /// JPEG or PNG files, or folders of them. `~` is your home folder.
+    pub images: Vec<PathBuf>,
+    /// Show them behind the home screen, instead of the theme's gradient.
+    pub home: bool,
+    /// How often the home screen picture changes.
+    pub change_minutes: f32,
+    /// How long each picture stays in the `images` screensaver.
+    pub slide_seconds: f32,
+    /// A random order instead of the listed one.
+    pub shuffle: bool,
+}
+
+impl Default for Wallpaper {
+    fn default() -> Self {
+        Self { images: Vec::new(), home: true, change_minutes: 30.0, slide_seconds: 30.0, shuffle: true }
+    }
 }
 
 /// Sleep after a long time without use: the screen goes dark and the app closes.
@@ -443,7 +469,7 @@ impl App {
     }
 }
 
-fn expand_home(path: &Path) -> Option<PathBuf> {
+pub fn expand_home(path: &Path) -> Option<PathBuf> {
     match path.strip_prefix("~") {
         Ok(rest) => Some(PathBuf::from(std::env::var_os("HOME")?).join(rest)),
         Err(_) => Some(path.to_path_buf()),
@@ -511,6 +537,12 @@ impl Config {
         }
         if !(1.0..=1440.0).contains(&self.sleep.after_minutes) {
             bail!("sleep.after_minutes must be between 1 and 1440");
+        }
+        if !(1.0..=1440.0).contains(&self.wallpaper.change_minutes) {
+            bail!("wallpaper.change_minutes must be between 1 and 1440");
+        }
+        if !(5.0..=3600.0).contains(&self.wallpaper.slide_seconds) {
+            bail!("wallpaper.slide_seconds must be between 5 and 3600");
         }
         // The CEC OSD name: at most 14 printable ASCII characters.
         let name = &self.cec.name;

@@ -155,6 +155,7 @@ impl AppState {
             presets: crate::theme::presets(),
             overlay: cfg.overlay.clone(),
             cec: cfg.cec.clone(),
+            wallpaper: crate::wallpaper::info(&cfg.wallpaper),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
             config_path: self.config_path.display().to_string(),
@@ -198,6 +199,7 @@ impl AppState {
             cfg.sleep = fresh.sleep;
             cfg.overlay = fresh.overlay;
             cfg.cec = fresh.cec;
+            cfg.wallpaper = fresh.wallpaper;
             (moved, cast_changed, osd_changed)
         };
         // The bar over apps is drawn in the theme colors, scaled to the volume limit.
@@ -215,6 +217,8 @@ impl AppState {
         };
         let _ = self.events.send(ServerMsg::Shell(shell));
         let _ = self.events.send(ServerMsg::Screensaver(screensaver));
+        let wallpaper = crate::wallpaper::info(&self.config().wallpaper);
+        let _ = self.events.send(ServerMsg::Wallpaper(wallpaper));
         let (locale, theme) = {
             let cfg = self.config();
             (cfg.locale.clone(), cfg.theme.clone())

@@ -8,6 +8,7 @@ mod locale;
 mod net;
 mod settings;
 mod sounds;
+mod wallpaper;
 
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
@@ -29,8 +30,8 @@ const OSD_TIME: Duration = Duration::from_millis(2200);
 const OPENING_TIMEOUT: Duration = Duration::from_secs(15);
 /// How often the shell checks whether it is time for the screensaver.
 const IDLE_CHECK: Duration = Duration::from_secs(2);
-/// Styles `random` cycles through.
-const SCREENSAVER_STYLES: [&str; 3] = ["aurora", "orbits", "clock"];
+/// Styles `random` cycles through; your own pictures join them once there are any.
+const SCREENSAVER_STYLES: [&str; 4] = ["aurora", "orbits", "clock", "images"];
 /// Screensaver frame rates. Slow motion looks the same at 30 fps and costs
 /// half of 60; the plain clock only drifts, so 10 fps is plenty.
 const ANIMATION_FRAME: Duration = Duration::from_millis(33);
@@ -60,6 +61,7 @@ fn main() -> Result<()> {
     let settings = settings::Settings::load().context("reading rustv settings")?;
     let ui = Shell::new()?;
     ui.window().set_fullscreen(true);
+    wallpaper::init(settings.clone());
 
     let clock = Timer::default();
     update_clock(&ui);
@@ -114,10 +116,14 @@ fn maybe_start_screensaver(ui: &Shell) {
         return;
     }
     let count = SCREENSAVER_COUNT.with(|n| n.replace(n.get() + 1));
-    let style = pick_style(&cfg.style, count);
+    let style = pick_style(&cfg.style, count, wallpaper::count() > 0);
     ui.set_screensaver_style(style.into());
     ui.set_screensaver_time(0.0);
     ui.set_screensaver_active(true);
+    let slides = style == "images";
+    if slides {
+        wallpaper::start_slides(ui);
+    }
 
     let started = Instant::now();
     let frame = if style == "clock" { CLOCK_FRAME } else { ANIMATION_FRAME };
@@ -127,6 +133,9 @@ fn maybe_start_screensaver(ui: &Shell) {
             let Some(ui) = weak.upgrade() else { return };
             if ui.get_screensaver_active() {
                 ui.set_screensaver_time(started.elapsed().as_secs_f32());
+                if slides {
+                    wallpaper::next_slide_if_due(&ui);
+                }
             } else {
                 // Woken up from the UI side; nothing left to animate.
                 FRAME_TIMER.with(Timer::stop);
@@ -136,15 +145,20 @@ fn maybe_start_screensaver(ui: &Shell) {
 }
 
 /// `random` takes the next style each time, starting at a different one on every boot.
-fn pick_style(style: &str, count: usize) -> &str {
+/// Without pictures, `images` falls back to a generated style.
+fn pick_style(style: &str, count: usize, photos: bool) -> &str {
+    if style == "images" && !photos {
+        return SCREENSAVER_STYLES[0];
+    }
     if style != "random" {
         return style;
     }
+    let styles = if photos { &SCREENSAVER_STYLES[..] } else { &SCREENSAVER_STYLES[..3] };
     let seed = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as usize / 60)
         .unwrap_or(0);
-    SCREENSAVER_STYLES[(seed + count) % SCREENSAVER_STYLES.len()]
+    styles[(seed + count) % styles.len()]
 }
 
 /// The screen is off: stop animating, nobody can see it. After waking, the
@@ -407,11 +421,16 @@ mod tests {
 
     #[test]
     fn picks_screensaver_styles() {
-        assert_eq!(pick_style("orbits", 3), "orbits");
-        let first = pick_style("random", 0);
-        let second = pick_style("random", 1);
-        assert!(SCREENSAVER_STYLES.contains(&first) && SCREENSAVER_STYLES.contains(&second));
+        assert_eq!(pick_style("orbits", 3, false), "orbits");
+        let first = pick_style("random", 0, false);
+        let second = pick_style("random", 1, false);
+        assert!(SCREENSAVER_STYLES[..3].contains(&first) && SCREENSAVER_STYLES[..3].contains(&second));
         assert_ne!(first, second);
+        // Pictures only once there are some.
+        assert!((0..8).all(|n| pick_style("random", n, false) != "images"));
+        assert!((0..8).any(|n| pick_style("random", n, true) == "images"));
+        assert_eq!(pick_style("images", 0, false), "aurora");
+        assert_eq!(pick_style("images", 0, true), "images");
     }
 
     #[test]

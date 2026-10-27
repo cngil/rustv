@@ -1,10 +1,10 @@
-// Screensaver: generated animation with the time on top. Everything is computed
-// from the clock, so it needs no images, no network and no setup.
+// Screensaver: generated animation, or your own pictures, with the time on top.
+// The generated styles are computed from the clock: no images, no network, no setup.
 // The time drifts slowly around the screen so nothing stays in one place long
 // enough to burn into the panel.
 
 export component Screensaver inherits Rectangle {
-    // "aurora", "orbits" or "clock".
+    // "aurora", "orbits", "clock" or "images".
     in property <string> style: "aurora";
     in property <string> time;
     in property <string> date;
@@ -15,6 +15,11 @@ export component Screensaver inherits Rectangle {
     // advances it at a modest frame rate instead of redrawing at the display's
     // full rate, which keeps the GPU mostly idle.
     in property <float> t;
+    // `images`: the picture on screen, the one it fades in over, and when it arrived (in `t`).
+    in property <image> photo;
+    in property <image> photo-before;
+    in property <float> photo-since;
+    in property <float> slide-seconds: 30;
 
     background: black;
 
@@ -49,6 +54,35 @@ export component Screensaver inherits Rectangle {
             border-radius: self.dot / 2;
             background: Colors.hsv(Math.mod(190 + self.ring * 150 + root.t * 2, 360), 0.5, 1);
             opacity: 0.3 + 0.7 * (1 - self.ring);
+        }
+    }
+
+    // Your pictures, each slowly zooming in (which also keeps them from burning in).
+    if root.style == "images": slides := Rectangle {
+        property <float> age: max(0, root.t - root.photo-since);
+        property <float> zoom: 1 + 0.06 * min(1, self.age / root.slide-seconds);
+        clip: true;
+
+        Image {
+            source: root.photo-before;
+            image-fit: cover;
+            width: root.width * 1.06;
+            height: root.height * 1.06;
+            x: (root.width - self.width) / 2;
+            y: (root.height - self.height) / 2;
+        }
+        Image {
+            source: root.photo;
+            image-fit: cover;
+            width: root.width * slides.zoom;
+            height: root.height * slides.zoom;
+            x: (root.width - self.width) / 2;
+            y: (root.height - self.height) / 2;
+            opacity: min(1, slides.age / 1.5);
+        }
+        // Keeps the clock readable on bright pictures.
+        Rectangle {
+            background: #00000050;
         }
     }
 

@@ -154,6 +154,8 @@ pub enum ServerMsg {
     Shell(crate::config::Shell),
     /// Screensaver settings for the shell (`[screensaver]` in the config).
     Screensaver(crate::config::Screensaver),
+    /// Your own pictures (`[wallpaper]`), without their paths; the shell fetches them by number.
+    Wallpaper(crate::wallpaper::Info),
     /// Everything the remote's settings panel shows.
     Settings(SettingsInfo),
     /// Language and formats (`[locale]` in the config).
@@ -186,6 +188,7 @@ pub struct SettingsInfo {
     pub presets: Vec<crate::theme::Preset>,
     pub overlay: crate::config::Overlay,
     pub cec: crate::config::Cec,
+    pub wallpaper: crate::wallpaper::Info,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],
     pub version: &'static str,

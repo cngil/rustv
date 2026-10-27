@@ -36,9 +36,19 @@ sound_volume = 0.5      # 0..1, on top of the TV volume
 # nothing burns into the panel.
 enabled = true
 idle_minutes = 5
-style = "random"   # random (a different one each time), aurora, orbits or clock
+style = "random"   # random (a different one each time), aurora, orbits, clock or images
 clock = true
 date = true
+
+[wallpaper]
+# Your own pictures (JPEG or PNG), files or folders of them. They show behind
+# the home screen and in the "images" screensaver; "random" mixes them with
+# the generated styles. Only these files are ever served, and only to the shell.
+images = []   # for example ["~/Pictures/tv", "/srv/photos/sea.jpg"]
+home = true            # behind the home screen (with no images: the theme's gradient)
+change_minutes = 30    # how often the home picture changes
+slide_seconds = 30     # how long each picture stays in the screensaver
+shuffle = true         # random order instead of the listed one
 
 [cast]
 # AirPlay receiver: iPhones, iPads and Macs can mirror their screen or play

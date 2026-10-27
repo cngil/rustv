@@ -22,6 +22,11 @@ process.env.RUSTV_TEST_DIR = dir;
 const config = join(dir, "config.toml");
 if (fresh) {
   mkdirSync(join(dir, "state"));
+  // One 1x1 PNG as the only wallpaper, next to a file that is not a picture.
+  mkdirSync(join(dir, "pictures"));
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+  writeFileSync(join(dir, "pictures", "one.png"), Buffer.from(png, "base64"));
+  writeFileSync(join(dir, "pictures", "notes.txt"), "not a picture");
   writeFileSync(join(dir, "token"), `${TOKEN}\n`);
   writeFileSync(
     config,
@@ -40,6 +45,9 @@ enabled = false
 
 [screensaver]
 idle_minutes = 5
+
+[wallpaper]
+images = ["${join(dir, "pictures")}"]
 
 [[app]]
 id = "films"

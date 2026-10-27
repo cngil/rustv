@@ -10,7 +10,7 @@ rust-version.workspace = true
 [dependencies]
 anyhow = "1"
 axum = { version = "0.7", features = ["ws"] }
-evdev = "0.12"
+evdev = { version = "0.12", features = ["tokio"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 getrandom = "0.2"
 libc = "0.2"

@@ -181,6 +181,7 @@ pub struct SettingsInfo {
     pub lock: LockInfo,
     pub locale: crate::config::Locale,
     pub theme: crate::config::Theme,
+    pub gamepad: crate::config::Gamepad,
     /// The presets, with their colors, for the theme picker.
     pub presets: Vec<crate::theme::Preset>,
     pub overlay: crate::config::Overlay,

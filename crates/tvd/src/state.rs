@@ -98,6 +98,7 @@ impl AppState {
         });
         sleep::watch(Arc::downgrade(&state));
         watch_volume(Arc::downgrade(&state));
+        crate::gamepad::watch(Arc::downgrade(&state));
         state.restart_osd();
         state.apply_cast();
         if state.config().overlay.enabled {
@@ -147,6 +148,7 @@ impl AppState {
             lock: LockInfo { on_sleep: cfg.lock.on_sleep, pin_set: self.lock.has_pin() },
             locale: cfg.locale.clone(),
             theme: cfg.theme.clone(),
+            gamepad: cfg.gamepad.clone(),
             presets: crate::theme::presets(),
             overlay: cfg.overlay.clone(),
             editable: settings::EDITABLE,
@@ -181,6 +183,7 @@ impl AppState {
             let moved = cfg.overlay.position != fresh.overlay.position || cfg.locale != fresh.locale;
             cfg.locale = fresh.locale;
             cfg.theme = fresh.theme;
+            cfg.gamepad = fresh.gamepad;
             let cast_changed = cfg.cast != fresh.cast;
             cfg.cast = fresh.cast;
             cfg.lock = fresh.lock;
@@ -390,6 +393,10 @@ impl AppState {
     pub async fn external_activity(&self) {
         self.last_activity.store(now(), Ordering::Relaxed);
         self.wake().await;
+    }
+
+    pub fn is_asleep(&self) -> bool {
+        self.asleep.load(Ordering::Relaxed)
     }
 
     /// Turns the screen back on. Returns whether the TV was asleep.

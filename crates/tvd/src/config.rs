@@ -45,6 +45,8 @@ pub struct Config {
     #[serde(default)]
     pub theme: Theme,
     #[serde(default)]
+    pub gamepad: Gamepad,
+    #[serde(default)]
     pub overlay: Overlay,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
@@ -129,6 +131,22 @@ pub struct Sleep {
 impl Default for Sleep {
     fn default() -> Self {
         Self { enabled: true, after_minutes: 60.0, close_apps: true }
+    }
+}
+
+/// Gamepads as remotes on the home screen.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Gamepad {
+    /// D-pad or stick to move, A to open, B back, shoulders for volume.
+    pub enabled: bool,
+    /// The Guide (Xbox / PS) button closes the open app.
+    pub guide_closes_app: bool,
+}
+
+impl Default for Gamepad {
+    fn default() -> Self {
+        Self { enabled: true, guide_closes_app: true }
     }
 }
 

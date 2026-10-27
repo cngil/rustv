@@ -47,6 +47,13 @@ airplay = false
 name = "rustv"      # shown in the sender's Screen Mirroring list
 # extra_args = ["-vd", "avdec_h264"]   # more UxPlay options, here: software decoding
 
+[gamepad]
+# A gamepad works as the remote on the home screen: D-pad or left stick to
+# move, A to open, B back, shoulder buttons for volume. Inside apps the
+# gamepad is the app's (games, Moonlight); only Guide still does something.
+enabled = true
+guide_closes_app = true   # the Xbox / PS button closes the open app
+
 [theme]
 # Colors of the TV and the remote. Presets: indigo, ocean, sunset, forest,
 # rose, graphite. Any of the three colors below replaces the preset's own;

@@ -33,6 +33,8 @@ pub const EDITABLE: &[&str] = &[
     "audio.per_app_volume",
     "cast.airplay",
     "lock.on_sleep",
+    "gamepad.enabled",
+    "gamepad.guide_closes_app",
     "theme.preset",
     "theme.accent",
     "theme.accent_2",

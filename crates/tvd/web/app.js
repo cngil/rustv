@@ -205,6 +205,13 @@ const TRANSLATIONS = {
     "Connected to {name}": "{name} bağlandı",
     "Paired with {name}": "{name} eşleştirildi",
     "Something went wrong": "Bir şeyler ters gitti",
+    // gamepad
+    Gamepad: "Oyun kolu",
+    "Use a gamepad as the remote": "Oyun kolunu kumanda olarak kullan",
+    "On the home screen: D-pad or stick to move, A to open, B back, shoulder buttons for volume. Inside apps the gamepad is the app's.":
+      "Ana ekranda: yön tuşları ya da çubukla gez, A aç, B geri, omuz tuşları ses. Uygulamaların içinde oyun kolu uygulamaya aittir.",
+    "Guide button goes home": "Ana menü tuşu ana ekrana döner",
+    "The Xbox or PS button closes the open app.": "Xbox ya da PS tuşu açık uygulamayı kapatır.",
     // theme
     Theme: "Tema",
     Preset: "Hazır tema",
@@ -1075,6 +1082,22 @@ const SETTINGS = [
         },
       },
       { key: "lock.on_sleep", label: "Lock when the TV goes to sleep", needs: "lock.pin_set" },
+    ],
+  },
+  {
+    title: "Gamepad",
+    items: [
+      {
+        key: "gamepad.enabled",
+        label: "Use a gamepad as the remote",
+        hint: "On the home screen: D-pad or stick to move, A to open, B back, shoulder buttons for volume. Inside apps the gamepad is the app's.",
+      },
+      {
+        key: "gamepad.guide_closes_app",
+        label: "Guide button goes home",
+        hint: "The Xbox or PS button closes the open app.",
+        needs: "gamepad.enabled",
+      },
     ],
   },
   {

@@ -9,6 +9,7 @@ mod apps;
 mod audio;
 mod cast;
 mod config;
+mod gamepad;
 mod input;
 mod keymap;
 mod lock;

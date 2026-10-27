@@ -94,6 +94,8 @@ and your phone becomes the remote.
 - **Volume per app**: each app and the home screen keep their own level, and
   a volume bar shows over apps too (with [wob](https://github.com/francma/wob)
   installed).
+- **Gamepads as remotes**: pair one over Bluetooth (or plug it in) and move
+  around the home screen with it; the Guide button closes the open app.
 - **Wi-Fi and Bluetooth** in the remote's settings: join a network, pair
   headphones or a gamepad. Changing Wi-Fi needs the polkit rule in
   `packaging/polkit`.

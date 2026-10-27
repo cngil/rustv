@@ -404,6 +404,15 @@ cargo fmt --check
 RUST_LOG=debug cargo run -p tvd -- --config config/config.example.toml
 ```
 
+Browser tests for the remote run against a real tvd with a throwaway config
+(they need `/dev/uinput`, and never press keys on a real TV):
+
+```sh
+cargo build -p tvd
+cd tests/remote && npm ci && npx playwright install chromium
+npx playwright test
+```
+
 ## License
 
 [GPL-3.0-or-later](LICENSE). The shell bundles the [Inter](https://rsms.me/inter/)

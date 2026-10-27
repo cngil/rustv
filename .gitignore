@@ -1,1 +1,4 @@
 /target
+tests/remote/node_modules/
+tests/remote/test-results/
+tests/remote/playwright-report/

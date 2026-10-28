@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="crates/tvd/web/icon.svg" width="96" alt="rustv">
+  <img src="docs/brand/banner.png" alt="rustv: a private TV shell for Linux. The home screen on a TV, and the phone remote." width="900">
 </p>
 
 <h1 align="center">rustv</h1>
@@ -31,6 +31,11 @@ and your phone becomes the remote.
 > and comes with no content, accounts or app store. It is the home screen,
 > remote and glue around the Linux apps *you* choose to put on it. See
 > [what people put on it](#what-to-put-on-it).
+
+<p align="center">
+  <img src="docs/media/teaser.webp" alt="rustv in motion: moving across apps with the remote, the TV changing finish live, and the phone remote changing it too" width="900"><br>
+  <a href="docs/media/rustv-demo.mp4"><b>Watch the full one-minute demo</b></a>
+</p>
 
 <p align="center">
   <img src="docs/screenshots/tv-home.png" alt="The rustv home screen on a TV, with app cards and the pairing QR code" width="900">

@@ -161,6 +161,38 @@ function connect() {
   };
 }
 
+// ---- now playing ----
+
+let nowPlaying = null;
+
+/** 3:07, or 1:02:09 past an hour. */
+function clock(seconds) {
+  const s = Math.max(0, Math.floor(seconds));
+  const mm = String(Math.floor((s % 3600) / 60));
+  const ss = String(s % 60).padStart(2, "0");
+  return s >= 3600 ? `${Math.floor(s / 3600)}:${mm.padStart(2, "0")}:${ss}` : `${mm}:${ss}`;
+}
+
+function renderPlaying() {
+  const now = nowPlaying;
+  $("#playing").hidden = !now;
+  if (!now) return;
+  $("#playing-title").textContent = now.title;
+  // Between updates (every 2 s) the position moves on here.
+  const position = now.position != null && now.playing ? now.position + (Date.now() - now.at) / 1000 : now.position;
+  const where = now.length ? `${clock(Math.min(position || 0, now.length))} / ${clock(now.length)}` : "";
+  $("#playing-sub").textContent = [now.artist || now.player, where].filter(Boolean).join(" · ");
+  $("#playing-fill").style.width = now.length ? `${Math.min(100, ((position || 0) / now.length) * 100)}%` : "0";
+  const art = $("#playing-art");
+  art.hidden = !now.art;
+  const src = now.art ? `/api/v1/now_playing/art?token=${encodeURIComponent(token)}&v=${now.art}` : "";
+  if (now.art && art.getAttribute("src") !== src) art.src = src;
+}
+
+setInterval(() => {
+  if (nowPlaying && nowPlaying.playing) renderPlaying();
+}, 1000);
+
 function setOnline(online) {
   $("#dot").classList.toggle("on", online);
   $("#app").classList.toggle("offline", !online);
@@ -196,6 +228,9 @@ function handle(msg) {
   } else if (msg.type === "theme") {
     applyTheme(msg);
     renderSettings();
+  } else if (msg.type === "now_playing") {
+    nowPlaying = msg.now ? { ...msg.now, at: Date.now() } : null;
+    renderPlaying();
   } else if (msg.type === "settings") {
     settings = msg;
     settingsBefore = null;
@@ -868,6 +903,7 @@ const SETTINGS = [
         needs: "shell.pairing_qr",
       },
       { key: "shell.settings", label: label("shell.settings"), hint: hint("shell.settings") },
+      { key: "shell.now_playing", label: label("shell.now_playing"), hint: hint("shell.now_playing") },
     ],
   },
   { title: "section.theme", custom: themeRows },

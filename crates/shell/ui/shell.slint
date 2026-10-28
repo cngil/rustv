@@ -185,6 +185,13 @@ export component Shell inherits Window {
     // Pairing card: tvd decides when it shows (until the first remote connects, and on request).
     in property <bool> show-pairing;
     in property <image> pairing-qr;
+    // What a media player plays (MPRIS), from tvd.
+    in property <bool> playing-open;
+    in property <string> playing-title;
+    in property <string> playing-sub;
+    in property <float> playing-progress;
+    in property <image> playing-art;
+    in property <bool> playing-has-art;
     in property <string> pairing-url;
 
     // Locked with the PIN: the home screen is hidden and keys do nothing.
@@ -364,6 +371,65 @@ export component Shell inherits Window {
             spacing: 14px * s;
             KeyCap { label: "OK"; s: root.s; }
             Text { text: Strings.hint-open; color: Palette.muted; font-size: 24px * s; vertical-alignment: center; }
+        }
+    }
+
+    // Now playing, above the key hints.
+    if root.playing-open && !root.screensaver-active: Rectangle {
+        x: margin;
+        y: root.height - 88px * s - 44px * s - 32px * s - self.height;
+        width: 660px * s;
+        height: 128px * s;
+        border-radius: 28px * s;
+        background: Palette.surface;
+
+        HorizontalLayout {
+            padding: 16px * s;
+            padding-right: 28px * s;
+            spacing: 22px * s;
+            if root.playing-has-art: Rectangle {
+                width: 96px * s;
+                height: 96px * s;
+                border-radius: 18px * s;
+                clip: true;
+                background: Palette.surface-3;
+                Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: root.playing-art;
+                    image-fit: cover;
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                spacing: 8px * s;
+                padding-left: root.playing-has-art ? 0 : 12px * s;
+                Text {
+                    text: root.playing-title;
+                    color: Palette.text;
+                    font-size: 30px * s;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.playing-sub;
+                    color: Palette.muted;
+                    font-size: 22px * s;
+                    overflow: elide;
+                }
+                Rectangle {
+                    height: 6px * s;
+                    border-radius: 3px * s;
+                    background: Palette.surface-3;
+                    Rectangle {
+                        x: 0;
+                        width: parent.width * clamp(root.playing-progress, 0, 1);
+                        height: parent.height;
+                        border-radius: parent.border-radius;
+                        background: Palette.accent;
+                    }
+                }
+            }
         }
     }
 

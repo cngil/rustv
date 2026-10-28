@@ -87,6 +87,7 @@ pub fn router(state: Shared) -> Router {
         .route("/apps", get(get_apps))
         .route("/apps/:id/icon", get(get_icon))
         .route("/wallpapers/:n", get(get_wallpaper))
+        .route("/now_playing/art", get(get_now_playing_art))
         .route("/audio", get(get_audio))
         .route("/network", get(get_network))
         .route("/wifi", get(get_wifi))
@@ -175,6 +176,24 @@ async fn get_icon(State(state): State<Shared>, Path(id): Path<String>) -> Respon
         Ok(bytes) => ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "private, max-age=3600")], bytes)
             .into_response(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// The cover of what plays, from the file the player named. Only a picture is
+/// served, whatever the path, and a big file is refused.
+async fn get_now_playing_art(State(state): State<Shared>) -> Response {
+    const LIMIT: u64 = 8 << 20;
+    let Some(path) = state.now_playing_art() else { return StatusCode::NOT_FOUND.into_response() };
+    let small = tokio::fs::metadata(&path).await.is_ok_and(|meta| meta.is_file() && meta.len() <= LIMIT);
+    let Some(bytes) = (if small { tokio::fs::read(&path).await.ok() } else { None }) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match crate::media::image_type(&bytes) {
+        Some(content_type) => {
+            ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "private, max-age=3600")], bytes)
+                .into_response()
+        }
+        None => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
@@ -284,6 +303,7 @@ async fn client(socket: WebSocket, state: Shared, is_shell: bool) {
         ServerMsg::Locale(locale),
         ServerMsg::Theme(palette),
         ServerMsg::Settings(Box::new(state.settings_info())),
+        ServerMsg::NowPlaying { now: state.now_playing() },
         ServerMsg::State(state.snapshot().await),
     ];
     for msg in hello.iter().chain(&pairing) {

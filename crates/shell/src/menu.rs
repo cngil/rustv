@@ -177,6 +177,12 @@ const SECTIONS: &[Section] = &[
                 kind: Kind::Action("show_pairing"),
                 needs: Some("shell.pairing_qr"),
             },
+            toggle(
+                "shell.now_playing",
+                "setting.shell.now_playing.label",
+                Some("setting.shell.now_playing.hint"),
+                None,
+            ),
         ],
     ),
     section(

@@ -81,6 +81,8 @@ pub struct Shell {
     pub sound_volume: f32,
     /// A Settings tile at the end of the app row, for whoever has only the TV remote.
     pub settings: bool,
+    /// What a media player plays (MPRIS), on the home screen and the remote.
+    pub now_playing: bool,
 }
 
 impl Default for Shell {
@@ -95,6 +97,7 @@ impl Default for Shell {
             sounds: true,
             sound_volume: 0.5,
             settings: true,
+            now_playing: true,
         }
     }
 }

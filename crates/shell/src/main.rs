@@ -255,6 +255,44 @@ pub fn set_locked(ui: &Weak<Shell>, locked: bool) {
     let _ = ui.upgrade_in_event_loop(move |ui| ui.set_locked(locked));
 }
 
+/// The now playing card: title, "artist · 1:23 / 4:05", progress and cover.
+pub fn set_now_playing(ui: &Weak<Shell>, now: Option<net::NowPlaying>, art: Option<std::path::PathBuf>) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        ui.set_playing_open(now.is_some());
+        let Some(now) = now else { return };
+        let clock = |seconds: f64| {
+            let s = seconds.max(0.0) as u64;
+            if s >= 3600 {
+                format!("{}:{:02}:{:02}", s / 3600, s % 3600 / 60, s % 60)
+            } else {
+                format!("{}:{:02}", s / 60, s % 60)
+            }
+        };
+        let place = match (now.position, now.length) {
+            (Some(at), Some(length)) => format!("{} / {}", clock(at.min(length)), clock(length)),
+            (None, Some(length)) => clock(length),
+            _ => String::new(),
+        };
+        let who = if now.artist.is_empty() { now.player } else { now.artist };
+        let sub: Vec<String> = [who, place].into_iter().filter(|part| !part.is_empty()).collect();
+        ui.set_playing_title(now.title.into());
+        ui.set_playing_sub(sub.join(" · ").into());
+        let progress = match (now.position, now.length) {
+            (Some(at), Some(length)) if length > 0.0 => (at / length) as f32,
+            _ => 0.0,
+        };
+        ui.set_playing_progress(progress);
+        // Decoded once per cover, not on every update.
+        thread_local!(static SHOWN: std::cell::RefCell<Option<std::path::PathBuf>> = const { std::cell::RefCell::new(None) });
+        let changed = SHOWN.with(|shown| shown.replace(art.clone()) != art);
+        if changed {
+            let image = art.and_then(|path| slint::Image::load_from_path(&path).ok());
+            ui.set_playing_has_art(image.is_some());
+            ui.set_playing_art(image.unwrap_or_default());
+        }
+    });
+}
+
 pub fn set_show_pairing(ui: &Weak<Shell>, show: bool) {
     let _ = ui.upgrade_in_event_loop(move |ui| ui.set_show_pairing(show));
 }

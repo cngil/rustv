@@ -47,6 +47,8 @@ pub struct AppState {
     dimmer: crate::osd::Dimmer,
     typer: crate::osd::Typer,
     night_audio: crate::night_audio::NightAudio,
+    /// What a media player plays, and its cover picture's path.
+    now_playing: std::sync::Mutex<Option<(crate::media::NowPlaying, Option<std::path::PathBuf>)>>,
     /// The display trial's prompt over an app, which covers the shell's.
     trial_prompt: crate::osd::Prompt,
     volumes: tokio::sync::Mutex<Volumes>,
@@ -113,6 +115,7 @@ impl AppState {
             typer: crate::osd::Typer::default(),
             trial_prompt: crate::osd::Prompt::default(),
             night_audio: crate::night_audio::NightAudio::default(),
+            now_playing: std::sync::Mutex::new(None),
             volumes: tokio::sync::Mutex::new(Volumes::load()),
             sleep_at: std::sync::Mutex::new(None),
             sleep_timer: AtomicU64::new(0),
@@ -376,6 +379,14 @@ impl AppState {
         self.read_display().await;
         self.apply_screen();
         self.apply_night_audio(true).await;
+        // What plays, every 2 seconds, for the home screen and the remotes.
+        let state = Arc::clone(self);
+        tokio::spawn(async move {
+            loop {
+                state.read_now_playing().await;
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        });
         // Night mode follows the clock.
         let state = Arc::clone(self);
         tokio::spawn(async move {
@@ -597,6 +608,29 @@ impl AppState {
     fn apply_screen(&self) {
         let (brightness, warmth) = crate::night::screen(&self.config(), crate::night::local_minutes());
         self.dimmer.set(brightness, warmth);
+    }
+
+    /// What plays now, as the screens were last told.
+    pub fn now_playing(&self) -> Option<crate::media::NowPlaying> {
+        self.now_playing.lock().unwrap().as_ref().map(|(now, _)| now.clone())
+    }
+
+    /// The cover picture of what plays, if the player keeps it in a file.
+    pub fn now_playing_art(&self) -> Option<std::path::PathBuf> {
+        self.now_playing.lock().unwrap().as_ref().and_then(|(_, art)| art.clone())
+    }
+
+    async fn read_now_playing(&self) {
+        let read = if self.config().shell.now_playing { crate::media::now_playing().await } else { None };
+        let changed = {
+            let mut last = self.now_playing.lock().unwrap();
+            let changed = last.as_ref().map(|(now, _)| now) != read.as_ref().map(|(now, _)| now);
+            *last = read;
+            changed
+        };
+        if changed {
+            let _ = self.events.send(ServerMsg::NowPlaying { now: self.now_playing() });
+        }
     }
 
     /// Night audio on or off as the settings and the clock say. `retry` tries

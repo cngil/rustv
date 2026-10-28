@@ -175,6 +175,10 @@ pub enum ServerMsg {
     Wallpaper(crate::wallpaper::Info),
     /// Everything the remote's settings panel shows.
     Settings(Box<SettingsInfo>),
+    /// What a media player plays; `null` when nothing does or `shell.now_playing` is off.
+    NowPlaying {
+        now: Option<crate::media::NowPlaying>,
+    },
     /// Language and formats (`[locale]` in the config).
     Locale(crate::config::Locale),
     /// Colors for the shell and the remotes, worked out from `[theme]`.

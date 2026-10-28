@@ -161,6 +161,11 @@ and your phone becomes the remote.
   leaves you with a black screen; only a kept mode is saved
   (`display.mode`). The prompt to keep it shows over open apps too, and OK
   or Back answers it from any remote.
+- **Now playing**: what a media player plays (title, artist, position and
+  its cover) on the home screen and the remote, from any MPRIS player
+  (Firefox, Jellyfin, Spotify, VLC…). Covers are only shown when the player
+  keeps them in a file; nothing is fetched from the internet
+  (`shell.now_playing`).
 - **Settings on the TV**: a Settings tile after the apps (or the Menu key)
   opens the settings on the TV itself, moved through with the arrows, for
   whoever has only the TV remote or a gamepad. The same changes as from the

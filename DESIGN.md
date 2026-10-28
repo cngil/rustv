@@ -24,6 +24,7 @@ receiver. It marks:
 - OK on the D-pad, Send, Connect, Done, the PIN's OK
 - the active tab, a selected chip, a switch that is on, the active output's icon
 - the sleep timer button while a timer runs, the app running on the TV (a short bar in the dock)
+- the filled part of a progress bar (now playing), on a surface-3 track
 
 Everything else is graphite. If something new needs attention, decide whether
 it is selected or primary; if neither, it stays graphite.

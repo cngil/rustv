@@ -92,6 +92,15 @@
         <button class="action" data-media="play_pause"><svg><use href="#i-play"/></svg><span data-i18n="remote.media.play">Play</span></button>
       </div>
 
+      <div class="playing" id="playing" hidden>
+        <img id="playing-art" class="playing-art" alt="" hidden>
+        <div class="playing-text">
+          <div id="playing-title" class="playing-title"></div>
+          <div id="playing-sub" class="playing-sub"></div>
+          <div class="playing-track" aria-hidden="true"><div id="playing-fill" class="playing-fill"></div></div>
+        </div>
+      </div>
+
       <div class="media-row">
         <button data-media="previous" aria-label="Previous" data-i18n-aria-label="remote.media.previous"><svg><use href="#i-prev"/></svg></button>
         <button data-media="seek" data-seconds="-10" aria-label="Back 10 seconds" data-i18n-aria-label="remote.media.back_10"><svg><use href="#i-rewind"/></svg><span>10</span></button>

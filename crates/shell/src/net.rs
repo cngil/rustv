@@ -42,6 +42,9 @@ enum Incoming {
         max_volume: f32,
     },
     Shell(Visibility),
+    NowPlaying {
+        now: Option<NowPlaying>,
+    },
     /// Everything the settings show, as tvd sends it to the remotes; read by menu.rs.
     Settings(serde_json::Value),
     Screensaver(ScreensaverConfig),
@@ -210,6 +213,21 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
             }
         }
         Incoming::Audio { max_volume } => crate::set_max_volume(ui, max_volume),
+        Incoming::NowPlaying { now } => {
+            // The cover only when it changed; tvd tags it.
+            let tag = now.as_ref().and_then(|now| now.art.clone());
+            let art = match tag {
+                Some(tag) if Some(&tag) != ART.lock().unwrap().as_ref().map(|(old, _)| old) => {
+                    let (addr, token) = (settings.addr.clone(), token.to_string());
+                    let path = tokio::task::spawn_blocking(move || fetch_art(&addr, &token).ok()).await.ok().flatten();
+                    *ART.lock().unwrap() = Some((tag, path.clone()));
+                    path
+                }
+                Some(_) => ART.lock().unwrap().as_ref().and_then(|(_, path)| path.clone()),
+                None => None,
+            };
+            crate::set_now_playing(ui, now, art);
+        }
         Incoming::Shell(visibility) => crate::set_visibility(ui, visibility),
         Incoming::Settings(settings) => crate::set_settings(ui, settings),
         Incoming::Screensaver(cfg) => crate::set_screensaver(ui, cfg),
@@ -221,6 +239,54 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
         Incoming::Pairing { url, size, modules } => crate::set_pairing(ui, url, size, modules),
         Incoming::Other => {}
     }
+}
+
+/// What a media player plays, from tvd's `now_playing` message.
+#[derive(Debug, Clone, Deserialize)]
+pub struct NowPlaying {
+    pub title: String,
+    #[serde(default)]
+    pub artist: String,
+    #[serde(default)]
+    pub player: String,
+    #[serde(default)]
+    pub position: Option<f64>,
+    #[serde(default)]
+    pub length: Option<f64>,
+    #[serde(default)]
+    pub art: Option<String>,
+}
+
+/// The last cover's tag and where it was saved.
+static ART: std::sync::Mutex<Option<(String, Option<PathBuf>)>> = std::sync::Mutex::new(None);
+
+/// Downloads the cover of what plays into the runtime directory.
+fn fetch_art(addr: &str, token: &str) -> Result<PathBuf> {
+    let response = ureq::get(&format!("http://{addr}/api/v1/now_playing/art"))
+        .set("Authorization", &format!("Bearer {token}"))
+        .timeout(Duration::from_secs(5))
+        .call()?;
+    let ext = match response.content_type() {
+        "image/jpeg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        _ => "png",
+    };
+    let mut bytes = Vec::new();
+    std::io::Read::read_to_end(&mut response.into_reader(), &mut bytes)?;
+    let dir =
+        std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("rustv-shell");
+    std::fs::create_dir_all(&dir)?;
+    // A new name per cover, so Slint does not show a cached older one.
+    for old in std::fs::read_dir(&dir)?.flatten() {
+        if old.file_name().to_string_lossy().starts_with("cover-") {
+            let _ = std::fs::remove_file(old.path());
+        }
+    }
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis();
+    let path = dir.join(format!("cover-{stamp}.{ext}"));
+    std::fs::write(&path, bytes)?;
+    Ok(path)
 }
 
 /// Downloads an app icon into the runtime directory and returns its path.

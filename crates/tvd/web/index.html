@@ -212,6 +212,34 @@
   </div>
 </div>
 
+<!-- Opened from the settings' System section, over them. -->
+<div id="shot" class="sheet" hidden>
+  <div class="sheet-backdrop" data-close-shot></div>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="shot-title">
+    <div class="sheet-head">
+      <h2 id="shot-title" data-i18n="remote.system.shot.label">What the TV shows</h2>
+      <button class="icon-btn" data-close-shot aria-label="Close" data-i18n-aria-label="common.close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <img id="shot-image" class="shot-image" alt="">
+    <p id="shot-status" class="timer-status" hidden></p>
+    <div class="chips shot-actions">
+      <button id="shot-refresh" class="chip" data-i18n="remote.system.refresh">Refresh</button>
+      <a id="shot-save" class="chip" download data-i18n="remote.system.save">Save</a>
+    </div>
+  </div>
+</div>
+
+<div id="log" class="sheet" hidden>
+  <div class="sheet-backdrop" data-close-log></div>
+  <div class="sheet-panel log-panel" role="dialog" aria-modal="true" aria-labelledby="log-title">
+    <div class="sheet-head">
+      <h2 id="log-title" data-i18n="remote.system.log.label">Log</h2>
+      <button class="icon-btn" data-close-log aria-label="Close" data-i18n-aria-label="common.close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <pre id="log-lines" class="log-lines"></pre>
+  </div>
+</div>
+
 <div id="pin" class="pin" hidden>
   <div class="pin-panel" role="dialog" aria-modal="true" aria-labelledby="pin-title">
     <svg class="pin-icon"><use href="#i-lock"/></svg>

@@ -61,6 +61,11 @@ brightness = 1.0
 # 3400 K lamp's white at 1. Also through sway's gamma tables.
 warmth = 0.0
 
+[system]
+# What the remote's System settings may show about the box.
+screenshot = true   # what the TV shows (grim), never while the TV is locked
+info = true         # temperatures, memory, disk, uptime and tvd's recent log
+
 [night]
 # Night mode: between `from` and `to` (local time, across midnight is fine)
 # the screen dims to `brightness` and warms to `warmth`, easing in over half

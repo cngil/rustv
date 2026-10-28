@@ -195,6 +195,7 @@ impl AppState {
             },
             keyboard: cfg.keyboard.clone(),
             night: cfg.night.clone(),
+            system: cfg.system.clone(),
             wallpaper: crate::wallpaper::info(&cfg.wallpaper),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
@@ -261,6 +262,7 @@ impl AppState {
             cfg.cec = fresh.cec;
             cfg.wallpaper = fresh.wallpaper;
             cfg.night = fresh.night;
+            cfg.system = fresh.system;
             (moved, cast_changed, brightness_changed, screen_changed, audio_changed)
         };
         if audio_changed {
@@ -608,6 +610,10 @@ impl AppState {
     fn apply_screen(&self) {
         let (brightness, warmth) = crate::night::screen(&self.config(), crate::night::local_minutes());
         self.dimmer.set(brightness, warmth);
+    }
+
+    pub fn is_locked(&self) -> bool {
+        self.lock.is_locked()
     }
 
     /// What plays now, as the screens were last told.

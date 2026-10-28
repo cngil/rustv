@@ -58,6 +58,8 @@ pub struct Config {
     pub keyboard: Keyboard,
     #[serde(default)]
     pub night: Night,
+    #[serde(default)]
+    pub system: System,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
 }
@@ -169,6 +171,22 @@ pub struct Display {
 impl Default for Display {
     fn default() -> Self {
         Self { mode: "auto".into(), brightness: 1.0, warmth: 0.0 }
+    }
+}
+
+/// What the remote's System settings may show about the box.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct System {
+    /// A screenshot of the TV, never while it is locked.
+    pub screenshot: bool,
+    /// Temperatures, memory, disk and tvd's log.
+    pub info: bool,
+}
+
+impl Default for System {
+    fn default() -> Self {
+        Self { screenshot: true, info: true }
     }
 }
 

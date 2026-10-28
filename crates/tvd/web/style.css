@@ -614,6 +614,52 @@ code {
   justify-content: center;
 }
 
+.setting-value {
+  flex: none;
+  max-width: 55%;
+  text-align: right;
+  color: var(--muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.shot-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.shot-actions {
+  margin-top: 12px;
+}
+
+.shot-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: inherit;
+}
+
+.log-panel {
+  width: min(100%, 900px);
+}
+
+.log-lines {
+  margin: 0;
+  max-height: 64dvh;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--muted);
+  font: 11px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  white-space: pre;
+}
+
 .sheet-backdrop {
   position: absolute;
   inset: 0;

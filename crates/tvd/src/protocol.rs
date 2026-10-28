@@ -228,6 +228,7 @@ pub struct SettingsInfo {
     pub display: crate::display::Info,
     pub keyboard: crate::config::Keyboard,
     pub night: crate::config::Night,
+    pub system: crate::config::System,
     pub wallpaper: crate::wallpaper::Info,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],

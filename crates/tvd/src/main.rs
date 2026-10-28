@@ -29,6 +29,7 @@ mod settings;
 mod sleep;
 mod state;
 mod stats;
+mod system;
 mod theme;
 mod volumes;
 mod wallpaper;

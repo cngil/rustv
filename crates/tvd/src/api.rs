@@ -88,6 +88,8 @@ pub fn router(state: Shared) -> Router {
         .route("/apps/:id/icon", get(get_icon))
         .route("/wallpapers/:n", get(get_wallpaper))
         .route("/now_playing/art", get(get_now_playing_art))
+        .route("/screenshot", get(get_screenshot))
+        .route("/system", get(get_system))
         .route("/audio", get(get_audio))
         .route("/network", get(get_network))
         .route("/wifi", get(get_wifi))
@@ -177,6 +179,33 @@ async fn get_icon(State(state): State<Shared>, Path(id): Path<String>) -> Respon
             .into_response(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+/// The TV picture, unless switched off (`system.screenshot`) or the TV is locked.
+async fn get_screenshot(State(state): State<Shared>) -> Response {
+    let refused = if !state.config().system.screenshot {
+        Some(crate::i18n::error("error.system.screenshot_off", &[]))
+    } else if state.is_locked() {
+        Some(crate::i18n::error("error.locked", &[]))
+    } else {
+        None
+    };
+    if let Some(err) = refused {
+        return (StatusCode::FORBIDDEN, Json(error_body(&err))).into_response();
+    }
+    match crate::system::screenshot().await {
+        Ok(png) => ([(header::CONTENT_TYPE, "image/png"), (header::CACHE_CONTROL, "no-store")], png).into_response(),
+        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, Json(error_body(&err))).into_response(),
+    }
+}
+
+/// How the box is doing, unless switched off (`system.info`).
+async fn get_system(State(state): State<Shared>) -> Response {
+    if !state.config().system.info {
+        let err = crate::i18n::error("error.system.info_off", &[]);
+        return (StatusCode::FORBIDDEN, Json(error_body(&err))).into_response();
+    }
+    Json(crate::system::info().await).into_response()
 }
 
 /// The cover of what plays, from the file the player named. Only a picture is

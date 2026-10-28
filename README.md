@@ -166,6 +166,10 @@ and your phone becomes the remote.
   (Firefox, Jellyfin, Spotify, VLC…). Covers are only shown when the player
   keeps them in a file; nothing is fetched from the internet
   (`shell.now_playing`).
+- **The box from the sofa**: the remote's System settings show what the TV
+  shows (a screenshot to look at or save, never while locked), how long
+  the box has run, its temperatures, memory and disk, and tvd's recent log
+  (`[system]`).
 - **Settings on the TV**: a Settings tile after the apps (or the Menu key)
   opens the settings on the TV itself, moved through with the arrows, for
   whoever has only the TV remote or a gamepad. The same changes as from the
@@ -381,6 +385,9 @@ All endpoints except `/api/v1/health` need `Authorization: Bearer <token>`
 | `GET` | `/api/v1/wallpapers/{n}` | Picture `n` of `[wallpaper] images` (JPEG or PNG) |
 | `GET` | `/api/v1/audio` | Audio outputs and volume limits |
 | `GET` | `/api/v1/network` | Ports the box listens on, with address and program |
+| `GET` | `/api/v1/now_playing/art` | Cover of what plays, when the player keeps it in a local file |
+| `GET` | `/api/v1/screenshot` | What the TV shows, as PNG (`system.screenshot`; refused while locked) |
+| `GET` | `/api/v1/system` | Uptime, load, temperatures, memory, disk and tvd's last log lines (`system.info`) |
 | `POST` | `/api/v1/command` | Run one command (below) |
 | `GET` | `/api/v1/ws` | WebSocket: send commands, receive `apps`, `audio` and `state` updates |
 

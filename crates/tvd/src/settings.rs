@@ -62,6 +62,8 @@ pub const EDITABLE: &[&str] = &[
     "night.brightness",
     "night.warmth",
     "night.audio",
+    "system.screenshot",
+    "system.info",
     "keyboard.enabled",
     "keyboard.hold_ok",
     "keyboard.hold_guide",

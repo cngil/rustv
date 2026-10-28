@@ -1125,6 +1125,7 @@ function changeSetting(key, value) {
   const [section, name] = key.split(".");
   settings[section][name] = value;
   if (key === "locale.language") setLanguage(value);
+  if (key === "system.info") loadSystem();
   renderSettings();
 }
 
@@ -1148,7 +1149,7 @@ function renderSettings() {
     for (const row of group.custom ? group.custom() : group.items.map(settingRow)) section.append(row);
     body.append(section);
   }
-  body.append(wifiGroup(), bluetoothGroup(), networkGroup());
+  body.append(wifiGroup(), bluetoothGroup(), networkGroup(), systemGroup());
 
   const about = document.createElement("p");
   about.className = "settings-about";
@@ -1348,6 +1349,138 @@ function networkGroup() {
   }
   return section;
 }
+
+// ---- the box: screenshot, temperatures, log ----
+
+let system = null; // from /api/v1/system, or { error }
+
+async function loadSystem() {
+  if (!settingValue("system.info")) {
+    system = null;
+    return;
+  }
+  try {
+    const res = await fetch("/api/v1/system", { headers: { Authorization: `Bearer ${token}` } });
+    system = res.ok ? await res.json() : { error: true };
+  } catch {
+    system = { error: true };
+  }
+  renderSettings();
+}
+
+const gigabytes = (bytes) => unit("unit.gigabytes", (bytes / 1e9).toFixed(bytes < 1e10 ? 1 : 0));
+
+/** Degrees as the TV's settings show them. */
+function degrees(celsius) {
+  const fahrenheit = settings.locale && settings.locale.temperature === "fahrenheit";
+  return fahrenheit ? `${Math.round((celsius * 9) / 5 + 32)} °F` : `${Math.round(celsius)} °C`;
+}
+
+/** 3 days, 5 h or 12 min. */
+function uptime(seconds) {
+  if (seconds >= 86400) return say(unit("unit.days", Math.floor(seconds / 86400)));
+  if (seconds >= 3600) return say(unit("unit.hours", Math.floor(seconds / 3600)));
+  return say(minutes(Math.max(1, Math.floor(seconds / 60))));
+}
+
+function valueRow(label, value) {
+  const row = settingRow({ label });
+  const text = document.createElement("div");
+  text.className = "setting-value";
+  text.textContent = value;
+  row.append(text);
+  return row;
+}
+
+function systemGroup() {
+  const section = document.createElement("section");
+  section.className = "settings-group";
+  const title = document.createElement("h3");
+  title.textContent = t("section.system");
+  section.append(title);
+  section.append(
+    settingRow({ key: "system.screenshot", label: label("system.screenshot"), hint: hint("system.screenshot") }),
+    settingRow({ label: "remote.system.shot.label", button: "remote.system.show", needs: "system.screenshot", run: openShot }),
+    settingRow({ key: "system.info", label: label("system.info"), hint: hint("system.info") }),
+  );
+  if (!settingValue("system.info")) return section;
+  if (!system) {
+    section.append(settingRow({ label: "common.checking" }));
+    return section;
+  }
+  if (system.error) {
+    section.append(settingRow({ label: "common.something_went_wrong" }));
+    return section;
+  }
+  if (system.uptime_secs != null) section.append(valueRow("remote.system.uptime", uptime(system.uptime_secs)));
+  const temps = [
+    ["CPU", system.cpu_temp],
+    ["GPU", system.gpu_temp],
+  ].filter(([, value]) => value != null);
+  if (temps.length) {
+    section.append(valueRow("remote.system.temperature", temps.map(([name, value]) => `${name} ${degrees(value)}`).join(" · ")));
+  }
+  if (system.memory) {
+    const [used, total] = system.memory;
+    section.append(valueRow("remote.system.memory", `${say(gigabytes(used))} / ${say(gigabytes(total))}`));
+  }
+  for (const disk of system.disk || []) {
+    const name = system.disk.length > 1 ? ` ${disk.path}` : "";
+    section.append(valueRow({ text: t("remote.system.disk") + name }, `${say(gigabytes(disk.used))} / ${say(gigabytes(disk.total))}`));
+  }
+  section.append(
+    settingRow({ label: "remote.system.log.label", hint: "remote.system.log.hint", button: "remote.system.show", run: openLog }),
+  );
+  return section;
+}
+
+let shotUrl = null;
+
+async function takeShot() {
+  const status = $("#shot-status");
+  status.hidden = true;
+  $("#shot-refresh").disabled = true;
+  try {
+    const res = await fetch("/api/v1/screenshot", { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.key ? t(body.key, body.args || {}) : body.error || t("common.something_went_wrong"));
+    }
+    if (shotUrl) URL.revokeObjectURL(shotUrl);
+    shotUrl = URL.createObjectURL(await res.blob());
+    $("#shot-image").src = shotUrl;
+    const save = $("#shot-save");
+    save.href = shotUrl;
+    save.download = `tv-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-")}.png`;
+  } catch (err) {
+    status.textContent = err.message;
+    status.hidden = false;
+  } finally {
+    $("#shot-refresh").disabled = false;
+  }
+}
+
+function openShot() {
+  haptic();
+  $("#shot").hidden = false;
+  takeShot();
+}
+
+function openLog() {
+  haptic();
+  const lines = (system && system.log) || [];
+  $("#log-lines").textContent = lines.length ? lines.join("\n") : t("remote.system.log.empty");
+  $("#log").hidden = false;
+  // The newest lines are at the bottom.
+  $("#log-lines").scrollTop = $("#log-lines").scrollHeight;
+}
+
+$("#shot-refresh").addEventListener("click", () => {
+  haptic();
+  takeShot();
+});
+for (const el of $$("[data-close-shot]")) el.addEventListener("click", () => ($("#shot").hidden = true));
+for (const el of $$("[data-close-log]")) el.addEventListener("click", () => ($("#log").hidden = true));
 
 // ---- Wi-Fi and Bluetooth ----
 
@@ -1647,6 +1780,7 @@ function openSettings() {
   $("#settings").hidden = false;
   renderSettings();
   loadNetwork();
+  loadSystem();
   loadWifi();
   loadBluetooth();
 }
@@ -1658,7 +1792,11 @@ function closeSettings() {
 $("#settings-open").addEventListener("click", openSettings);
 for (const el of $$("[data-close-settings]")) el.addEventListener("click", closeSettings);
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !$("#settings").hidden) closeSettings();
+  if (event.key !== "Escape") return;
+  // The sheet on top closes first.
+  if (!$("#shot").hidden) $("#shot").hidden = true;
+  else if (!$("#log").hidden) $("#log").hidden = true;
+  else if (!$("#settings").hidden) closeSettings();
 });
 
 // ---- volume slider ----

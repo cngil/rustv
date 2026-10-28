@@ -56,6 +56,8 @@ pub struct Config {
     pub display: Display,
     #[serde(default)]
     pub keyboard: Keyboard,
+    #[serde(default)]
+    pub night: Night,
     #[serde(default, rename = "app")]
     pub apps: Vec<App>,
 }
@@ -157,11 +159,34 @@ pub struct Display {
     /// 0.2..1: below 1 the picture is dimmed in software (sway's gamma); it
     /// cannot go brighter than the TV's own backlight.
     pub brightness: f32,
+    /// 0..1: the night light all day, warmer colors with less blue; 0 is off.
+    pub warmth: f32,
 }
 
 impl Default for Display {
     fn default() -> Self {
-        Self { mode: "auto".into(), brightness: 1.0 }
+        Self { mode: "auto".into(), brightness: 1.0, warmth: 0.0 }
+    }
+}
+
+/// Night mode: dimmer and warmer between two times of day.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct Night {
+    pub enabled: bool,
+    /// `HH:MM`, local time; it eases in over half an hour from here.
+    pub from: String,
+    /// `HH:MM`; it eases out over half an hour from here.
+    pub to: String,
+    /// 0.2..1, never above `display.brightness`.
+    pub brightness: f32,
+    /// 0..1, never below `display.warmth`.
+    pub warmth: f32,
+}
+
+impl Default for Night {
+    fn default() -> Self {
+        Self { enabled: false, from: "22:00".into(), to: "07:00".into(), brightness: 0.7, warmth: 0.5 }
     }
 }
 
@@ -582,6 +607,18 @@ impl Config {
         }
         if !(0.2..=1.0).contains(&self.display.brightness) {
             bail!("display.brightness must be between 0.2 and 1");
+        }
+        if !(0.0..=1.0).contains(&self.display.warmth) {
+            bail!("display.warmth must be between 0 and 1");
+        }
+        if crate::night::parse(&self.night.from).is_none() || crate::night::parse(&self.night.to).is_none() {
+            bail!("night.from and night.to must be times like 22:00");
+        }
+        if !(0.2..=1.0).contains(&self.night.brightness) {
+            bail!("night.brightness must be between 0.2 and 1");
+        }
+        if !(0.0..=1.0).contains(&self.night.warmth) {
+            bail!("night.warmth must be between 0 and 1");
         }
         if self.display.mode != "auto" {
             crate::display::Mode::parse(&self.display.mode)

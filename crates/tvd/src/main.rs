@@ -19,6 +19,7 @@ mod keymap;
 mod lock;
 mod media;
 mod network;
+mod night;
 mod osd;
 mod overlay;
 mod pairing;

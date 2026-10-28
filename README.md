@@ -108,6 +108,10 @@ and your phone becomes the remote.
 - **Brightness**, from the remote or the TV's settings: dims the picture in
   software (sway's gamma), handy in the evening. It cannot go brighter than
   the TV's own backlight setting; if rustv stops, full brightness comes back.
+- **Night light and night mode**: warmer colors with less blue, all day or
+  only at night. Night mode dims and warms the screen between two times of
+  day (`[night]`), easing in and out over half an hour, from the remote or
+  the TV's settings.
 - **Gamepads as remotes**: pair one over Bluetooth (or plug it in) and move
   around the home screen with it; the Guide button closes the open app.
 - **Wi-Fi and Bluetooth** in the remote's settings: join a network, pair

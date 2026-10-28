@@ -31,20 +31,34 @@ impl Lit {
     }
 }
 
-/// How a choice reads: a catalog key, or a number in a unit such as `unit.minutes`.
+/// How a choice reads: a catalog key, a number in a unit such as `unit.minutes`,
+/// or a time of day (`HH:MM`) as the clock shows it.
 #[derive(Clone, Copy)]
 enum Words {
     Key(&'static str),
     Unit(&'static str, f64),
+    Time(&'static str),
 }
 
 impl Words {
-    fn read(self, lang: &str) -> String {
+    fn read(self, lang: &str, twelve_hour: bool) -> String {
         match self {
             Words::Key(key) => rustv_locales::text(lang, key).to_string(),
             Words::Unit(unit, n) => rustv_locales::format(lang, unit, &[("n", &number(n))]),
+            Words::Time(time) => clock_time(time, twelve_hour),
         }
     }
+}
+
+/// `22:00`, or `10 PM` with the 12-hour clock, as the remote writes it.
+fn clock_time(time: &str, twelve_hour: bool) -> String {
+    let (h, m) = time.split_once(':').unwrap_or((time, "00"));
+    let (Ok(h), Ok(m)) = (h.parse::<u32>(), m.parse::<u32>()) else { return time.to_string() };
+    if !twelve_hour {
+        return time.to_string();
+    }
+    let minutes = if m == 0 { String::new() } else { format!(":{m:02}") };
+    format!("{}{minutes} {}", if h % 12 == 0 { 12 } else { h % 12 }, if h < 12 { "AM" } else { "PM" })
 }
 
 /// 30, 1.5: no trailing zeros.
@@ -109,7 +123,14 @@ const fn section(title: &'static str, items: &'static [Item]) -> Section {
     Section { title, items, pictures: false, display: false }
 }
 
-use Words::{Key, Unit};
+use Words::{Key, Time, Unit};
+
+const WARMTH: &[(Lit, Words)] = &[
+    (Lit::Num(0.0), Key("option.warmth.off")),
+    (Lit::Num(0.3), Key("option.warmth.low")),
+    (Lit::Num(0.6), Key("option.warmth.medium")),
+    (Lit::Num(1.0), Key("option.warmth.high")),
+];
 
 const MINUTES: &[(Lit, Words)] = &[
     (Lit::Num(1.0), Unit("unit.minutes", 1.0)),
@@ -217,6 +238,13 @@ const SECTIONS: &[Section] = &[
                 needs: None,
             },
             Item {
+                key: "display.warmth",
+                label: "setting.display.warmth.label",
+                hint: Some("setting.display.warmth.hint"),
+                kind: Kind::Choice(WARMTH),
+                needs: None,
+            },
+            Item {
                 key: "",
                 label: "setting.display.resolution.label",
                 hint: Some("setting.display.resolution.hint"),
@@ -226,6 +254,49 @@ const SECTIONS: &[Section] = &[
             Item { key: "", label: "setting.display.refresh.label", hint: None, kind: Kind::Refresh, needs: None },
         ],
     },
+    section(
+        "section.night",
+        &[
+            toggle("night.enabled", "setting.night.enabled.label", Some("setting.night.enabled.hint"), None),
+            choice(
+                "night.from",
+                "setting.night.from.label",
+                &[
+                    (Lit::Str("20:00"), Time("20:00")),
+                    (Lit::Str("21:00"), Time("21:00")),
+                    (Lit::Str("22:00"), Time("22:00")),
+                    (Lit::Str("23:00"), Time("23:00")),
+                    (Lit::Str("00:00"), Time("00:00")),
+                ],
+                Some("night.enabled"),
+            ),
+            choice(
+                "night.to",
+                "setting.night.to.label",
+                &[
+                    (Lit::Str("05:00"), Time("05:00")),
+                    (Lit::Str("06:00"), Time("06:00")),
+                    (Lit::Str("07:00"), Time("07:00")),
+                    (Lit::Str("08:00"), Time("08:00")),
+                    (Lit::Str("09:00"), Time("09:00")),
+                ],
+                Some("night.enabled"),
+            ),
+            choice(
+                "night.brightness",
+                "setting.night.brightness.label",
+                &[
+                    (Lit::Num(0.4), Unit("unit.percent", 40.0)),
+                    (Lit::Num(0.6), Unit("unit.percent", 60.0)),
+                    (Lit::Num(0.7), Unit("unit.percent", 70.0)),
+                    (Lit::Num(0.8), Unit("unit.percent", 80.0)),
+                    (Lit::Num(1.0), Unit("unit.percent", 100.0)),
+                ],
+                Some("night.enabled"),
+            ),
+            choice("night.warmth", "setting.night.warmth.label", WARMTH, Some("night.enabled")),
+        ],
+    ),
     Section {
         title: "section.wallpaper",
         pictures: true,
@@ -565,6 +636,7 @@ impl Menu {
     /// The list as the UI draws it, with the focused row kept in view.
     pub fn rows(&mut self) -> Vec<Row> {
         let lang = self.lang();
+        let twelve_hour = self.settings["locale"]["clock"] == "12h";
         let focused = self.focusable().get(self.selected).map(|item| *item as *const Item);
         let mut rows = Vec::new();
         let mut y = 0.0;
@@ -592,7 +664,9 @@ impl Menu {
                 let (kind, value) = match item.kind {
                     Kind::Toggle | Kind::Overlay => ("toggle", String::new()),
                     Kind::Action(_) => ("action", String::new()),
-                    Kind::Choice(_) => ("choice", at.map_or_else(|| shown(current), |i| options[i].1.read(lang))),
+                    Kind::Choice(_) => {
+                        ("choice", at.map_or_else(|| shown(current), |i| options[i].1.read(lang, twelve_hour)))
+                    }
                     Kind::Resolution | Kind::Refresh => {
                         ("choice", chosen.map(|i| choices[i].1.clone()).unwrap_or_default())
                     }
@@ -769,6 +843,23 @@ mod tests {
             menu.key("down");
         }
         panic!("no row {label:?}");
+    }
+
+    #[test]
+    fn night_times_read_as_the_clock_shows_them() {
+        let mut menu = menu();
+        let mut settings = menu.settings.clone();
+        settings["night"] =
+            json!({ "enabled": true, "from": "22:00", "to": "07:00", "brightness": 0.7, "warmth": 0.5 });
+        menu.set_settings(settings.clone());
+        go_to(&mut menu, "From");
+        assert_eq!(focused(&mut menu).value, "22:00");
+        assert_eq!(menu.key("right"), Outcome::Send(json!({ "type": "set", "key": "night.from", "value": "23:00" })));
+        settings["locale"]["clock"] = json!("12h");
+        menu.set_settings(settings);
+        assert_eq!(focused(&mut menu).value, "10 PM");
+        assert_eq!(clock_time("00:30", true), "12:30 AM");
+        assert_eq!(clock_time("12:00", true), "12 PM");
     }
 
     #[test]

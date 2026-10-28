@@ -57,6 +57,9 @@ impl fmt::Display for Mode {
 pub struct Info {
     /// What the config asks for: `auto` (leave it to sway) or a mode.
     pub mode: String,
+    /// `display.brightness` and `display.warmth`, for the settings.
+    pub brightness: f32,
+    pub warmth: f32,
     pub output: String,
     /// The mode on screen; tvd's last one while the screen is off.
     pub current: Option<String>,

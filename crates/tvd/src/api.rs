@@ -283,7 +283,7 @@ async fn client(socket: WebSocket, state: Shared, is_shell: bool) {
         ServerMsg::Wallpaper(wallpaper),
         ServerMsg::Locale(locale),
         ServerMsg::Theme(palette),
-        ServerMsg::Settings(state.settings_info()),
+        ServerMsg::Settings(Box::new(state.settings_info())),
         ServerMsg::State(state.snapshot().await),
     ];
     for msg in hello.iter().chain(&pairing) {

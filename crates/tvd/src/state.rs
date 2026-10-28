@@ -182,8 +182,14 @@ impl AppState {
             presets: crate::theme::presets(),
             overlay: cfg.overlay.clone(),
             cec: cfg.cec.clone(),
-            display: crate::display::Info { mode: cfg.display.mode.clone(), ..self.display.lock().unwrap().clone() },
+            display: crate::display::Info {
+                mode: cfg.display.mode.clone(),
+                brightness: cfg.display.brightness,
+                warmth: cfg.display.warmth,
+                ..self.display.lock().unwrap().clone()
+            },
             keyboard: cfg.keyboard.clone(),
+            night: cfg.night.clone(),
             wallpaper: crate::wallpaper::info(&cfg.wallpaper),
             editable: settings::EDITABLE,
             version: env!("CARGO_PKG_VERSION"),
@@ -219,9 +225,10 @@ impl AppState {
             }
         })
         .await??;
-        let (overlay_moved, cast_changed, brightness_changed) = {
+        let (overlay_moved, cast_changed, brightness_changed, screen_changed) = {
             let mut cfg = self.config.write().unwrap();
             let brightness_changed = (cfg.display.brightness - fresh.display.brightness).abs() > f32::EPSILON;
+            let screen_changed = cfg.display.warmth != fresh.display.warmth || cfg.night != fresh.night;
             // The overlay reads position and locale when it starts, so either change restarts it.
             let moved = cfg.overlay.position != fresh.overlay.position || cfg.locale != fresh.locale;
             cfg.locale = fresh.locale;
@@ -240,10 +247,13 @@ impl AppState {
             cfg.keyboard = fresh.keyboard;
             cfg.cec = fresh.cec;
             cfg.wallpaper = fresh.wallpaper;
-            (moved, cast_changed, brightness_changed)
+            cfg.night = fresh.night;
+            (moved, cast_changed, brightness_changed, screen_changed)
         };
         if brightness_changed {
             self.show_brightness();
+        } else if screen_changed {
+            self.apply_screen();
         }
         if cast_changed {
             self.apply_cast();
@@ -265,7 +275,7 @@ impl AppState {
         let _ = self.events.send(ServerMsg::Locale(locale));
         let _ = self.events.send(ServerMsg::Theme(crate::theme::resolve(&theme)));
         let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
-        let _ = self.events.send(ServerMsg::Settings(self.settings_info()));
+        let _ = self.events.send(ServerMsg::Settings(Box::new(self.settings_info())));
         self.enforce_volume_limit().await;
         if overlay_moved && self.overlay.visible() {
             self.overlay.set_visible(false, Arc::downgrade(self));
@@ -339,7 +349,7 @@ impl AppState {
     /// After startup: the screen may still be off if tvd stopped while the TV slept,
     /// the config may ask for a display mode, and an app adopted at startup is
     /// the one whose volume counts.
-    pub async fn after_start(&self) {
+    pub async fn after_start(self: &Arc<Self>) {
         if let Err(err) = sleep::display_power(true).await {
             tracing::debug!("turning the screen on at start: {err:#}");
         }
@@ -350,7 +360,15 @@ impl AppState {
             }
         }
         self.read_display().await;
-        self.dimmer.set(self.config().display.brightness);
+        self.apply_screen();
+        // Night mode follows the clock.
+        let state = Arc::clone(self);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(30)).await;
+                state.apply_screen();
+            }
+        });
         if let Some((id, _)) = self.apps.running().await {
             self.volumes.lock().await.current = id;
         }
@@ -457,7 +475,7 @@ impl AppState {
         *self.display_trial.lock().unwrap() =
             Some(Trial { mode, previous, until: now() + crate::display::TRIAL_SECONDS });
         self.read_display().await;
-        let _ = self.events.send(ServerMsg::Settings(self.settings_info()));
+        let _ = self.events.send(ServerMsg::Settings(Box::new(self.settings_info())));
         self.notify().await;
         // Count down on every screen, then go back unless someone kept it.
         let state = Arc::clone(self);
@@ -526,7 +544,7 @@ impl AppState {
             }
         }
         self.read_display().await;
-        let _ = self.events.send(ServerMsg::Settings(self.settings_info()));
+        let _ = self.events.send(ServerMsg::Settings(Box::new(self.settings_info())));
         self.notify().await;
     }
 
@@ -559,13 +577,19 @@ impl AppState {
         self.osd.show(level, &palette);
     }
 
+    /// Puts the screen at the brightness and warmth it should have now, night mode included.
+    fn apply_screen(&self) {
+        let (brightness, warmth) = crate::night::screen(&self.config(), crate::night::local_minutes());
+        self.dimmer.set(brightness, warmth);
+    }
+
     /// Applies the brightness and shows it on the bar, over apps and the home screen alike.
     fn show_brightness(&self) {
         let (brightness, palette, lang) = {
             let cfg = self.config();
             (cfg.display.brightness, crate::theme::resolve(&cfg.theme), crate::i18n::code(cfg.locale.language))
         };
-        self.dimmer.set(brightness);
+        self.apply_screen();
         let percent = (brightness * 100.0).round().to_string();
         let level = crate::osd::Level {
             label: rustv_locales::text(lang, "tv.brightness").to_string(),
@@ -791,7 +815,7 @@ impl AppState {
             Command::SetPin { current, pin } => {
                 self.lock.set_pin(current.as_deref(), pin.as_deref())?;
                 info!(pin_set = self.lock.has_pin(), "PIN changed");
-                let _ = self.events.send(ServerMsg::Settings(self.settings_info()));
+                let _ = self.events.send(ServerMsg::Settings(Box::new(self.settings_info())));
                 self.notify().await;
             }
             Command::ShowPairing => {

@@ -137,23 +137,35 @@ impl Prompt {
     }
 }
 
-/// Dims the screen below full brightness by holding sway's gamma tables.
+/// Dims and warms the screen by holding sway's gamma tables.
 #[derive(Default)]
 pub struct Dimmer {
     holder: Mutex<Option<Child>>,
+    /// The last brightness and warmth sent, so the clock's ticks send nothing new.
+    last: Mutex<Option<(f32, f32)>>,
 }
 
 impl Dimmer {
-    /// 1.0 lets go (full brightness, the screen's own gamma); less dims.
-    pub fn set(&self, brightness: f32) {
+    /// Brightness 1.0 and warmth 0 let go (the screen's own gamma); otherwise
+    /// the screen is dimmed and its blue and green turned down.
+    pub fn set(&self, brightness: f32, warmth: f32) {
         let mut holder = self.holder.lock().unwrap();
-        if brightness >= 0.999 {
+        // Hundredths are finer than anyone sees, and keep the easing to a few steps.
+        let now = ((brightness * 100.0).round() / 100.0, (warmth * 100.0).round() / 100.0);
+        let mut last = self.last.lock().unwrap();
+        let alive = holder.as_mut().is_some_and(|child| child.try_wait().ok().flatten().is_none());
+        if *last == Some(now) && (alive || now == (1.0, 0.0)) {
+            return;
+        }
+        *last = Some(now);
+        let (brightness, warmth) = now;
+        if brightness >= 1.0 && warmth <= 0.0 {
             if let Some(child) = holder.take() {
                 end(child);
             }
             return;
         }
-        let line = json!({ "brightness": brightness });
+        let line = json!({ "brightness": brightness, "warmth": warmth });
         if holder.as_mut().is_some_and(|child| send(child, &line)) {
             return;
         }

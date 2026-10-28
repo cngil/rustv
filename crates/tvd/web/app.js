@@ -674,11 +674,17 @@ function displayRows() {
     hint: hint("display.brightness"),
     options: [[0.4, pct(40)], [0.6, pct(60)], [0.8, pct(80)], [1, pct(100)]],
   });
+  const warmth = settingRow({
+    key: "display.warmth",
+    label: label("display.warmth"),
+    hint: hint("display.warmth"),
+    options: WARMTH,
+  });
   if (!display.modes || !display.modes.length) {
     const note = document.createElement("p");
     note.className = "setting-hint";
     note.textContent = t("remote.display.unavailable");
-    return [brightness, note];
+    return [brightness, warmth, note];
   }
   const modes = display.modes.map(splitMode);
   const on = splitMode(display.current || (display.mode !== "auto" ? display.mode : display.modes[0]));
@@ -700,7 +706,7 @@ function displayRows() {
   const refresh = choiceRow(t("setting.display.refresh.label"), "", rates.map((hz) => [hz, `${hz} Hz`]), on.hz, (hz) =>
     tryMode(`${on.size}@${hz}`),
   );
-  return [brightness, resolution, refresh];
+  return [brightness, warmth, resolution, refresh];
 }
 
 /** The "keep this resolution?" prompt, while a mode is on trial. */
@@ -818,10 +824,20 @@ const minutes = (n) => unit("unit.minutes", n);
 const hours = (n) => unit("unit.hours", n);
 const seconds = (n) => unit("unit.seconds", n);
 const pct = (n) => unit("unit.percent", n);
+const WARMTH = [[0, "option.warmth.off"], [0.3, "option.warmth.low"], [0.6, "option.warmth.medium"], [1, "option.warmth.high"]];
 
-/** A label, hint or choice: a catalog key, or `{ key, vars }` for one with values. */
+/** `HH:MM` as the TV's clock shows it: 22:00, or 10 PM with the 12-hour clock. */
+function clockTime(time) {
+  const [h, m] = time.split(":").map(Number);
+  if (!settings || !settings.locale || settings.locale.clock !== "12h") return { text: time };
+  const minutes = m ? `:${String(m).padStart(2, "0")}` : "";
+  return { text: `${h % 12 || 12}${minutes} ${h < 12 ? "AM" : "PM"}` };
+}
+
+/** A label, hint or choice: a catalog key, `{ key, vars }` for one with values, or `{ text }` as is. */
 function say(text) {
-  return text && typeof text === "object" ? t(text.key, text.vars) : t(text);
+  if (text && typeof text === "object") return "text" in text ? text.text : t(text.key, text.vars);
+  return t(text);
 }
 
 const SETTINGS = [
@@ -856,6 +872,31 @@ const SETTINGS = [
   },
   { title: "section.theme", custom: themeRows },
   { title: "section.display", custom: displayRows },
+  {
+    title: "section.night",
+    items: [
+      { key: "night.enabled", label: label("night.enabled"), hint: hint("night.enabled") },
+      {
+        key: "night.from",
+        label: label("night.from"),
+        needs: "night.enabled",
+        options: ["20:00", "21:00", "22:00", "23:00", "00:00"].map((time) => [time, clockTime(time)]),
+      },
+      {
+        key: "night.to",
+        label: label("night.to"),
+        needs: "night.enabled",
+        options: ["05:00", "06:00", "07:00", "08:00", "09:00"].map((time) => [time, clockTime(time)]),
+      },
+      {
+        key: "night.brightness",
+        label: label("night.brightness"),
+        needs: "night.enabled",
+        options: [[0.4, pct(40)], [0.6, pct(60)], [0.7, pct(70)], [0.8, pct(80)], [1, pct(100)]],
+      },
+      { key: "night.warmth", label: label("night.warmth"), needs: "night.enabled", options: WARMTH },
+    ],
+  },
   {
     title: "section.screensaver",
     items: [
@@ -1118,7 +1159,7 @@ function settingRow(item) {
     chips.className = "chips";
     const options = [...item.options];
     // A value set in the config file that is not one of the presets.
-    if (value !== undefined && !options.some(([v]) => sameValue(v, value))) options.push([value, String(value)]);
+    if (value !== undefined && !options.some(([v]) => sameValue(v, value))) options.push([value, { text: String(value) }]);
     for (const [optionValue, optionLabel] of options) {
       const chip = document.createElement("button");
       chip.className = "chip";

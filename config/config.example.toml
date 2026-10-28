@@ -51,6 +51,20 @@ mode = "auto"
 # cannot go brighter than the TV's own backlight. If rustv stops, full
 # brightness comes back.
 brightness = 1.0
+# Night light, all day: 0 (off) to 1. Warmer colors with less blue, down to a
+# 3400 K lamp's white at 1. Also through sway's gamma tables.
+warmth = 0.0
+
+[night]
+# Night mode: between `from` and `to` (local time, across midnight is fine)
+# the screen dims to `brightness` and warms to `warmth`, easing in over half
+# an hour after `from` and back out over half an hour after `to`. It never
+# makes the screen brighter or cooler than the [display] values.
+enabled = false
+from = "22:00"
+to = "07:00"
+brightness = 0.7   # 0.2 to 1
+warmth = 0.5       # 0 to 1
 
 [wallpaper]
 # Your own pictures (JPEG or PNG), files or folders of them. They show behind

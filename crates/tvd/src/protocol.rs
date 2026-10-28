@@ -174,7 +174,7 @@ pub enum ServerMsg {
     /// Your own pictures (`[wallpaper]`), without their paths; the shell fetches them by number.
     Wallpaper(crate::wallpaper::Info),
     /// Everything the remote's settings panel shows.
-    Settings(SettingsInfo),
+    Settings(Box<SettingsInfo>),
     /// Language and formats (`[locale]` in the config).
     Locale(crate::config::Locale),
     /// Colors for the shell and the remotes, worked out from `[theme]`.
@@ -223,6 +223,7 @@ pub struct SettingsInfo {
     pub cec: crate::config::Cec,
     pub display: crate::display::Info,
     pub keyboard: crate::config::Keyboard,
+    pub night: crate::config::Night,
     pub wallpaper: crate::wallpaper::Info,
     /// Keys `set` accepts.
     pub editable: &'static [&'static str],

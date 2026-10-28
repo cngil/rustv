@@ -98,10 +98,12 @@ struct Level {
     palette: Palette,
 }
 
-/// For `gamma`: how bright the screen is, 0..1.
+/// For `gamma`: how bright the screen is, 0..1, and how warm (the night light), 0..1.
 #[derive(Debug, Deserialize)]
 struct Dim {
     brightness: f32,
+    #[serde(default)]
+    warmth: f32,
 }
 
 /// One update from tvd.
@@ -732,10 +734,16 @@ struct Gamma {
 
 /// One ramp for each of red, green and blue: a straight line from black to
 /// `brightness` of full, the way a dimmer would.
-fn ramps(size: u32, brightness: f32) -> Vec<u16> {
-    let top = f32::from(u16::MAX) * brightness.clamp(0.0, 1.0);
-    let ramp: Vec<u16> = (0..size).map(|i| (top * i as f32 / (size.max(2) - 1) as f32).round() as u16).collect();
-    [ramp.as_slice(), ramp.as_slice(), ramp.as_slice()].concat()
+fn ramps(size: u32, brightness: f32, warmth: f32) -> Vec<u16> {
+    let ramp = |gain: f32| -> Vec<u16> {
+        let top = f32::from(u16::MAX) * (brightness * gain).clamp(0.0, 1.0);
+        (0..size).map(|i| (top * i as f32 / (size.max(2) - 1) as f32).round() as u16).collect()
+    };
+    // At full warmth, white is that of a 3400 K lamp (the blackbody's red, green
+    // and blue relative to daylight's 6500 K), as night light tools use.
+    let warmth = warmth.clamp(0.0, 1.0);
+    let (green, blue) = (1.0 - 0.31 * warmth, 1.0 - 0.6 * warmth);
+    [ramp(1.0), ramp(green), ramp(blue)].concat()
 }
 
 fn gamma() -> Result<()> {
@@ -767,7 +775,8 @@ fn gamma() -> Result<()> {
             let mut file =
                 std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&path)?;
             std::fs::remove_file(&path)?;
-            let table: Vec<u8> = ramps(*size, dim.brightness).iter().flat_map(|v| v.to_ne_bytes()).collect();
+            let table: Vec<u8> =
+                ramps(*size, dim.brightness, dim.warmth).iter().flat_map(|v| v.to_ne_bytes()).collect();
             file.write_all(&table)?;
             file.rewind()?;
             control.set_gamma(file.as_fd());
@@ -880,12 +889,21 @@ mod tests {
 
     #[test]
     fn gamma_ramps_dim_in_a_straight_line() {
-        let full = ramps(4, 1.0);
+        let full = ramps(4, 1.0, 0.0);
         assert_eq!(full.len(), 12);
         assert_eq!((full[0], full[3]), (0, u16::MAX));
-        let half = ramps(4, 0.5);
+        let half = ramps(4, 0.5, 0.0);
         assert_eq!(half[3], 32768);
         // Red, green and blue alike.
         assert_eq!(half[..4], half[4..8]);
+    }
+
+    #[test]
+    fn warmth_turns_down_green_and_more_blue() {
+        let warm = ramps(4, 1.0, 1.0);
+        let (red, green, blue) = (warm[3], warm[7], warm[11]);
+        assert_eq!(red, u16::MAX);
+        assert!(blue < green && green < red, "{red} {green} {blue}");
+        assert_eq!(ramps(4, 1.0, 0.5)[11], (f32::from(u16::MAX) * 0.7).round() as u16);
     }
 }

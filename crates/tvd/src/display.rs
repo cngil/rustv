@@ -86,7 +86,7 @@ pub fn parse_outputs(outputs: &Value) -> Option<(String, Option<Mode>, Vec<Mode>
     Some((output["name"].as_str()?.to_string(), current, modes))
 }
 
-fn sway_socket() -> Result<std::path::PathBuf> {
+pub fn sway_socket() -> Result<std::path::PathBuf> {
     let env = crate::apps::session_env()?;
     let runtime = &env.iter().find(|(key, _)| key == "XDG_RUNTIME_DIR").context("no runtime dir")?.1;
     crate::overlay::find_sway_socket(Path::new(runtime)).context("sway is not running")
@@ -104,6 +104,26 @@ pub async fn read() -> Result<(String, Option<Mode>, Vec<Mode>)> {
     parse_outputs(&outputs).context("no active output")
 }
 
+/// Whether the process `pid` has a window in sway.
+pub async fn has_window(pid: u32) -> Result<bool> {
+    let out = Command::new("swaymsg")
+        .env("SWAYSOCK", sway_socket()?)
+        .args(["-r", "-t", "get_tree"])
+        .output()
+        .await
+        .context("running swaymsg")?;
+    let tree: Value = serde_json::from_slice(&out.stdout).context("reading sway's windows")?;
+    Ok(window_of(&tree, pid))
+}
+
+fn window_of(node: &Value, pid: u32) -> bool {
+    node["pid"].as_u64() == Some(u64::from(pid))
+        || ["nodes", "floating_nodes"]
+            .iter()
+            .flat_map(|key| node[*key].as_array().into_iter().flatten())
+            .any(|child| window_of(child, pid))
+}
+
 pub async fn apply(output: &str, mode: Mode) -> Result<()> {
     let command = format!("output {output} mode {}", mode.sway());
     let out = Command::new("swaymsg").env("SWAYSOCK", sway_socket()?).arg(&command).output().await?;
@@ -117,6 +137,14 @@ pub async fn apply(output: &str, mode: Mode) -> Result<()> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn finds_a_window_by_process() {
+        let tree =
+            json!({ "nodes": [{ "nodes": [{ "pid": 10 }], "floating_nodes": [{ "pid": 42, "app_id": "uxplay" }] }] });
+        assert!(window_of(&tree, 42));
+        assert!(!window_of(&tree, 7));
+    }
 
     #[test]
     fn modes_read_and_write() {

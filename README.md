@@ -137,7 +137,9 @@ and your phone becomes the remote.
   Interval, order and where they show are switchable in the remote.
 - **AirPlay**: mirror an iPhone, iPad or Mac, or play its videos and music
   on the TV, through [UxPlay](https://github.com/FDH2/UxPlay). Off by
-  default; turn it on in the config or the remote's settings.
+  default; turn it on in the config or the remote's settings. If a phone
+  leaves without ending the stream, its last picture goes away within
+  about 20 seconds.
 - **Sleep**: after an hour with no remote input and no sound, the screen
   turns off (most TVs then go to standby) and the open app closes, freeing
   its memory and CPU. Any button wakes it. A film playing never counts as

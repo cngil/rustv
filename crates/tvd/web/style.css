@@ -925,6 +925,10 @@ code {
 
 .dock-item {
   position: relative;
+  /* A held finger lifts the app; no text selection or system callout on top. */
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
   flex: 0 0 76px;
   display: flex;
   flex-direction: column;
@@ -1056,6 +1060,86 @@ code {
   background: color-mix(in srgb, var(--ok) 16%, var(--surface-2));
 }
 
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.toast-action {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* ---- app menu ---- */
+
+.appmenu-app {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-left: 4px;
+}
+
+.appmenu-app .dock-icon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+}
+
+.appmenu-text {
+  min-width: 0;
+}
+
+.appmenu-text h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.appmenu-text p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appmenu-action {
+  min-height: 56px;
+}
+
+.appmenu-action.danger .out-icon,
+.appmenu-action.danger .out-name {
+  color: var(--danger);
+}
+
+.appmenu-info {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--bg);
+  font-size: 14px;
+}
+
+.appmenu-info dt {
+  color: var(--muted);
+}
+
+.appmenu-info dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
 @keyframes drop {
   from { transform: translate(-50%, -10px); opacity: 0; }
 }
@@ -1159,7 +1243,18 @@ code {
   }
 }
 
-/* ---- dock editing: hold an app, then drag ---- */
+/* ---- dock: hold an app to lift it, drag to move it ---- */
+
+.dock-item.lifted {
+  z-index: 2;
+  background: var(--surface-2);
+  transform: scale(1.08);
+  transition: transform 160ms var(--press), background 160ms;
+}
+
+.dock.reordering .dock-item:not(.dragging) {
+  transition: none;
+}
 
 .dock.editing .dock-item {
   touch-action: none;

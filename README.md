@@ -178,8 +178,12 @@ and your phone becomes the remote.
   phone, saved to the config. Wi-Fi, Bluetooth, the PIN and custom colors
   need typing and stay on the phone. The tile can be switched off from the
   phone (`shell.settings`).
-- **Reorder apps** from the remote: hold an app in the dock, drag it, tap
-  Done. The TV follows at once, and the order survives restarts.
+- **Arrange apps** from the remote: hold an app in the dock and drag it
+  without letting go; the TV follows at once, and the order survives
+  restarts. Let go without dragging (or right-click it on a computer) for
+  its menu: open or close it on the TV, see what it is, move it, or remove
+  it from the home screen. Removed apps stay in the config and come back
+  from Settings.
 - **`tvd` daemon**: launches and closes apps, one at a time; when an app
   exits you are back home.
 - **Three kinds of apps**: Flatpak apps, any command, and web apps (a URL
@@ -355,6 +359,8 @@ The order you arrange apps in from the remote is kept in
 `~/.local/state/rustv/app-order`, separate from the config: the config says
 which apps exist, that file only where they go. Apps it does not list appear
 at the end in config order. Delete it to go back to the config order.
+Apps removed from the home screen are listed in
+`~/.local/state/rustv/hidden-apps` the same way; delete it to bring them all back.
 
 The remote's settings panel edits the same file. It can only change the
 home screen, screensaver, audio and overlay sections; apps, the server and
@@ -383,7 +389,7 @@ All endpoints except `/api/v1/health` need `Authorization: Bearer <token>`
 | Method | Path | |
 | --- | --- | --- |
 | `GET` | `/api/v1/state` | Running app, volume, seconds since last input, overlay, connected clients |
-| `GET` | `/api/v1/apps` | Configured apps |
+| `GET` | `/api/v1/apps` | Configured apps, in order (`hidden` when removed from the home screen; `source`: Flatpak ID, web origin or program name) |
 | `GET` | `/api/v1/apps/{id}/icon` | App icon (SVG, PNG or JPEG) |
 | `GET` | `/api/v1/wallpapers/{n}` | Picture `n` of `[wallpaper] images` (JPEG or PNG) |
 | `GET` | `/api/v1/audio` | Audio outputs and volume limits |
@@ -427,6 +433,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "set", "key": "theme.accent", "value": null}
 {"type": "set", "key": "screensaver.idle_minutes", "value": 10}
 {"type": "reorder", "ids": ["stremio", "jellyfin"]}
+{"type": "hide_app", "id": "stremio", "hidden": true}
 ```
 
 Key codes follow the browser's

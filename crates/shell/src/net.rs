@@ -134,6 +134,9 @@ struct AppInfo {
     name: String,
     #[serde(default)]
     icon: bool,
+    /// Taken off the home screen from the remote.
+    #[serde(default)]
+    hidden: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
@@ -187,6 +190,7 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
             let token = token.to_string();
             let entries = tokio::task::spawn_blocking(move || {
                 apps.into_iter()
+                    .filter(|app| !app.hidden)
                     .map(|app| AppEntry {
                         icon: if app.icon { fetch_icon(&addr, &token, &app.id).ok() } else { None },
                         id: app.id,

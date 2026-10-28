@@ -160,3 +160,107 @@ test("holding OK holds the key on the TV until the finger lifts", async ({ page 
     { type: "key", code: "Enter", action: "up" },
   ]);
 });
+
+/** Presses an app in the dock and keeps it held for `ms`. Returns the app's centre. */
+async function holdApp(page, name, ms = 600) {
+  const item = page.locator("#dock .dock-item").filter({ hasText: name });
+  const box = await item.boundingBox();
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.down();
+  await page.waitForTimeout(ms);
+  return { item, at, width: box.width };
+}
+
+test("hold an app and drag it, in one go, to move it", async ({ page }) => {
+  await open(page);
+  // Capture instead of sending, so the shared tvd keeps its order.
+  await page.evaluate(() => {
+    window.sent = [];
+    ws.send = (data) => window.sent.push(JSON.parse(data));
+  });
+  const { item, at, width } = await holdApp(page, "Films");
+  await expect(item).toHaveClass(/lifted/);
+  await page.mouse.move(at.x + width * 0.7, at.y, { steps: 6 });
+  await page.mouse.move(at.x + width * 1.4, at.y, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.locator("#dock .dock-name")).toHaveText(["Games", "Films", "Router"]);
+  expect(await page.evaluate(() => window.sent)).toEqual([{ type: "reorder", ids: ["games", "films", "router"] }]);
+  // A drag is not a launch, and no menu opens.
+  await expect(page.locator("#appmenu")).toBeHidden();
+});
+
+test("hold an app and let go for its menu; remove puts it in settings", async ({ page }) => {
+  await open(page);
+  await holdApp(page, "Router");
+  await page.mouse.up();
+  const menu = page.locator("#appmenu");
+  await expect(menu).toBeVisible();
+  await expect(menu.locator("#appmenu-title")).toHaveText("Router");
+  await expect(menu.locator(".appmenu-action .out-name")).toHaveText([
+    "Open on the TV",
+    "Info",
+    "Move",
+    "Remove from home",
+  ]);
+  await menu.getByRole("button", { name: /Info/ }).click();
+  await expect(menu.locator("#appmenu-info")).toBeVisible();
+  await expect(menu.locator("#appmenu-info dd").nth(0)).toHaveText("Web page");
+
+  await menu.getByRole("button", { name: /Remove from home/ }).click();
+  await expect(page.locator("#dock .dock-name")).toHaveText(["Films", "Games"]);
+  await openSettings(page);
+  await expect(row(page, "Router")).toBeVisible();
+  await row(page, "Router").getByRole("button", { name: "Put back" }).click();
+  await expect(page.locator("#dock .dock-name")).toHaveText(["Films", "Games", "Router"]);
+  await expect(row(page, "Router")).toHaveCount(0);
+});
+
+test("right-click opens an app's menu, and Move wiggles the dock", async ({ page }) => {
+  await open(page);
+  await page.locator("#dock .dock-item").filter({ hasText: "Games" }).click({ button: "right" });
+  await expect(page.locator("#appmenu")).toBeVisible();
+  await page.locator("#appmenu").getByRole("button", { name: /^Move/ }).click();
+  await expect(page.locator("#appmenu")).toBeHidden();
+  await expect(page.locator("#dock")).toHaveClass(/editing/);
+  await page.locator(".dock-done").click();
+  await expect(page.locator("#dock")).not.toHaveClass(/editing/);
+});
+
+test.describe("on a touch screen", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+
+  test("a held finger drags an app without scrolling the dock", async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => {
+      window.sent = [];
+      ws.send = (data) => window.sent.push(JSON.parse(data));
+    });
+    const box = await page.locator("#dock .dock-item").filter({ hasText: "Films" }).boundingBox();
+    const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type, px) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x: px, y }] });
+    await touch("touchStart", x);
+    await page.waitForTimeout(700);
+    for (let step = 1; step <= 12; step++) {
+      await touch("touchMove", x + (box.width * 1.4 * step) / 12);
+      await page.waitForTimeout(16);
+    }
+    await touch("touchEnd");
+    await expect(page.locator("#dock .dock-name")).toHaveText(["Games", "Films", "Router"]);
+    expect(await page.evaluate(() => window.sent)).toEqual([{ type: "reorder", ids: ["games", "films", "router"] }]);
+    await expect(page.locator("#appmenu")).toBeHidden();
+  });
+
+  test("a held finger let go opens the menu", async ({ page }) => {
+    await open(page);
+    const box = await page.locator("#dock .dock-item").filter({ hasText: "Games" }).boundingBox();
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+    await page.waitForTimeout(700);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect(page.locator("#appmenu")).toBeVisible();
+    await expect(page.locator("#appmenu-title")).toHaveText("Games");
+  });
+});

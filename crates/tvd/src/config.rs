@@ -521,12 +521,36 @@ pub enum AppKind {
     },
 }
 
+/// `scheme://host[:port]` of a URL, without credentials; other URLs (`about:home`) up to any `?` or `#`.
+fn origin(url: &str) -> String {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return url.split(['?', '#']).next().unwrap_or_default().to_string();
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    let host = authority.rsplit('@').next().unwrap_or_default();
+    format!("{scheme}://{host}")
+}
+
 impl App {
     pub fn kind_name(&self) -> &'static str {
         match self.kind {
             AppKind::Flatpak { .. } => "flatpak",
             AppKind::Command { .. } => "command",
             AppKind::Web { .. } => "web",
+        }
+    }
+
+    /// Where the app comes from, for the remote's app info: the Flatpak ID, the
+    /// web page's origin, or the program's name. Never a URL's path, query or
+    /// credentials, nor a command's arguments, which may hold secrets.
+    pub fn source(&self) -> String {
+        match &self.kind {
+            AppKind::Flatpak { app_id, .. } => app_id.clone(),
+            AppKind::Command { command } => command
+                .first()
+                .map(|program| program.rsplit('/').next().unwrap_or(program).to_string())
+                .unwrap_or_default(),
+            AppKind::Web { url } => origin(url),
         }
     }
 
@@ -716,6 +740,19 @@ mod tests {
         let argv = cfg.apps[0].argv(&cfg.browser);
         assert_eq!(argv.last().unwrap(), "http://x:8080");
         assert_eq!(flatpak_id(&argv).as_deref(), Some("org.mozilla.firefox"));
+    }
+
+    #[test]
+    fn source_never_shows_secrets() {
+        assert_eq!(origin("https://user:pw@tv.lan:8443/path?token=x#y"), "https://tv.lan:8443");
+        assert_eq!(origin("http://localhost:8080"), "http://localhost:8080");
+        assert_eq!(origin("about:home"), "about:home");
+        assert_eq!(origin("about:blank?x=1"), "about:blank");
+        let cfg: Config = toml::from_str(
+            "[[app]]\nid = \"m\"\nname = \"M\"\nkind = \"command\"\ncommand = [\"/usr/bin/mpv\", \"--pw=x\"]\n",
+        )
+        .unwrap();
+        assert_eq!(cfg.apps[0].source(), "mpv");
     }
 
     #[test]

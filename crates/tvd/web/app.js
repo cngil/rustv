@@ -216,6 +216,7 @@ function handle(msg) {
   if (msg.type === "apps") {
     apps = msg.apps;
     renderDock();
+    renderSettings();
   } else if (msg.type === "audio") {
     audio = msg;
     settleOutput();
@@ -388,14 +389,24 @@ function chooseOutput(output) {
   renderAudio();
 }
 
-// Press and hold an app to rearrange the dock; the TV follows the same order.
+// Hold an app: it lifts. Drag it on without letting go to move it (the TV follows
+// the same order), or let go where it is for its menu. Right-click opens the menu too.
+// "Move" in the menu wiggles the dock, and then a plain drag moves any app.
+const HOLD_MS = 400;
 let editing = false;
-let drag = null; // { item, pointerId, lastX, offset }
+let press = null; // { item, app, x, y, timer, lifted }
+let drag = null; // { item, lastX, offset }
 let dockDirty = false;
+let menuApp = null; // id of the app whose menu is open
+
+// Apps on the home screen; the ones taken off it only show in Settings.
+function dockApps() {
+  return apps.filter((app) => !app.hidden);
+}
 
 function renderDock() {
   // Re-rendering mid-drag would drop the app out from under the finger.
-  if (drag) {
+  if (drag || press) {
     dockDirty = true;
     return;
   }
@@ -403,19 +414,20 @@ function renderDock() {
   dock.replaceChildren();
   dock.classList.toggle("editing", editing);
   const runningId = state && state.running ? state.running.id : null;
-  for (const app of apps) {
+  for (const app of dockApps()) {
     const item = document.createElement("button");
     item.className = "dock-item";
     item.dataset.id = app.id;
     if (app.id === runningId) item.classList.add("running");
     if (pendingLaunch && pendingLaunch.id === app.id) item.classList.add("opening");
     item.title = editing ? t("remote.dock.drag_to_move", { name: app.name }) : app.description || app.name;
+    item.setAttribute("aria-haspopup", "menu");
     item.append(appIcon(app));
     const name = document.createElement("span");
     name.className = "dock-name";
     name.textContent = pendingLaunch && pendingLaunch.id === app.id ? t("remote.dock.opening") : app.name;
     item.append(name);
-    bindDockItem(item, app, runningId);
+    bindDockItem(item, app);
     dock.append(item);
   }
   if (editing) {
@@ -426,6 +438,7 @@ function renderDock() {
     dock.append(done);
   }
   updateDockFade();
+  if (menuApp) renderAppMenu();
 }
 
 // Fade the edge that has more apps behind it, so a cut-off icon reads as "scroll".
@@ -438,46 +451,92 @@ function updateDockFade() {
 
 $("#dock").addEventListener("scroll", updateDockFade, { passive: true });
 addEventListener("resize", updateDockFade);
+// Once an app is lifted, the finger moves the app, not the dock.
+$("#dock").addEventListener(
+  "touchmove",
+  (event) => {
+    if (drag || (press && press.lifted)) event.preventDefault();
+  },
+  { passive: false },
+);
 
-function bindDockItem(item, app, runningId) {
-  let hold = null;
-  let start = null;
-  let held = false;
-  const cancelHold = () => {
-    clearTimeout(hold);
-    hold = null;
-  };
+function bindDockItem(item, app) {
+  // A lifted app or a drag ends in its own handlers; the click that follows is not a launch.
+  let swallowClick = false;
   item.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) return;
-    if (editing) return startDrag(item, event);
-    held = false;
-    start = { x: event.clientX, y: event.clientY };
-    hold = setTimeout(() => {
-      held = true;
-      startEditing();
-    }, 450);
+    if (event.button !== 0 || press || drag) return;
+    if (editing) {
+      swallowClick = true;
+      return startDrag(item, event);
+    }
+    swallowClick = false;
+    press = { item, app, x: event.clientX, y: event.clientY, lifted: false, pointerId: event.pointerId };
+    press.timer = setTimeout(() => {
+      if (!press || press.item !== item) return;
+      press.lifted = true;
+      swallowClick = true;
+      item.classList.add("lifted");
+      try {
+        item.setPointerCapture(press.pointerId);
+      } catch {}
+      if (navigator.vibrate) navigator.vibrate(15);
+    }, HOLD_MS);
   });
   item.addEventListener("pointermove", (event) => {
     if (drag && drag.item === item) return moveDrag(event);
-    // Scrolling the dock is not a long press.
-    if (hold && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) cancelHold();
+    if (!press || press.item !== item) return;
+    const moved = Math.hypot(event.clientX - press.x, event.clientY - press.y);
+    if (!press.lifted) {
+      // Scrolling the dock is not a hold.
+      if (moved > 10) endPress();
+    } else if (moved > 6) {
+      // Measured from where the finger went down, so the app stays under it.
+      const startX = press.x;
+      endPress();
+      beginDrag(item, startX);
+      moveDrag(event);
+    }
   });
-  for (const type of ["pointerup", "pointercancel"]) {
-    item.addEventListener(type, () => {
-      cancelHold();
-      if (drag && drag.item === item) endDrag();
-    });
-  }
-  item.addEventListener("pointerleave", cancelHold);
-  item.addEventListener("contextmenu", (event) => event.preventDefault());
+  item.addEventListener("pointerup", () => {
+    if (drag && drag.item === item) return endDrag();
+    if (press && press.item === item && press.lifted) {
+      endPress();
+      openAppMenu(app);
+      return;
+    }
+    endPress();
+  });
+  item.addEventListener("pointercancel", () => {
+    if (drag && drag.item === item) return endDrag();
+    endPress();
+  });
+  item.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    // A mouse's right button; a held finger opens the menu when it lets go.
+    if (!press && !drag && !editing) openAppMenu(app);
+  });
   item.addEventListener("click", () => {
-    if (editing || held) return;
-    launch(app, runningId);
+    if (swallowClick || editing) {
+      swallowClick = false;
+      return;
+    }
+    launch(app);
   });
 }
 
+function endPress() {
+  if (!press) return;
+  clearTimeout(press.timer);
+  press.item.classList.remove("lifted");
+  press = null;
+  if (dockDirty && !drag) {
+    dockDirty = false;
+    renderDock();
+  }
+}
+
 function startEditing() {
-  if (navigator.vibrate) navigator.vibrate(25);
+  haptic();
   editing = true;
   renderDock();
   toast(t("remote.dock.reorder_hint"));
@@ -487,13 +546,19 @@ function finishEditing() {
   haptic();
   editing = false;
   renderDock();
-  toast(t("remote.dock.order_saved"), "ok");
 }
 
 function startDrag(item, event) {
-  item.setPointerCapture(event.pointerId);
-  drag = { item, lastX: event.clientX, offset: 0 };
+  try {
+    item.setPointerCapture(event.pointerId);
+  } catch {}
+  beginDrag(item, event.clientX);
+}
+
+function beginDrag(item, x) {
+  drag = { item, lastX: x, offset: 0 };
   item.classList.add("dragging");
+  $("#dock").classList.add("reordering");
 }
 
 function moveDrag(event) {
@@ -518,6 +583,19 @@ function moveDrag(event) {
     haptic();
   }
   item.style.transform = `translateX(${drag.offset}px) scale(1.08)`;
+  autoScrollDock(event.clientX);
+}
+
+// Near an edge of a dock that scrolls, the dock follows the dragged app.
+function autoScrollDock(x) {
+  const dock = $("#dock");
+  const box = dock.getBoundingClientRect();
+  const edge = 36;
+  const step = x < box.left + edge ? -8 : x > box.right - edge ? 8 : 0;
+  if (!step) return;
+  const before = dock.scrollLeft;
+  dock.scrollLeft += step;
+  drag.offset += dock.scrollLeft - before;
 }
 
 function endDrag() {
@@ -525,11 +603,15 @@ function endDrag() {
   drag = null;
   item.classList.remove("dragging");
   item.style.transform = "";
+  $("#dock").classList.remove("reordering");
   const ids = [...$$("#dock .dock-item")].map((el) => el.dataset.id);
-  const changed = ids.some((id, i) => !apps[i] || apps[i].id !== id);
+  const shown = dockApps();
+  const changed = ids.some((id, i) => !shown[i] || shown[i].id !== id);
   if (changed) {
-    apps = ids.map((id) => apps.find((app) => app.id === id)).filter(Boolean);
-    send({ type: "reorder", ids });
+    // The apps taken off the home screen keep their place after the rest.
+    const hidden = apps.filter((app) => app.hidden);
+    apps = ids.map((id) => apps.find((app) => app.id === id)).filter(Boolean).concat(hidden);
+    if (send({ type: "reorder", ids })) toast(t("remote.dock.order_saved"), "ok");
   }
   if (dockDirty) {
     dockDirty = false;
@@ -538,11 +620,124 @@ function endDrag() {
 }
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && editing && !drag) finishEditing();
+  if (event.key === "Escape" && editing && !drag && $("#appmenu").hidden) finishEditing();
 });
 
-function launch(app, runningId) {
+// ---- app menu ----
+
+const KIND_LABELS = { flatpak: "remote.app.kind.flatpak", web: "remote.app.kind.web", command: "remote.app.kind.command" };
+
+function openAppMenu(app) {
   haptic();
+  menuApp = app.id;
+  $("#appmenu-info").hidden = true;
+  renderAppMenu();
+  $("#appmenu").hidden = false;
+}
+
+function closeAppMenu() {
+  $("#appmenu").hidden = true;
+  menuApp = null;
+}
+
+function renderAppMenu() {
+  const app = apps.find((a) => a.id === menuApp);
+  if (!app) return closeAppMenu();
+  const running = Boolean(state && state.running && state.running.id === app.id);
+  const head = $("#appmenu-app");
+  head.replaceChildren(appIcon(app));
+  const text = document.createElement("div");
+  text.className = "appmenu-text";
+  const name = document.createElement("h2");
+  name.id = "appmenu-title";
+  name.textContent = app.name;
+  const detail = document.createElement("p");
+  detail.textContent = running ? t("remote.app.status.open") : app.description || t(KIND_LABELS[app.kind] || KIND_LABELS.command);
+  text.append(name, detail);
+  head.append(text);
+
+  const info = $("#appmenu-info");
+  info.replaceChildren();
+  for (const [label, value] of [
+    ["remote.app.info.kind", t(KIND_LABELS[app.kind] || KIND_LABELS.command)],
+    ["remote.app.info.source", app.source || "—"],
+    ["remote.app.info.status", t(running ? "remote.app.status.open" : "remote.app.status.closed")],
+  ]) {
+    const dt = document.createElement("dt");
+    dt.textContent = t(label);
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    info.append(dt, dd);
+  }
+
+  const actions = $("#appmenu-actions");
+  actions.replaceChildren();
+  const row = (icon, label, hint, run, extra = "") => {
+    const button = document.createElement("button");
+    button.className = `output appmenu-action ${extra}`;
+    button.innerHTML = `<span class="out-icon"><svg><use href="${icon}"/></svg></span>
+      <span class="out-text"><div class="out-name"></div><div class="out-detail"></div></span>`;
+    button.querySelector(".out-name").textContent = label;
+    const detailEl = button.querySelector(".out-detail");
+    if (hint) detailEl.textContent = hint;
+    else detailEl.remove();
+    button.addEventListener("click", run);
+    actions.append(button);
+    return button;
+  };
+  if (running) {
+    row("#i-close", t("remote.app.menu.close"), null, () => {
+      haptic();
+      closeAppMenu();
+      if (send({ type: "stop" })) toast(t("remote.app.closed", { name: app.name }));
+    });
+  } else {
+    row("#i-play", t("remote.app.menu.open"), null, () => {
+      closeAppMenu();
+      launch(app);
+    });
+  }
+  const infoRow = row("#i-info", t("remote.app.menu.info"), null, () => {
+    haptic();
+    info.hidden = !info.hidden;
+    infoRow.setAttribute("aria-expanded", String(!info.hidden));
+  });
+  infoRow.setAttribute("aria-expanded", String(!info.hidden));
+  infoRow.after(info);
+  row("#i-move", t("remote.app.menu.move"), t("remote.app.menu.move_hint"), () => {
+    closeAppMenu();
+    startEditing();
+  });
+  row("#i-hide", t("remote.app.menu.remove"), t("remote.app.menu.remove_hint"), () => {
+    closeAppMenu();
+    setHidden(app, true);
+  }, "danger");
+}
+
+function setHidden(app, hidden) {
+  haptic();
+  if (!send({ type: "hide_app", id: app.id, hidden })) return;
+  app.hidden = hidden;
+  renderDock();
+  renderSettings();
+  if (hidden) {
+    toast(t("remote.app.removed", { name: app.name }), "info", {
+      label: t("common.undo"),
+      run: () => setHidden(app, false),
+    });
+  } else {
+    toast(t("remote.app.restored", { name: app.name }), "ok");
+  }
+}
+
+for (const el of $$("[data-close-appmenu]")) el.addEventListener("click", closeAppMenu);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !$("#appmenu").hidden) closeAppMenu();
+});
+
+function launch(app) {
+  haptic();
+  const runningId = state && state.running ? state.running.id : null;
   if (app.id === runningId) return toast(t("remote.app.already_open", { name: app.name }));
   if (pendingLaunch && pendingLaunch.id === app.id) return;
   if (!send({ type: "launch", id: app.id })) return;
@@ -572,15 +767,25 @@ function appIcon(app) {
 }
 
 let toastTimer = null;
-function toast(text, kind = "info") {
+function toast(text, kind = "info", action = null) {
   const el = $("#toast");
   el.textContent = text;
   el.className = `toast ${kind}`;
+  if (action) {
+    const button = document.createElement("button");
+    button.className = "toast-action";
+    button.textContent = action.label;
+    button.addEventListener("click", () => {
+      el.hidden = true;
+      action.run();
+    });
+    el.append(button);
+  }
   el.hidden = false;
   // Restart the entry animation for back-to-back messages.
   void el.offsetWidth;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.hidden = true), kind === "error" ? 4500 : 2600);
+  toastTimer = setTimeout(() => (el.hidden = true), action ? 5000 : kind === "error" ? 4500 : 2600);
 }
 
 function haptic() {
@@ -1171,6 +1376,8 @@ function renderSettings() {
     for (const row of group.custom ? group.custom() : group.items.map(settingRow)) section.append(row);
     body.append(section);
   }
+  const removed = removedAppsGroup();
+  if (removed) body.append(removed);
   body.append(wifiGroup(), bluetoothGroup(), networkGroup(), systemGroup());
 
   const about = document.createElement("p");
@@ -1251,6 +1458,25 @@ function settingRow(item) {
     row.append(toggle);
   }
   return row;
+}
+
+// The apps taken off the home screen from their menu; shown only when there are some.
+function removedAppsGroup() {
+  const removed = apps.filter((app) => app.hidden);
+  if (!removed.length) return null;
+  const section = document.createElement("section");
+  section.className = "settings-group";
+  const title = document.createElement("h3");
+  title.textContent = t("remote.removed.title");
+  section.append(title);
+  const note = document.createElement("p");
+  note.className = "setting-hint settings-note";
+  note.textContent = t("remote.removed.hint");
+  section.append(note);
+  for (const app of removed) {
+    section.append(settingRow({ label: { text: app.name }, button: "remote.removed.restore", run: () => setHidden(app, false) }));
+  }
+  return section;
 }
 
 // ---- theme picker ----

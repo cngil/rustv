@@ -1,6 +1,7 @@
 //! Starts and stops apps. One app runs at a time: launching another one
 //! closes the current app first, and when an app exits the shell is back.
 
+use std::collections::BTreeSet;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -33,6 +34,9 @@ pub struct AppManager {
     /// In the order the user arranged them; see [`arrange`].
     apps: RwLock<Vec<App>>,
     order_file: Option<PathBuf>,
+    /// Apps taken off the home screen (and the remote's dock); they stay in the config.
+    hidden: RwLock<BTreeSet<String>>,
+    hidden_file: Option<PathBuf>,
     browser: Browser,
     running: Mutex<Option<Running>>,
     /// Serializes launch and stop so they cannot interleave.
@@ -43,12 +47,14 @@ pub struct AppManager {
 
 impl AppManager {
     pub fn new(apps: Vec<App>, browser: Browser, changed: mpsc::UnboundedSender<()>) -> Self {
-        let order_file = order_file();
-        let saved = order_file.as_deref().and_then(|path| std::fs::read_to_string(path).ok()).unwrap_or_default();
-        let saved: Vec<String> = saved.lines().map(str::trim).filter(|l| !l.is_empty()).map(String::from).collect();
+        let order_file = state_file("app-order");
+        let hidden_file = state_file("hidden-apps");
+        let saved = read_ids(order_file.as_deref());
         Self {
             apps: RwLock::new(arrange(apps, &saved)),
             order_file,
+            hidden: RwLock::new(read_ids(hidden_file.as_deref()).into_iter().collect()),
+            hidden_file,
             browser,
             running: Mutex::new(None),
             op: Mutex::new(()),
@@ -68,12 +74,33 @@ impl AppManager {
             *apps = arrange(std::mem::take(&mut *apps), ids);
             apps.iter().map(|app| app.id.clone()).collect()
         };
-        let path = self.order_file.as_deref().context("no state directory to save the app order in")?;
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
-        }
-        std::fs::write(path, order.join("\n") + "\n").with_context(|| format!("writing {}", path.display()))?;
+        write_ids(self.order_file.as_deref(), &order)?;
         info!(order = ?order, "apps reordered");
+        Ok(())
+    }
+
+    /// Whether the app is off the home screen.
+    pub fn is_hidden(&self, id: &str) -> bool {
+        self.hidden.read().unwrap().contains(id)
+    }
+
+    /// Takes an app off the home screen or puts it back, and remembers it across restarts.
+    /// The app stays in the config, so it can still be opened from the API.
+    pub fn set_hidden(&self, id: &str, hidden: bool) -> Result<()> {
+        if !self.list().iter().any(|app| app.id == id) {
+            anyhow::bail!("unknown app {id:?}");
+        }
+        let ids: Vec<String> = {
+            let mut set = self.hidden.write().unwrap();
+            if hidden {
+                set.insert(id.to_string());
+            } else {
+                set.remove(id);
+            }
+            set.iter().cloned().collect()
+        };
+        write_ids(self.hidden_file.as_deref(), &ids)?;
+        info!(app = %id, hidden, "app visibility changed");
         Ok(())
     }
 
@@ -202,11 +229,27 @@ impl AppManager {
 
 /// Where the order from the remote is kept. The config says which apps exist;
 /// this file only says where they go, so editing the config never fights it.
-fn order_file() -> Option<PathBuf> {
+/// A file in rustv's state directory.
+fn state_file(name: &str) -> Option<PathBuf> {
     let state = std::env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))?;
-    Some(state.join("rustv/app-order"))
+    Some(state.join("rustv").join(name))
+}
+
+/// App ids, one per line; none when the file is missing.
+fn read_ids(path: Option<&Path>) -> Vec<String> {
+    let text = path.and_then(|path| std::fs::read_to_string(path).ok()).unwrap_or_default();
+    text.lines().map(str::trim).filter(|l| !l.is_empty()).map(String::from).collect()
+}
+
+fn write_ids(path: Option<&Path>, ids: &[String]) -> Result<()> {
+    let path = path.context("no state directory to save this in")?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+    }
+    let text = if ids.is_empty() { String::new() } else { ids.join("\n") + "\n" };
+    std::fs::write(path, text).with_context(|| format!("writing {}", path.display()))
 }
 
 /// Apps named in `order` first, in that order; the rest keep their config order

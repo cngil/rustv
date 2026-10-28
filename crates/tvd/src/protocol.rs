@@ -64,6 +64,13 @@ pub enum Command {
     Reorder {
         ids: Vec<String>,
     },
+    /// Take an app off the home screen and the remote's dock, or put it back.
+    /// It stays in the config; `hidden` defaults to true.
+    HideApp {
+        id: String,
+        #[serde(default = "yes")]
+        hidden: bool,
+    },
     /// Change one setting, such as `screensaver.idle_minutes`; saved to the config file.
     Set {
         key: String,
@@ -298,6 +305,14 @@ pub struct AppInfo {
     pub description: Option<String>,
     /// Whether `/api/v1/apps/{id}/icon` has an image.
     pub icon: bool,
+    /// Off the home screen; the remote lists it to put it back.
+    pub hidden: bool,
+    /// Where it comes from: Flatpak ID, web origin or program name (see `App::source`).
+    pub source: String,
+}
+
+fn yes() -> bool {
+    true
 }
 
 #[cfg(test)]
@@ -314,6 +329,8 @@ mod tests {
         assert!(matches!(cmd, Command::Key { action: crate::input::KeyAction::Down, .. }));
         let cmd: Command = serde_json::from_str(r#"{"type":"button","button":"left"}"#).unwrap();
         assert!(matches!(cmd, Command::Button { action: ButtonAction::Click, .. }));
+        let cmd: Command = serde_json::from_str(r#"{"type":"hide_app","id":"a"}"#).unwrap();
+        assert!(matches!(cmd, Command::HideApp { hidden: true, .. }));
         let cmd: Command = serde_json::from_str(r#"{"type":"stop"}"#).unwrap();
         assert!(cmd.is_slow());
         assert!(serde_json::from_str::<Command>(r#"{"type":"format_disk"}"#).is_err());

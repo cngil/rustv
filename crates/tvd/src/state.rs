@@ -314,6 +314,8 @@ impl AppState {
                 kind: app.kind_name(),
                 description: app.description.clone(),
                 icon: app.icon_path().is_some(),
+                hidden: self.apps.is_hidden(&app.id),
+                source: app.source(),
             })
             .collect()
     }
@@ -877,6 +879,10 @@ impl AppState {
             }
             Command::Reorder { ids } => {
                 self.apps.reorder(&ids)?;
+                let _ = self.events.send(ServerMsg::Apps { apps: self.app_infos() });
+            }
+            Command::HideApp { id, hidden } => {
+                self.apps.set_hidden(&id, hidden)?;
                 let _ = self.events.send(ServerMsg::Apps { apps: self.app_infos() });
             }
             Command::Set { key, value } => self.change_setting(key, value, false).await?,

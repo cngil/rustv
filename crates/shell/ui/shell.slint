@@ -710,6 +710,12 @@ export component Shell inherits Window {
             if root.locked {
                 return accept;
             }
+            // A held key repeats; only the arrows should move on, never OK or Back
+            // (opening an app twice, or a switch flipping back and forth).
+            if event.repeat && event.text != Key.UpArrow && event.text != Key.DownArrow
+                && event.text != Key.LeftArrow && event.text != Key.RightArrow {
+                return accept;
+            }
             // A display mode on trial takes OK and Back; everything else waits until it is decided.
             if root.trial-open {
                 if event.text == Key.Return || event.text == " " { root.trial-key(true); }

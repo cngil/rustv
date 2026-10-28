@@ -376,6 +376,8 @@ impl Drop for Connected {
     fn drop(&mut self) {
         self.0.clients.fetch_sub(1, Ordering::Relaxed);
         if !self.1 {
+            // A remote that left mid-press would leave its key held.
+            self.0.input.release_held(std::time::Duration::ZERO);
             self.0.remotes.fetch_sub(1, Ordering::Relaxed);
         }
         notify_soon(&self.0);

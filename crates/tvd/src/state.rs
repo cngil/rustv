@@ -13,7 +13,7 @@ use crate::apps::AppManager;
 use crate::audio::{self, VolumeAction};
 use crate::cast::Cast;
 use crate::config::Config;
-use crate::input::{Input, Mods};
+use crate::input::{Input, KeyAction, Mods};
 use crate::keymap;
 use crate::lock::Lock;
 use crate::media;
@@ -381,6 +381,14 @@ impl AppState {
         self.read_display().await;
         self.apply_screen();
         self.apply_night_audio(true).await;
+        // A held key whose `up` never came is let go.
+        let state = Arc::clone(self);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                state.input.release_held(crate::input::MAX_HOLD);
+            }
+        });
         // What plays, every 2 seconds, for the home screen and the remotes.
         let state = Arc::clone(self);
         tokio::spawn(async move {
@@ -777,6 +785,13 @@ impl AppState {
             self.last_input.store(now(), Ordering::Relaxed);
         }
         self.last_activity.store(now(), Ordering::Relaxed);
+        // Letting go of a held key is always fine, and never wakes or unlocks anything.
+        if let Command::Key { code, action: KeyAction::Up, .. } = &cmd {
+            if let Some(key) = keymap::from_code(code) {
+                self.input.key_up(key)?;
+            }
+            return Ok(());
+        }
         // The key that wakes the TV only wakes it, like on the screensaver.
         if !matches!(cmd, Command::Sleep) && self.wake().await && cmd.is_input() {
             return Ok(());
@@ -804,9 +819,15 @@ impl AppState {
             }
         }
         match cmd {
-            Command::Key { code, shift, ctrl, alt, meta } => {
+            Command::Key { code, shift, ctrl, alt, meta, action } => {
                 let key = keymap::from_code(&code).with_context(|| format!("unknown key code {code:?}"))?;
-                self.input.key(key, Mods { shift, ctrl, alt, meta })?;
+                let mods = Mods { shift, ctrl, alt, meta };
+                // A held key with modifiers is rare; it is simply pressed.
+                if action == KeyAction::Down && !(shift || ctrl || alt || meta) {
+                    self.input.key_down(key)?;
+                } else {
+                    self.input.key(key, mods)?;
+                }
             }
             Command::Text { text } => self.type_text(&text).await?,
             Command::Move { dx, dy } => {

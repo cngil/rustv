@@ -22,6 +22,9 @@ pub enum Command {
         alt: bool,
         #[serde(default)]
         meta: bool,
+        /// `press` (default), or `down` and later `up` to hold the key.
+        #[serde(default)]
+        action: crate::input::KeyAction,
     },
     /// Type text, any characters.
     Text {
@@ -304,7 +307,11 @@ mod tests {
     #[test]
     fn parses_commands() {
         let cmd: Command = serde_json::from_str(r#"{"type":"key","code":"ArrowUp"}"#).unwrap();
-        assert!(matches!(cmd, Command::Key { ref code, shift: false, .. } if code == "ArrowUp"));
+        assert!(
+            matches!(cmd, Command::Key { ref code, shift: false, action: crate::input::KeyAction::Press, .. } if code == "ArrowUp")
+        );
+        let cmd: Command = serde_json::from_str(r#"{"type":"key","code":"Enter","action":"down"}"#).unwrap();
+        assert!(matches!(cmd, Command::Key { action: crate::input::KeyAction::Down, .. }));
         let cmd: Command = serde_json::from_str(r#"{"type":"button","button":"left"}"#).unwrap();
         assert!(matches!(cmd, Command::Button { action: ButtonAction::Click, .. }));
         let cmd: Command = serde_json::from_str(r#"{"type":"stop"}"#).unwrap();

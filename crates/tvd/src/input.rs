@@ -3,8 +3,9 @@
 //! The devices look like real hardware to the compositor, so remote input
 //! works in every app without any app-side support.
 
+use std::collections::HashMap;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use evdev::uinput::{VirtualDevice, VirtualDeviceBuilder};
@@ -41,9 +42,25 @@ pub enum ButtonAction {
     Up,
 }
 
+/// A key press from a remote: down and up at once, or held from `down` to `up`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum KeyAction {
+    #[default]
+    Press,
+    Down,
+    Up,
+}
+
+/// A key held longer than this lost its `up` (a phone that went to sleep
+/// mid-press); it is let go so the TV does not repeat it forever.
+pub const MAX_HOLD: Duration = Duration::from_secs(30);
+
 pub struct Input {
     keyboard: Mutex<VirtualDevice>,
     pointer: Mutex<VirtualDevice>,
+    /// Keys a remote holds down, and since when.
+    held: Mutex<HashMap<Key, Instant>>,
 }
 
 impl Input {
@@ -74,7 +91,42 @@ impl Input {
             .with_relative_axes(&axes)?
             .build()?;
 
-        Ok(Self { keyboard: Mutex::new(keyboard), pointer: Mutex::new(pointer) })
+        Ok(Self { keyboard: Mutex::new(keyboard), pointer: Mutex::new(pointer), held: Mutex::new(HashMap::new()) })
+    }
+
+    /// Holds `key` down until `key_up`, so the app sees a real long press and
+    /// the compositor repeats it, as with a key held on a keyboard.
+    pub fn key_down(&self, key: Key) -> Result<()> {
+        if self.held.lock().unwrap().insert(key, Instant::now()).is_none() {
+            self.keyboard.lock().unwrap().emit(&[key_event(key, 1)])?;
+        }
+        Ok(())
+    }
+
+    /// Lets go of a held key; a key that is not held is ignored (its `down`
+    /// only woke the TV, or it was let go already).
+    pub fn key_up(&self, key: Key) -> Result<()> {
+        if self.held.lock().unwrap().remove(&key).is_some() {
+            self.keyboard.lock().unwrap().emit(&[key_event(key, 0)])?;
+        }
+        Ok(())
+    }
+
+    /// Lets go of every key held at least `longer_than`; zero lets go of all.
+    pub fn release_held(&self, longer_than: Duration) {
+        let stale: Vec<Key> = {
+            let mut held = self.held.lock().unwrap();
+            let stale: Vec<Key> =
+                held.iter().filter(|(_, since)| since.elapsed() >= longer_than).map(|(key, _)| *key).collect();
+            for key in &stale {
+                held.remove(key);
+            }
+            stale
+        };
+        let mut dev = self.keyboard.lock().unwrap();
+        for key in stale {
+            let _ = dev.emit(&[key_event(key, 0)]);
+        }
     }
 
     pub fn key(&self, key: Key, mods: Mods) -> Result<()> {

@@ -613,17 +613,39 @@ function holdable(button, action) {
   });
 }
 
-for (const button of $$("[data-key]")) {
-  const sendKey = () => send({ type: "key", code: button.dataset.key });
-  if ("repeat" in button.dataset) {
-    holdable(button, sendKey);
-  } else {
-    button.addEventListener("click", () => {
-      haptic();
-      sendKey();
-    });
-  }
+// The D-pad, OK and Back hold their key on the TV for as long as the finger
+// stays, like a real remote: apps see a long press, and a held arrow repeats.
+const heldKeys = new Set();
+
+function holdKey(button) {
+  const code = button.dataset.key;
+  const up = () => {
+    button.classList.remove("pressed");
+    if (!heldKeys.delete(code)) return;
+    send({ type: "key", code, action: "up" });
+  };
+  button.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    button.classList.add("pressed");
+    haptic();
+    if (send({ type: "key", code, action: "down" })) heldKeys.add(code);
+  });
+  for (const ev of ["pointerup", "pointerleave", "pointercancel"]) button.addEventListener(ev, up);
+  // Keyboard activation (Enter/Space on a focused button).
+  button.addEventListener("click", (event) => {
+    if (event.detail === 0) send({ type: "key", code });
+  });
 }
+
+// Never leave a key held behind: the app going to the background lets go of everything.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) return;
+  for (const code of heldKeys) send({ type: "key", code, action: "up" });
+  heldKeys.clear();
+});
+
+for (const button of $$("[data-key]")) holdKey(button);
 
 for (const button of $$("[data-vol]")) {
   holdable(button, () => send({ type: "volume", action: button.dataset.vol }));

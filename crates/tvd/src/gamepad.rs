@@ -270,7 +270,14 @@ async fn act(state: &Weak<AppState>, action: Action) {
 }
 
 fn key(code: &str) -> Command {
-    Command::Key { code: code.to_string(), shift: false, ctrl: false, alt: false, meta: false }
+    Command::Key {
+        code: code.to_string(),
+        shift: false,
+        ctrl: false,
+        alt: false,
+        meta: false,
+        action: Default::default(),
+    }
 }
 
 #[cfg(test)]

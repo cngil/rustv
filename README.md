@@ -184,7 +184,8 @@ and your phone becomes the remote.
   opened full screen in a kiosk browser, handy for qBittorrent or router
   panels).
 - **Web remote** for phone and computer, nothing to install:
-  - D-pad with press-and-hold, Back, Home, Play
+  - D-pad, OK and Back that hold their key for as long as you hold them, so
+    apps see a real long press and a held arrow repeats; Home, Play
   - Touchpad with acceleration, tap to click, two-finger scroll and right click
   - On a computer: take over the TV pointer with your mouse (pointer lock)
     and forward your keyboard
@@ -398,6 +399,7 @@ Commands are JSON objects tagged by `type`:
 {"type": "stop"}
 {"type": "key", "code": "ArrowDown"}
 {"type": "key", "code": "KeyF", "ctrl": true}
+{"type": "key", "code": "Enter", "action": "down"}
 {"type": "text", "text": "the expanse"}
 {"type": "move", "dx": 40, "dy": -12}
 {"type": "scroll", "dy": -2}
@@ -426,7 +428,9 @@ Commands are JSON objects tagged by `type`:
 ```
 
 Key codes follow the browser's
-[`KeyboardEvent.code`](https://developer.mozilla.org/docs/Web/API/UI_Events/Keyboard_event_code_values).
+[`KeyboardEvent.code`](https://developer.mozilla.org/docs/Web/API/UI_Events/Keyboard_event_code_values). A key's `action` is
+`press` by default; `down` holds it until `up`. A held key is let go when its
+remote disconnects, and after 30 seconds without an `up`.
 
 ```sh
 curl -H "Authorization: Bearer $(cat ~/.config/rustv/token)" \

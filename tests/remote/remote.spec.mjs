@@ -140,3 +140,23 @@ test.describe("on a small phone", () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 });
+
+test("holding OK holds the key on the TV until the finger lifts", async ({ page }) => {
+  await open(page);
+  // Capture instead of sending: the test tvd's virtual keyboard reaches the real session.
+  await page.evaluate(() => {
+    window.sent = [];
+    ws.send = (data) => window.sent.push(JSON.parse(data));
+  });
+  const ok = page.locator("#dpad .ok");
+  const box = await ok.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  expect(await page.evaluate(() => window.sent)).toEqual([{ type: "key", code: "Enter", action: "down" }]);
+  await page.mouse.up();
+  expect(await page.evaluate(() => window.sent)).toEqual([
+    { type: "key", code: "Enter", action: "down" },
+    { type: "key", code: "Enter", action: "up" },
+  ]);
+});

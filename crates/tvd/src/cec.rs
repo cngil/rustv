@@ -482,7 +482,14 @@ async fn released(app: &Arc<AppState>) {
 }
 
 async fn tap_ok(app: &Arc<AppState>) {
-    let enter = Command::Key { code: "Enter".into(), shift: false, ctrl: false, alt: false, meta: false };
+    let enter = Command::Key {
+        code: "Enter".into(),
+        shift: false,
+        ctrl: false,
+        alt: false,
+        meta: false,
+        action: Default::default(),
+    };
     if let Err(err) = app.execute(enter).await {
         debug!("CEC: OK: {err:#}");
     }
@@ -499,7 +506,14 @@ async fn press(app: &Arc<AppState>, code: u8) {
     };
     debug!(?button, "CEC: button");
     let command = match button {
-        Button::Key(code) => Command::Key { code: code.into(), shift: false, ctrl: false, alt: false, meta: false },
+        Button::Key(code) => Command::Key {
+            code: code.into(),
+            shift: false,
+            ctrl: false,
+            alt: false,
+            meta: false,
+            action: Default::default(),
+        },
         Button::Media(action, seconds) => Command::Media { action, seconds },
         Button::Volume(action) => Command::Volume { action, level: None },
         Button::Home => Command::Stop,

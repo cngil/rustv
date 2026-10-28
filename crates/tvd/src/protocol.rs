@@ -23,7 +23,7 @@ pub enum Command {
         #[serde(default)]
         meta: bool,
     },
-    /// Type text (US layout).
+    /// Type text, any characters.
     Text {
         text: String,
     },

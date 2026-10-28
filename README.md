@@ -150,7 +150,7 @@ and your phone becomes the remote.
   remote or a gamepad: hold OK on the TV remote (over HDMI-CEC) or hold the
   gamepad's Guide button. Arrows move, OK types the key into the app, Back
   closes, Enter sends and closes. It shows over full screen apps and never
-  takes their focus.
+  takes their focus. In Turkish it has the Turkish Q letters.
 - **Resolution and refresh rate**, picked from the modes the TV offers, in the
   remote's settings or on the TV. A new mode applies at once and goes back by
   itself after 15 seconds unless kept, so a mode the TV cannot show never
@@ -189,7 +189,10 @@ and your phone becomes the remote.
   or red when something runs hot. Pick the items in the config, switch it
   from the remote or the API.
 - **Virtual keyboard and mouse** through `uinput`, so control works in every
-  app without app support.
+  app without app support. Text from the phone and the on-screen keyboard is
+  typed through sway's virtual keyboard with a layout made for it, so any
+  character arrives (ğ, ş, é, ß, emoji), whatever layout the box has; without
+  it, tvd falls back to the US layout.
 - **Audio** through PipeWire: volume and output selection.
 - **App icons**: Flatpak apps bring their own; any app can set one.
 

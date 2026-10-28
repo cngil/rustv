@@ -5,6 +5,8 @@
 //! covers the shell. `rustv-osd level` draws the same bar on sway's overlay
 //! layer, in the theme. `rustv-osd gamma` dims the screen for as long as it
 //! runs; when it ends, sway restores full brightness, so a crash fails bright.
+//! `rustv-osd type` types text through the Wayland virtual keyboard, so any
+//! character reaches the app, not only what a US layout has.
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -132,6 +134,69 @@ impl Dimmer {
                 *holder = Some(child);
             }
             Err(err) => warn!("dimming the screen: {err:#}"),
+        }
+    }
+}
+
+/// Types text into the focused app through `rustv-osd type`, kept running.
+#[derive(Default)]
+pub struct Typer {
+    running: tokio::sync::Mutex<Option<Typing>>,
+}
+
+struct Typing {
+    child: tokio::process::Child,
+    stdin: tokio::process::ChildStdin,
+    answers: tokio::io::Lines<tokio::io::BufReader<tokio::process::ChildStdout>>,
+}
+
+impl Typer {
+    /// Types `text` and returns once it is typed. An error means none of it was
+    /// typed (the compositor has no virtual keyboard, or rustv-osd is missing),
+    /// so the caller can fall back to the uinput keyboard.
+    pub async fn text(&self, text: &str) -> Result<()> {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+        let mut running = self.running.lock().await;
+        if running.as_mut().is_some_and(|typing| typing.child.try_wait().ok().flatten().is_some()) {
+            *running = None;
+        }
+        if running.is_none() {
+            let program = program();
+            let mut child = tokio::process::Command::new(&program)
+                .arg("type")
+                .envs(crate::apps::session_env()?)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .kill_on_drop(true)
+                .spawn()
+                .with_context(|| format!("starting {} type", program.display()))?;
+            let stdin = child.stdin.take().context("no stdin")?;
+            let stdout = child.stdout.take().context("no stdout")?;
+            let answers = tokio::io::BufReader::new(stdout).lines();
+            *running = Some(Typing { child, stdin, answers });
+        }
+        let typing = running.as_mut().expect("started above");
+        let line = format!("{}\n", json!({ "text": text }));
+        let sent = typing.stdin.write_all(line.as_bytes()).await.and(typing.stdin.flush().await);
+        if let Err(err) = sent {
+            *running = None;
+            return Err(err).context("rustv-osd type ended");
+        }
+        // About 6 ms a character, plus a keymap per stretch; generous for slow boxes.
+        let wait = Duration::from_secs(2) + Duration::from_millis(20 * text.chars().count() as u64);
+        match tokio::time::timeout(wait, typing.answers.next_line()).await {
+            Ok(Ok(Some(_))) => Ok(()),
+            Ok(_) => {
+                // It ended before answering: it could not type at all.
+                *running = None;
+                anyhow::bail!("rustv-osd type ended without typing")
+            }
+            Err(_) => {
+                // Still typing, or stuck: start fresh next time, but don't type it twice.
+                warn!("typing took longer than {wait:?}");
+                *running = None;
+                Ok(())
+            }
         }
     }
 }

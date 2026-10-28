@@ -7,7 +7,9 @@
 //! keeps its focus. `rustv-osd keyboard` only draws what it is told, on sway's
 //! overlay layer, so it shows over full screen apps too.
 //!
-//! The virtual keyboard types the US layout, so the keys are ASCII only.
+//! Letters follow the TV's language: the Turkish Q layout in Turkish (ğ, ü, ş,
+//! ı, ö, ç, with İ for a capital i), the US one otherwise. Any character can be
+//! typed, see `Typer` in `osd.rs`.
 
 use std::io::Write;
 use std::process::Child;
@@ -67,6 +69,26 @@ const LETTERS: [Row; 5] = [
     ],
     BOTTOM,
 ];
+/// Turkish Q, as on Turkish keyboards.
+const TURKISH: [Row; 5] = [
+    DIGITS,
+    chars!('q' 'w' 'e' 'r' 't' 'y' 'u' 'ı' 'o' 'p' 'ğ' 'ü'),
+    chars!('a' 's' 'd' 'f' 'g' 'h' 'j' 'k' 'l' 'ş' 'i'),
+    &[
+        Key::Shift,
+        Key::Char('z'),
+        Key::Char('x'),
+        Key::Char('c'),
+        Key::Char('v'),
+        Key::Char('b'),
+        Key::Char('n'),
+        Key::Char('m'),
+        Key::Char('ö'),
+        Key::Char('ç'),
+        Key::Delete,
+    ],
+    BOTTOM,
+];
 const SYMBOLS: [Row; 5] = [
     DIGITS,
     chars!('-' '/' ':' ';' '(' ')' '$' '&' '@' '"'),
@@ -97,6 +119,8 @@ pub enum Output {
 
 #[derive(Default)]
 struct Board {
+    /// Turkish Q letters instead of US ones.
+    turkish: bool,
     symbols: bool,
     /// Capital for the next letter only.
     shift: bool,
@@ -110,8 +134,19 @@ impl Board {
     fn rows(&self) -> &'static [Row; 5] {
         if self.symbols {
             &SYMBOLS
+        } else if self.turkish {
+            &TURKISH
         } else {
             &LETTERS
+        }
+    }
+
+    /// A letter as typed with Shift on: Turkish has a dotted capital İ and a dotless I.
+    fn upper(&self, c: char) -> char {
+        match c {
+            'i' if self.turkish => 'İ',
+            'ı' => 'I',
+            _ => c.to_uppercase().next().unwrap_or(c),
         }
     }
 
@@ -121,7 +156,8 @@ impl Board {
 
     /// The middle of a key, in letter widths, with each row centered like the renderer does.
     fn center(row: Row, col: usize) -> f32 {
-        let widest = 10.0;
+        // Any width works: only the distance between centers of two rows counts.
+        let widest = 12.0;
         let total: f32 = row.iter().map(|k| k.width()).sum();
         let before: f32 = row[..col].iter().map(|k| k.width()).sum();
         (widest - total) / 2.0 + before + row[col].width() / 2.0
@@ -164,7 +200,7 @@ impl Board {
     fn activate(&mut self) -> Vec<Output> {
         match self.key() {
             Key::Char(c) => {
-                let c = if self.shift { c.to_ascii_uppercase() } else { c };
+                let c = if self.shift { self.upper(c) } else { c };
                 self.shift = false;
                 self.typed.push(c);
                 vec![Output::Type(c.to_string())]
@@ -198,7 +234,7 @@ impl Board {
         let word = |key: &str| rustv_locales::text(lang, key).to_string();
         let label = |key: Key| -> String {
             match key {
-                Key::Char(c) if self.shift => c.to_ascii_uppercase().to_string(),
+                Key::Char(c) if self.shift => self.upper(c).to_string(),
                 Key::Char(c) => c.to_string(),
                 Key::Shift => word("osk.shift"),
                 Key::Delete => word("osk.delete"),
@@ -244,13 +280,13 @@ impl Keyboard {
         self.open.lock().unwrap().is_some()
     }
 
-    /// Opens it on the `q` key, or does nothing if it is open already.
+    /// Opens it on the `q` key, with the letters of `lang`, or does nothing if it is open already.
     pub fn open(&self, palette: &Palette, lang: &str) {
         let mut open = self.open.lock().unwrap();
         if open.is_some() {
             return;
         }
-        let board = Board { row: 1, ..Board::default() };
+        let board = Board { row: 1, turkish: lang == "tr", ..Board::default() };
         let child = match spawn() {
             Ok(child) => Some(child),
             Err(err) => {
@@ -367,8 +403,34 @@ mod tests {
     }
 
     #[test]
+    fn turkish_letters_and_their_capitals() {
+        let mut b = Board { row: 1, turkish: true, ..Board::default() };
+        assert_eq!(b.rows()[1].len(), 12);
+        // ı sits where the US i is; its capital is a dotless I, the capital of i a dotted İ.
+        b.col = 7;
+        assert_eq!(b.key(), Key::Char('ı'));
+        b.shift = true;
+        assert_eq!(b.press("Enter"), Some(vec![Output::Type("I".into())]));
+        b.row = 2;
+        b.col = 10;
+        b.shift = true;
+        assert_eq!(b.press("Enter"), Some(vec![Output::Type("İ".into())]));
+        b.shift = true;
+        b.col = 9;
+        assert_eq!(b.press("Enter"), Some(vec![Output::Type("Ş".into())]));
+        // Delete is still the last key of the row with Shift.
+        b.press("ArrowDown");
+        while b.key() != Key::Delete {
+            b.press("ArrowRight");
+        }
+        assert_eq!(b.col, 10);
+        assert_eq!(b.typed, "IİŞ");
+    }
+
+    #[test]
     fn every_key_can_be_typed() {
-        // The virtual keyboard types the US layout; anything else would be skipped silently.
+        // Without the Wayland virtual keyboard tvd types the US layout through uinput,
+        // so the US letters and the symbols must all be there.
         for rows in [LETTERS, SYMBOLS] {
             for key in rows.iter().flat_map(|row| row.iter()) {
                 if let Key::Char(c) = key {

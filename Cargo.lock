@@ -3867,6 +3867,9 @@ dependencies = [
  "tokio-tungstenite",
  "toml 0.8.23",
  "ureq",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-scanner",
 ]
 
 [[package]]

@@ -10,6 +10,9 @@
 //! - `level`: a volume or brightness bar, drawn like the home screen's.
 //! - `gamma`: no picture; holds sway's gamma tables to dim the screen. When it
 //!   ends, by design or by a crash, sway puts full brightness back.
+//! - `type`: no picture; types text into whatever has focus through the Wayland
+//!   virtual keyboard, with a keymap made for that text, so any character works
+//!   (ğ, ş, ı, é, ß, emoji), whatever layout the box has. Answers `done` per line.
 
 use std::io::{BufRead, Seek, Write};
 use std::os::fd::AsFd;
@@ -137,7 +140,8 @@ fn main() -> Result<()> {
         Some("keyboard") => surface(Mode::Keyboard),
         Some("level") => surface(Mode::Level),
         Some("gamma") => gamma(),
-        _ => anyhow::bail!("usage: rustv-osd keyboard|level|gamma (tvd starts it; JSON lines on stdin)"),
+        Some("type") => typing(),
+        _ => anyhow::bail!("usage: rustv-osd keyboard|level|gamma|type (tvd starts it; JSON lines on stdin)"),
     }
 }
 
@@ -267,7 +271,9 @@ fn paint(pixmap: &mut Pixmap, board: &Board, font: &FontRef) {
     text(pixmap, font, 30.0 * s, &shown, left + 24.0 * s, line_y + 32.0 * s, color(tint), false);
 
     let units = board.rows.iter().map(|row| row.iter().map(|k| k.width).sum::<f32>()).fold(0.0, f32::max);
-    let unit = (width - gap * (11.0 - 1.0)) / units.max(11.0);
+    // Room for 11 letters at least, so the US rows keep their size; wider layouts shrink to fit.
+    let units = units.max(11.0);
+    let unit = (width - gap * (units - 1.0)) / units;
     let mut y = line_y + 64.0 * s + 22.0 * s;
     for row in &board.rows {
         let row_w: f32 = row.iter().map(|k| k.width * unit + gap).sum::<f32>() - gap;
@@ -490,6 +496,165 @@ delegate_shm!(App);
 delegate_layer!(App);
 delegate_registry!(App);
 
+/// The virtual keyboard protocol, generated from `protocols/` (MIT, see the file).
+#[allow(dead_code, non_camel_case_types, non_upper_case_globals, unused_imports, clippy::all)]
+mod virtual_keyboard {
+    use wayland_client;
+    use wayland_client::protocol::*;
+    pub mod __interfaces {
+        use wayland_client::protocol::__interfaces::*;
+        wayland_scanner::generate_interfaces!("protocols/virtual-keyboard-unstable-v1.xml");
+    }
+    use self::__interfaces::*;
+    wayland_scanner::generate_client_code!("protocols/virtual-keyboard-unstable-v1.xml");
+}
+
+use virtual_keyboard::{
+    zwp_virtual_keyboard_manager_v1::ZwpVirtualKeyboardManagerV1, zwp_virtual_keyboard_v1::ZwpVirtualKeyboardV1,
+};
+
+/// For `type`: text to type.
+#[derive(Debug, Deserialize)]
+struct Typing {
+    text: String,
+}
+
+/// How many different characters one keymap holds (xkb keycodes 9..255).
+const KEYS_PER_MAP: usize = 240;
+
+/// The xkb name of the key that types `c`.
+fn keysym(c: char) -> String {
+    match c {
+        '\n' => "Return".into(),
+        '\t' => "Tab".into(),
+        ' ' => "space".into(),
+        // xkb reads U+hex as that character, Latin-1 included.
+        _ => format!("U{:04X}", u32::from(c)),
+    }
+}
+
+/// A keymap with one key per distinct character of `text`, and each character's
+/// evdev key code (xkb's minus 8, as the protocol wants).
+fn keymap_for(text: &str) -> (String, std::collections::HashMap<char, u32>) {
+    let mut codes = std::collections::HashMap::new();
+    let mut keys = String::new();
+    let mut symbols = String::new();
+    for c in text.chars() {
+        if codes.contains_key(&c) || c.is_control() && c != '\n' && c != '\t' {
+            continue;
+        }
+        let xkb = 9 + codes.len() as u32;
+        keys.push_str(&format!("    <K{xkb}> = {xkb};\n"));
+        symbols.push_str(&format!("    key <K{xkb}> {{ [ {} ] }};\n", keysym(c)));
+        codes.insert(c, xkb - 8);
+    }
+    let keymap = format!(
+        "xkb_keymap {{\n  xkb_keycodes \"rustv\" {{\n    minimum = 8;\n    maximum = 255;\n{keys}  }};\n  \
+         xkb_types \"rustv\" {{ include \"complete\" }};\n  xkb_compat \"rustv\" {{ include \"complete\" }};\n  \
+         xkb_symbols \"rustv\" {{\n{symbols}  }};\n}};\n"
+    );
+    (keymap, codes)
+}
+
+/// Types each line's text into the focused app, then answers `done`.
+fn typing() -> Result<()> {
+    use smithay_client_toolkit::reexports::client::{
+        globals::GlobalListContents,
+        protocol::{wl_registry, wl_seat},
+    };
+    struct Typer;
+    impl Dispatch<wl_registry::WlRegistry, GlobalListContents> for Typer {
+        fn event(
+            _: &mut Self,
+            _: &wl_registry::WlRegistry,
+            _: wl_registry::Event,
+            _: &GlobalListContents,
+            _: &Connection,
+            _: &QueueHandle<Self>,
+        ) {
+        }
+    }
+    impl Dispatch<wl_seat::WlSeat, ()> for Typer {
+        fn event(_: &mut Self, _: &wl_seat::WlSeat, _: wl_seat::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
+    }
+    impl Dispatch<ZwpVirtualKeyboardManagerV1, ()> for Typer {
+        fn event(
+            _: &mut Self,
+            _: &ZwpVirtualKeyboardManagerV1,
+            _: <ZwpVirtualKeyboardManagerV1 as smithay_client_toolkit::reexports::client::Proxy>::Event,
+            _: &(),
+            _: &Connection,
+            _: &QueueHandle<Self>,
+        ) {
+        }
+    }
+    impl Dispatch<ZwpVirtualKeyboardV1, ()> for Typer {
+        fn event(
+            _: &mut Self,
+            _: &ZwpVirtualKeyboardV1,
+            _: <ZwpVirtualKeyboardV1 as smithay_client_toolkit::reexports::client::Proxy>::Event,
+            _: &(),
+            _: &Connection,
+            _: &QueueHandle<Self>,
+        ) {
+        }
+    }
+
+    let conn = Connection::connect_to_env().context("connecting to the Wayland display")?;
+    let (globals, mut queue) = registry_queue_init::<Typer>(&conn)?;
+    let qh = queue.handle();
+    let seat: wl_seat::WlSeat = globals.bind(&qh, 1..=1, ()).context("no seat")?;
+    let manager: ZwpVirtualKeyboardManagerV1 =
+        globals.bind(&qh, 1..=1, ()).context("the compositor offers no virtual keyboard (zwp_virtual_keyboard_v1)")?;
+    let keyboard = manager.create_virtual_keyboard(&seat, &qh, ());
+    let mut typer = Typer;
+    let started = std::time::Instant::now();
+    let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    let mut out = std::io::stdout().lock();
+    for line in std::io::stdin().lock().lines() {
+        let line = line?;
+        if let Ok(typing) = serde_json::from_str::<Typing>(&line) {
+            let chars: Vec<char> = typing.text.chars().collect();
+            // A keymap per stretch of text with at most KEYS_PER_MAP different characters.
+            let mut rest = chars.as_slice();
+            while !rest.is_empty() {
+                let mut distinct = std::collections::HashSet::new();
+                let take = rest
+                    .iter()
+                    .take_while(|c| distinct.contains(*c) || distinct.len() < KEYS_PER_MAP && distinct.insert(**c))
+                    .count();
+                let take = take.max(1).min(rest.len());
+                let (part, more) = rest.split_at(take);
+                let text: String = part.iter().collect();
+                let (keymap, codes) = keymap_for(&text);
+                let path = runtime.join(format!("rustv-keymap-{}", std::process::id()));
+                let mut file =
+                    std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&path)?;
+                std::fs::remove_file(&path)?;
+                file.write_all(keymap.as_bytes())?;
+                file.write_all(&[0])?;
+                file.rewind()?;
+                // 1: XKB_V1.
+                keyboard.keymap(1, file.as_fd(), keymap.len() as u32 + 1);
+                queue.roundtrip(&mut typer)?;
+                for c in part {
+                    let Some(code) = codes.get(c) else { continue };
+                    let time = started.elapsed().as_millis() as u32;
+                    keyboard.key(time, *code, 1);
+                    keyboard.key(time + 1, *code, 0);
+                    conn.flush()?;
+                    std::thread::sleep(std::time::Duration::from_millis(6));
+                }
+                queue.roundtrip(&mut typer)?;
+                rest = more;
+            }
+        }
+        writeln!(out, "done")?;
+        out.flush()?;
+    }
+    Ok(())
+}
+
 /// Holds the gamma tables of every output for as long as it runs.
 struct Gamma {
     registry: RegistryState,
@@ -631,6 +796,19 @@ mod tests {
         // The app shows through beside the panel; the panel is opaque.
         assert_eq!(pixmap.pixel(20, 40).unwrap().alpha(), 0);
         assert_eq!(pixmap.pixel(960, 20).unwrap().alpha(), 255);
+    }
+
+    #[test]
+    fn keymaps_hold_exactly_the_characters_to_type() {
+        let (keymap, codes) = keymap_for("ağa\n");
+        assert_eq!(codes.len(), 3);
+        assert_eq!((codes[&'a'], codes[&'ğ'], codes[&'\n']), (1, 2, 3));
+        assert!(keymap.contains("key <K9> { [ U0061 ] };"), "{keymap}");
+        assert!(keymap.contains("key <K10> { [ U011F ] };"), "{keymap}");
+        assert!(keymap.contains("key <K11> { [ Return ] };"), "{keymap}");
+        assert!(keymap.contains("<K11> = 11;"));
+        // Emoji are characters like any other.
+        assert!(keymap_for("🙂").0.contains("U1F642"));
     }
 
     #[test]

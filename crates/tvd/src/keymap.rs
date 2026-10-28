@@ -1,7 +1,8 @@
 //! Maps web key names and characters to Linux key codes.
 //!
 //! Key names follow `KeyboardEvent.code` from the DOM (physical keys), so a
-//! browser can forward its keyboard unchanged. Characters assume a US layout.
+//! browser can forward its keyboard unchanged. Characters assume a US layout;
+//! this is the fallback for text when sway's virtual keyboard is missing (see `osd::Typer`).
 
 use evdev::Key;
 

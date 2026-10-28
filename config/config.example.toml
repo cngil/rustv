@@ -110,7 +110,8 @@ close_apps = true   # frees the app's memory and CPU
 # On-screen keyboard, for typing a search or an address with the TV remote or
 # a gamepad. While it is open, the arrows move over it, OK types the key into
 # the app and Back closes it; Enter sends and closes. Drawn by rustv-osd
-# on sway's overlay layer, so it shows over full screen apps. US layout keys.
+# on sway's overlay layer, so it shows over full screen apps. The letters follow
+# locale.language (Turkish Q in Turkish).
 enabled = true
 hold_ok = true      # hold OK on the TV remote (HDMI-CEC) to open it
 hold_guide = true   # hold a gamepad's Guide button to open it; a short press still goes home

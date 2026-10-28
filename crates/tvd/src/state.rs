@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use tokio::sync::{broadcast, mpsc};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::apps::AppManager;
 use crate::audio::{self, VolumeAction};
@@ -45,6 +45,7 @@ pub struct AppState {
     osd: Osd,
     /// Holds the screen's gamma below full brightness (`display.brightness`).
     dimmer: crate::osd::Dimmer,
+    typer: crate::osd::Typer,
     volumes: tokio::sync::Mutex<Volumes>,
     /// When the sleep timer fires (seconds since the epoch), and a counter that cancels older timers.
     sleep_at: std::sync::Mutex<Option<u64>>,
@@ -106,6 +107,7 @@ impl AppState {
             lock: Lock::load(),
             osd: Osd::default(),
             dimmer: crate::osd::Dimmer::default(),
+            typer: crate::osd::Typer::default(),
             volumes: tokio::sync::Mutex::new(Volumes::load()),
             sleep_at: std::sync::Mutex::new(None),
             sleep_timer: AtomicU64::new(0),
@@ -370,6 +372,19 @@ impl AppState {
         self.notify().await;
     }
 
+    /// Types text into the focused app: any character through the Wayland virtual
+    /// keyboard, else what the US layout has through uinput.
+    async fn type_text(&self, text: &str) -> Result<()> {
+        if let Err(err) = self.typer.text(text).await {
+            debug!("virtual keyboard: {err:#}; typing with the US layout");
+            let skipped = self.input.text(text)?;
+            if skipped > 0 {
+                warn!(skipped, "characters without a key on the US layout were skipped");
+            }
+        }
+        Ok(())
+    }
+
     /// A key while the keyboard is open. Returns whether the keyboard took it.
     async fn keyboard_key(&self, code: &str) -> Result<bool> {
         let (palette, lang) = {
@@ -379,9 +394,7 @@ impl AppState {
         let Some(outputs) = self.keyboard.press(code, &palette, crate::i18n::code(lang)) else { return Ok(false) };
         for output in outputs {
             match output {
-                crate::keyboard::Output::Type(text) => {
-                    self.input.text(&text)?;
-                }
+                crate::keyboard::Output::Type(text) => self.type_text(&text).await?,
                 crate::keyboard::Output::Press(code) => {
                     let key = keymap::from_code(code).with_context(|| format!("no key {code}"))?;
                     self.input.key(key, Mods::default())?;
@@ -658,12 +671,7 @@ impl AppState {
                 let key = keymap::from_code(&code).with_context(|| format!("unknown key code {code:?}"))?;
                 self.input.key(key, Mods { shift, ctrl, alt, meta })?;
             }
-            Command::Text { text } => {
-                let skipped = self.input.text(&text)?;
-                if skipped > 0 {
-                    warn!(skipped, "characters without a key on the US layout were skipped");
-                }
-            }
+            Command::Text { text } => self.type_text(&text).await?,
             Command::Move { dx, dy } => {
                 self.input.motion(dx.clamp(-MAX_DELTA, MAX_DELTA), dy.clamp(-MAX_DELTA, MAX_DELTA))?;
             }

@@ -182,11 +182,13 @@ pub struct Night {
     pub brightness: f32,
     /// 0..1, never below `display.warmth`.
     pub warmth: f32,
+    /// Night audio during these hours too (see `audio.night`).
+    pub audio: bool,
 }
 
 impl Default for Night {
     fn default() -> Self {
-        Self { enabled: false, from: "22:00".into(), to: "07:00".into(), brightness: 0.7, warmth: 0.5 }
+        Self { enabled: false, from: "22:00".into(), to: "07:00".into(), brightness: 0.7, warmth: 0.5, audio: false }
     }
 }
 
@@ -456,11 +458,13 @@ pub struct Audio {
     pub max_volume: f32,
     /// Remember the volume for each app and the home screen, and restore it on switching.
     pub per_app_volume: bool,
+    /// Night audio all the time: a compressor evens out loud and quiet (needs swh-plugins).
+    pub night: bool,
 }
 
 impl Default for Audio {
     fn default() -> Self {
-        Self { step: 0.05, max_volume: 1.0, per_app_volume: true }
+        Self { step: 0.05, max_volume: 1.0, per_app_volume: true, night: false }
     }
 }
 

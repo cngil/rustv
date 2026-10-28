@@ -295,6 +295,7 @@ const SECTIONS: &[Section] = &[
                 Some("night.enabled"),
             ),
             choice("night.warmth", "setting.night.warmth.label", WARMTH, Some("night.enabled")),
+            toggle("night.audio", "setting.night.audio.label", Some("setting.night.audio.hint"), Some("night.enabled")),
         ],
     ),
     Section {
@@ -395,6 +396,7 @@ const SECTIONS: &[Section] = &[
                 Some("setting.audio.per_app_volume.hint"),
                 None,
             ),
+            toggle("audio.night", "setting.audio.night.label", Some("setting.audio.night.hint"), None),
         ],
     ),
     section(

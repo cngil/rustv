@@ -1,4 +1,10 @@
 //! Volume and output selection for PipeWire, through `wpctl` and `pw-dump`.
+//!
+//! While night audio runs, the default sink is its compressor (see
+//! `night_audio.rs`); the volume and the output list then mean the output
+//! behind it, so nothing changes for the remotes.
+
+use std::sync::Mutex;
 
 use crate::i18n::Label;
 use anyhow::{bail, Context, Result};
@@ -9,6 +15,18 @@ use tokio::process::Command;
 use crate::config::Audio;
 
 const SINK: &str = "@DEFAULT_AUDIO_SINK@";
+
+/// The output behind night audio's compressor, by id and node name, while it runs.
+static BEHIND: Mutex<Option<(u32, String)>> = Mutex::new(None);
+
+pub fn set_behind(output: Option<(u32, String)>) {
+    *BEHIND.lock().unwrap() = output;
+}
+
+/// Where the volume goes: the default sink, or the output behind night audio.
+fn sink() -> String {
+    BEHIND.lock().unwrap().as_ref().map_or_else(|| SINK.to_string(), |(id, _)| id.to_string())
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct Volume {
@@ -27,19 +45,20 @@ pub enum VolumeAction {
 }
 
 pub async fn get() -> Result<Volume> {
-    parse(&wpctl(&["get-volume".into(), SINK.into()]).await?)
+    parse(&wpctl(&["get-volume".into(), sink()]).await?)
 }
 
 pub async fn apply(action: VolumeAction, level: Option<f32>, cfg: &Audio) -> Result<()> {
     let step = format!("{}%", (cfg.step * 100.0).round() as u32);
     let max = format!("{:.2}", cfg.max_volume);
+    let sink = sink();
     let args: Vec<String> = match action {
-        VolumeAction::Up => vec!["set-volume".into(), "-l".into(), max, SINK.into(), format!("{step}+")],
-        VolumeAction::Down => vec!["set-volume".into(), SINK.into(), format!("{step}-")],
-        VolumeAction::Mute => vec!["set-mute".into(), SINK.into(), "toggle".into()],
+        VolumeAction::Up => vec!["set-volume".into(), "-l".into(), max, sink, format!("{step}+")],
+        VolumeAction::Down => vec!["set-volume".into(), sink, format!("{step}-")],
+        VolumeAction::Mute => vec!["set-mute".into(), sink, "toggle".into()],
         VolumeAction::Set => {
             let level = level.context("volume \"set\" needs a level")?.clamp(0.0, cfg.max_volume);
-            vec!["set-volume".into(), SINK.into(), format!("{level:.2}")]
+            vec!["set-volume".into(), sink, format!("{level:.2}")]
         }
     };
     wpctl(&args).await?;
@@ -63,11 +82,20 @@ pub struct Output {
 }
 
 pub async fn outputs() -> Result<Vec<Output>> {
+    let (sinks, default) = sinks().await?;
+    let behind = BEHIND.lock().unwrap().as_ref().map(|(_, name)| name.clone());
+    Ok(present(sinks, default.as_deref(), behind.as_deref()))
+}
+
+/// Every sink with its node name, night audio's included, and the default sink's node name.
+pub type Sinks = (Vec<(Output, String)>, Option<String>);
+
+pub async fn sinks() -> Result<Sinks> {
     let out = Command::new("pw-dump").output().await.context("running pw-dump (is PipeWire running?)")?;
     if !out.status.success() {
         bail!("pw-dump: {}", String::from_utf8_lossy(&out.stderr).trim());
     }
-    parse_outputs(&out.stdout)
+    parse_dump(&out.stdout)
 }
 
 pub async fn set_output(id: u32) -> Result<()> {
@@ -75,7 +103,29 @@ pub async fn set_output(id: u32) -> Result<()> {
     Ok(())
 }
 
+pub async fn set_volume(id: u32, level: f32) -> Result<()> {
+    wpctl(&["set-volume".into(), id.to_string(), format!("{level:.2}")]).await?;
+    Ok(())
+}
+
+/// The outputs as the remotes see them: night audio's sink hidden, and the
+/// output behind it marked as the one in use.
+fn present(sinks: Vec<(Output, String)>, default: Option<&str>, behind: Option<&str>) -> Vec<Output> {
+    let in_use = behind.or(default);
+    sinks
+        .into_iter()
+        .filter(|(_, name)| name != crate::night_audio::SINK)
+        .map(|(output, name)| Output { default: in_use == Some(name.as_str()), ..output })
+        .collect()
+}
+
+#[cfg(test)]
 fn parse_outputs(json: &[u8]) -> Result<Vec<Output>> {
+    let (sinks, default) = parse_dump(json)?;
+    Ok(present(sinks, default.as_deref(), None))
+}
+
+fn parse_dump(json: &[u8]) -> Result<Sinks> {
     // pw-dump prints a second array when objects change while it runs (for example right
     // after switching outputs); later entries win.
     let mut objects: Vec<Value> = Vec::new();
@@ -115,17 +165,18 @@ fn parse_outputs(json: &[u8]) -> Result<Vec<Output>> {
                 .find(|s| !s.is_empty())
                 .unwrap_or_default();
             let (kind, name, name_label) = describe(node_name, text("device.profile.name"), text("node.nick"), detail);
-            Some(Output {
+            let output = Output {
                 id: o["id"].as_u64()?.try_into().ok()?,
                 name,
                 name_label,
                 kind,
                 detail: detail.to_string(),
-                default: default_name.as_deref() == Some(node_name),
-            })
+                default: false,
+            };
+            Some((output, node_name.to_string()))
         })
         .collect();
-    Ok(outputs)
+    Ok((outputs, default_name))
 }
 
 /// ALSA descriptions name the chip ("Raven/Raven2/Fenghuang HDMI/DP Audio Controller"),
@@ -234,6 +285,20 @@ mod tests {
                 default: true
             }]
         );
+    }
+
+    #[test]
+    fn night_audio_shows_as_the_output_behind_it() {
+        let json = br#"[
+            {"type": "PipeWire:Interface:Metadata", "metadata": [{"key": "default.audio.sink", "value": {"name": "rustv_night_audio"}}]},
+            {"id": 1, "type": "PipeWire:Interface:Node", "info": {"props": {"media.class": "Audio/Sink", "node.name": "a"}}},
+            {"id": 2, "type": "PipeWire:Interface:Node", "info": {"props": {"media.class": "Audio/Sink", "node.name": "b"}}},
+            {"id": 3, "type": "PipeWire:Interface:Node", "info": {"props": {"media.class": "Audio/Sink", "node.name": "rustv_night_audio"}}}
+        ]"#;
+        let (sinks, default) = parse_dump(json).unwrap();
+        assert_eq!(default.as_deref(), Some("rustv_night_audio"));
+        let shown = present(sinks, default.as_deref(), Some("b"));
+        assert_eq!(shown.iter().map(|o| (o.id, o.default)).collect::<Vec<_>>(), vec![(1, false), (2, true)]);
     }
 
     #[test]

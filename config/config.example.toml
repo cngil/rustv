@@ -19,6 +19,11 @@ command = ["flatpak", "run", "org.mozilla.firefox", "--kiosk", "{url}"]
 step = 0.05        # 5% per volume press
 max_volume = 1.0   # 100%; above that PipeWire boosts in software, which can distort
 per_app_volume = true   # each app (and the home screen) keeps its own volume
+# Night audio: a compressor between the apps and the output evens out loud and
+# quiet, so explosions come down and voices come up. Runs PipeWire's
+# filter-chain with plugins from the swh-plugins package
+# (sudo apt install swh-plugins). Also available only at night: night.audio.
+night = false
 
 [shell]
 # What the on-screen home screen shows. Everything is on by default.
@@ -65,6 +70,7 @@ from = "22:00"
 to = "07:00"
 brightness = 0.7   # 0.2 to 1
 warmth = 0.5       # 0 to 1
+audio = false      # night audio during these hours too (see audio.night)
 
 [wallpaper]
 # Your own pictures (JPEG or PNG), files or folders of them. They show behind

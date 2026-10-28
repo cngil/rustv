@@ -20,6 +20,7 @@ mod lock;
 mod media;
 mod network;
 mod night;
+mod night_audio;
 mod osd;
 mod overlay;
 mod pairing;

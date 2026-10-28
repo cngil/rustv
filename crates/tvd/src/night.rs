@@ -50,6 +50,14 @@ pub fn amount(minute: u32, from: u32, to: u32) -> f32 {
     }
 }
 
+/// Whether night mode is on at `minute`, easing included.
+pub fn active(cfg: &Config, minute: u32) -> bool {
+    match (cfg.night.enabled, parse(&cfg.night.from), parse(&cfg.night.to)) {
+        (true, Some(from), Some(to)) => amount(minute, from, to) > 0.0,
+        _ => false,
+    }
+}
+
 /// The brightness and warmth the screen should have at `minute`.
 pub fn screen(cfg: &Config, minute: u32) -> (f32, f32) {
     let day = (cfg.display.brightness, cfg.display.warmth);

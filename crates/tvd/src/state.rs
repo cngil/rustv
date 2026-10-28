@@ -46,6 +46,7 @@ pub struct AppState {
     /// Holds the screen's gamma below full brightness (`display.brightness`).
     dimmer: crate::osd::Dimmer,
     typer: crate::osd::Typer,
+    night_audio: crate::night_audio::NightAudio,
     /// The display trial's prompt over an app, which covers the shell's.
     trial_prompt: crate::osd::Prompt,
     volumes: tokio::sync::Mutex<Volumes>,
@@ -111,6 +112,7 @@ impl AppState {
             dimmer: crate::osd::Dimmer::default(),
             typer: crate::osd::Typer::default(),
             trial_prompt: crate::osd::Prompt::default(),
+            night_audio: crate::night_audio::NightAudio::default(),
             volumes: tokio::sync::Mutex::new(Volumes::load()),
             sleep_at: std::sync::Mutex::new(None),
             sleep_timer: AtomicU64::new(0),
@@ -215,6 +217,13 @@ impl AppState {
     /// so keys the remote may not set are allowed.
     async fn change_setting(self: &Arc<Self>, key: String, value: serde_json::Value, kept: bool) -> Result<()> {
         let _one_at_a_time = self.settings_write.lock().await;
+        // Night audio needs plugins tvd cannot install; say so before saving a switch that cannot work.
+        if matches!(key.as_str(), "audio.night" | "night.audio")
+            && value == serde_json::Value::Bool(true)
+            && !crate::night_audio::plugins_present()
+        {
+            return Err(crate::night_audio::missing());
+        }
         let path = self.config_path.clone();
         let log_key = key.clone();
         let fresh = tokio::task::spawn_blocking(move || {
@@ -225,10 +234,11 @@ impl AppState {
             }
         })
         .await??;
-        let (overlay_moved, cast_changed, brightness_changed, screen_changed) = {
+        let (overlay_moved, cast_changed, brightness_changed, screen_changed, audio_changed) = {
             let mut cfg = self.config.write().unwrap();
             let brightness_changed = (cfg.display.brightness - fresh.display.brightness).abs() > f32::EPSILON;
             let screen_changed = cfg.display.warmth != fresh.display.warmth || cfg.night != fresh.night;
+            let audio_changed = cfg.audio.night != fresh.audio.night || cfg.night != fresh.night;
             // The overlay reads position and locale when it starts, so either change restarts it.
             let moved = cfg.overlay.position != fresh.overlay.position || cfg.locale != fresh.locale;
             cfg.locale = fresh.locale;
@@ -248,8 +258,12 @@ impl AppState {
             cfg.cec = fresh.cec;
             cfg.wallpaper = fresh.wallpaper;
             cfg.night = fresh.night;
-            (moved, cast_changed, brightness_changed, screen_changed)
+            (moved, cast_changed, brightness_changed, screen_changed, audio_changed)
         };
+        if audio_changed {
+            self.apply_night_audio(true).await;
+            let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
+        }
         if brightness_changed {
             self.show_brightness();
         } else if screen_changed {
@@ -361,12 +375,14 @@ impl AppState {
         }
         self.read_display().await;
         self.apply_screen();
+        self.apply_night_audio(true).await;
         // Night mode follows the clock.
         let state = Arc::clone(self);
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(Duration::from_secs(30)).await;
                 state.apply_screen();
+                state.apply_night_audio(false).await;
             }
         });
         if let Some((id, _)) = self.apps.running().await {
@@ -583,6 +599,16 @@ impl AppState {
         self.dimmer.set(brightness, warmth);
     }
 
+    /// Night audio on or off as the settings and the clock say. `retry` tries
+    /// again after a failure, for a settings change.
+    async fn apply_night_audio(&self, retry: bool) {
+        let on = {
+            let cfg = self.config();
+            cfg.audio.night || cfg.night.audio && crate::night::active(&cfg, crate::night::local_minutes())
+        };
+        self.night_audio.want(on, retry).await;
+    }
+
     /// Applies the brightness and shows it on the bar, over apps and the home screen alike.
     fn show_brightness(&self) {
         let (brightness, palette, lang) = {
@@ -782,7 +808,9 @@ impl AppState {
                 let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
             }
             Command::AudioOutput { id } => {
-                audio::set_output(id).await?;
+                if !self.night_audio.switch_output(id).await? {
+                    audio::set_output(id).await?;
+                }
                 let _ = self.events.send(ServerMsg::Audio(self.audio_info().await));
                 self.notify().await;
             }

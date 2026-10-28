@@ -199,6 +199,11 @@ and your phone becomes the remote.
   character arrives (ğ, ş, é, ß, emoji), whatever layout the box has; without
   it, tvd falls back to the US layout.
 - **Audio** through PipeWire: volume and output selection.
+- **Night audio**: a real compressor (PipeWire filter-chain with the SWH `sc4`
+  compressor and a lookahead limiter) between the apps and the output, so
+  explosions come down and voices come up. Switch it on for good or only
+  during night mode's hours. Needs `sudo apt install swh-plugins`; the
+  output picker and the volume keep working as before.
 - **App icons**: Flatpak apps bring their own; any app can set one.
 
 ## What to put on it

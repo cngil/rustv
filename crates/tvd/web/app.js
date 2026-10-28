@@ -895,6 +895,7 @@ const SETTINGS = [
         options: [[0.4, pct(40)], [0.6, pct(60)], [0.7, pct(70)], [0.8, pct(80)], [1, pct(100)]],
       },
       { key: "night.warmth", label: label("night.warmth"), needs: "night.enabled", options: WARMTH },
+      { key: "night.audio", label: label("night.audio"), hint: hint("night.audio"), needs: "night.enabled" },
     ],
   },
   {
@@ -927,6 +928,7 @@ const SETTINGS = [
         hint: hint("audio.max_volume"),
       },
       { key: "audio.per_app_volume", label: label("audio.per_app_volume"), hint: hint("audio.per_app_volume") },
+      { key: "audio.night", label: label("audio.night"), hint: hint("audio.night") },
       { key: "audio.step", label: label("audio.step"), options: [[0.02, pct(2)], [0.05, pct(5)], [0.1, pct(10)]] },
     ],
   },

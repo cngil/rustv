@@ -8,6 +8,8 @@
 //! - `keyboard`: the on-screen keyboard (the keys, the focus, what was typed).
 //!   tvd moves the focus and types into the app.
 //! - `level`: a volume or brightness bar, drawn like the home screen's.
+//! - `prompt`: the "keep this resolution?" prompt over an app, drawn like the
+//!   home screen's, with its countdown. tvd takes OK and Back for it.
 //! - `gamma`: no picture; holds sway's gamma tables to dim the screen. When it
 //!   ends, by design or by a crash, sway puts full brightness back.
 //! - `type`: no picture; types text into whatever has focus through the Wayland
@@ -57,12 +59,28 @@ const LEVEL_HEIGHT: f32 = 230.0;
 enum Mode {
     Keyboard,
     Level,
+    Prompt,
 }
 
 /// What a surface shows.
 enum Scene {
     Board(Board),
     Level(Level),
+    Prompt(Prompt),
+}
+
+/// A question over the whole screen, with the keys that answer it. Every text is
+/// already in the TV's language.
+#[derive(Debug, Deserialize)]
+struct Prompt {
+    title: String,
+    /// Such as "1920 × 1080, 60 Hz".
+    detail: String,
+    /// Such as "Going back in 12 s".
+    countdown: String,
+    /// Key and what it does: the first is the answer that keeps, so it reads in text color.
+    keys: Vec<(String, String)>,
+    palette: Palette,
 }
 
 /// A volume or brightness level.
@@ -139,9 +157,10 @@ fn main() -> Result<()> {
     match std::env::args().nth(1).as_deref() {
         Some("keyboard") => surface(Mode::Keyboard),
         Some("level") => surface(Mode::Level),
+        Some("prompt") => surface(Mode::Prompt),
         Some("gamma") => gamma(),
         Some("type") => typing(),
-        _ => anyhow::bail!("usage: rustv-osd keyboard|level|gamma|type (tvd starts it; JSON lines on stdin)"),
+        _ => anyhow::bail!("usage: rustv-osd keyboard|level|prompt|gamma|type (tvd starts it; JSON lines on stdin)"),
     }
 }
 
@@ -153,16 +172,18 @@ fn surface(mode: Mode) -> Result<()> {
     let layer_shell = LayerShell::bind(&globals, &qh).context("the compositor has no layer shell")?;
     let shm = Shm::bind(&globals, &qh).context("no wl_shm")?;
 
-    // Along the bottom, over everything, and never focused: the app keeps the keyboard.
-    // An empty input region lets pointer events through to the app as well.
+    // Along the bottom (a prompt: the whole screen), over everything, and never
+    // focused: the app keeps the keyboard. An empty input region lets pointer
+    // events through to the app as well.
     let surface = compositor.create_surface(&qh);
     let region = Region::new(&compositor)?;
     surface.set_input_region(Some(region.wl_region()));
     let layer = layer_shell.create_layer_surface(&qh, surface, Layer::Overlay, Some("rustv-osd"), None);
-    layer.set_anchor(Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
+    let edges = Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT;
+    layer.set_anchor(if mode == Mode::Prompt { edges | Anchor::TOP } else { edges });
     layer.set_keyboard_interactivity(KeyboardInteractivity::None);
     layer.set_exclusive_zone(-1);
-    layer.set_size(0, 1);
+    layer.set_size(0, if mode == Mode::Prompt { 0 } else { 1 });
     layer.commit();
 
     let mut app = App {
@@ -188,6 +209,7 @@ fn surface(mode: Mode) -> Result<()> {
         let scene = match mode {
             Mode::Keyboard => serde_json::from_str(&line).map(Scene::Board),
             Mode::Level => serde_json::from_str(&line).map(Scene::Level),
+            Mode::Prompt => serde_json::from_str(&line).map(Scene::Prompt),
         };
         let Ok(scene) = scene else { continue };
         app.scene = Some(scene);
@@ -226,6 +248,7 @@ impl App {
         match scene {
             Scene::Board(board) => paint(&mut pixmap, board, &self.font),
             Scene::Level(level) => paint_level(&mut pixmap, level, &self.font),
+            Scene::Prompt(prompt) => paint_prompt(&mut pixmap, prompt, &self.font),
         }
 
         let stride = width as i32 * 4;
@@ -333,6 +356,44 @@ fn paint_level(pixmap: &mut Pixmap, level: &Level, font: &FontRef) {
     }
 }
 
+/// The prompt: the screen dimmed, and in the middle the home screen's panel
+/// with the question, the mode, the countdown and the keys that answer it.
+fn paint_prompt(pixmap: &mut Pixmap, prompt: &Prompt, font: &FontRef) {
+    let palette = &prompt.palette;
+    let (w, h) = (pixmap.width() as f32, pixmap.height() as f32);
+    let s = w / 1920.0;
+    pixmap.fill(Color::from_rgba8(0, 0, 0, 0xa0));
+    let (panel_w, panel_h) = (860.0 * s, 340.0 * s);
+    let (x, y) = ((w - panel_w) / 2.0, (h - panel_h) / 2.0);
+    for (spread, alpha) in [(36.0, 0.12), (20.0, 0.16), (8.0, 0.2)] {
+        let grow = spread * s;
+        let mut shade = Color::BLACK;
+        shade.set_alpha(alpha);
+        fill(pixmap, rounded(x - grow / 2.0, y + 24.0 * s, panel_w + grow, panel_h + grow / 2.0, 40.0 * s), shade);
+    }
+    fill(pixmap, rounded(x, y, panel_w, panel_h, 32.0 * s), color(&palette.surface));
+
+    let pad = 56.0 * s;
+    let left = x + pad;
+    text(pixmap, font, 44.0 * s, &prompt.title, left, y + pad + 26.0 * s, color(&palette.text), false);
+    text(pixmap, font, 30.0 * s, &prompt.detail, left, y + pad + 84.0 * s, color(&palette.text), false);
+    text(pixmap, font, 26.0 * s, &prompt.countdown, left, y + pad + 130.0 * s, color(&palette.muted), false);
+
+    // Key caps, each followed by what it does.
+    let cap_h = 44.0 * s;
+    let cap_y = y + panel_h - pad - cap_h;
+    let mut pen = left;
+    for (i, (key, does)) in prompt.keys.iter().enumerate() {
+        let cap_w = (text_width(font, 20.0 * s, key) + 28.0 * s).max(64.0 * s);
+        fill(pixmap, rounded(pen, cap_y, cap_w, cap_h, 12.0 * s), color(&palette.surface_2));
+        text(pixmap, font, 20.0 * s, key, pen + cap_w / 2.0, cap_y + cap_h / 2.0, color(&palette.text), true);
+        pen += cap_w + 14.0 * s;
+        let ink = if i == 0 { &palette.text } else { &palette.muted };
+        text(pixmap, font, 26.0 * s, does, pen, cap_y + cap_h / 2.0, color(ink), false);
+        pen += text_width(font, 26.0 * s, does) + 40.0 * s;
+    }
+}
+
 fn fill(pixmap: &mut Pixmap, path: Option<tiny_skia::Path>, color: Color) {
     let Some(path) = path else { return };
     let mut paint = Paint::default();
@@ -426,14 +487,20 @@ impl LayerShellHandler for App {
         _: u32,
     ) {
         let width = if c.new_size.0 == 0 { 1920 } else { c.new_size.0 };
-        // The height follows the width, so it keeps its shape on any screen.
-        let tall = if self.mode == Mode::Keyboard { PANEL_HEIGHT } else { LEVEL_HEIGHT };
-        let height = (tall * width as f32 / 1920.0).round() as u32;
+        // The height follows the width, so it keeps its shape on any screen; a prompt fills it.
+        let height = match self.mode {
+            Mode::Keyboard => (PANEL_HEIGHT * width as f32 / 1920.0).round() as u32,
+            Mode::Level => (LEVEL_HEIGHT * width as f32 / 1920.0).round() as u32,
+            Mode::Prompt if c.new_size.1 == 0 => 1080,
+            Mode::Prompt => c.new_size.1,
+        };
         if (width, height) != (self.width, self.height) {
             self.width = width;
             self.height = height;
-            self.layer.set_size(0, height);
-            self.layer.commit();
+            if self.mode != Mode::Prompt {
+                self.layer.set_size(0, height);
+                self.layer.commit();
+            }
             let _ = self.draw(qh);
         }
     }

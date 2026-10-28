@@ -46,6 +46,8 @@ pub struct AppState {
     /// Holds the screen's gamma below full brightness (`display.brightness`).
     dimmer: crate::osd::Dimmer,
     typer: crate::osd::Typer,
+    /// The display trial's prompt over an app, which covers the shell's.
+    trial_prompt: crate::osd::Prompt,
     volumes: tokio::sync::Mutex<Volumes>,
     /// When the sleep timer fires (seconds since the epoch), and a counter that cancels older timers.
     sleep_at: std::sync::Mutex<Option<u64>>,
@@ -108,6 +110,7 @@ impl AppState {
             osd: Osd::default(),
             dimmer: crate::osd::Dimmer::default(),
             typer: crate::osd::Typer::default(),
+            trial_prompt: crate::osd::Prompt::default(),
             volumes: tokio::sync::Mutex::new(Volumes::load()),
             sleep_at: std::sync::Mutex::new(None),
             sleep_timer: AtomicU64::new(0),
@@ -328,6 +331,7 @@ impl AppState {
 
     pub async fn notify(&self) {
         self.switch_volume().await;
+        self.show_trial_prompt().await;
         let snapshot = self.snapshot().await;
         let _ = self.events.send(ServerMsg::State(snapshot));
     }
@@ -473,6 +477,36 @@ impl AppState {
             }
         });
         Ok(())
+    }
+
+    /// The shell asks to keep a mode on trial on the home screen; over an app,
+    /// `rustv-osd prompt` asks instead, with the same words.
+    async fn show_trial_prompt(&self) {
+        let trial = self.display_trial.lock().unwrap().as_ref().map(|t| (t.mode, t.until));
+        let running = self.apps.running().await.is_some();
+        let Some((mode, until)) = trial.filter(|_| running) else {
+            self.trial_prompt.hide();
+            return;
+        };
+        let (palette, lang) = {
+            let cfg = self.config();
+            (crate::theme::resolve(&cfg.theme), crate::i18n::code(cfg.locale.language))
+        };
+        let text = |key: &str| rustv_locales::text(lang, key).to_string();
+        let seconds = until.saturating_sub(now()).to_string();
+        // "1920 × 1080, 60 Hz", as the shell writes it.
+        let shown = mode.to_string();
+        let detail = match shown.split_once('@') {
+            Some((size, hz)) => format!("{}, {hz} Hz", size.replace('x', " × ")),
+            None => shown,
+        };
+        self.trial_prompt.show(serde_json::json!({
+            "title": text("remote.display.keep_title"),
+            "detail": detail,
+            "countdown": rustv_locales::format(lang, "tv.trial.countdown", &[("seconds", &seconds)]),
+            "keys": [["OK", text("common.keep")], [text("common.back"), text("common.go_back")]],
+            "palette": palette,
+        }));
     }
 
     async fn keep_display_mode(self: &Arc<Self>) -> Result<()> {
@@ -664,6 +698,19 @@ impl AppState {
         if let Command::Key { code, .. } = &cmd {
             if self.keyboard.is_open() && self.keyboard_key(code).await? {
                 return Ok(());
+            }
+        }
+        // A mode on trial: OK keeps it and Back goes back, over an app as on the home screen.
+        if let Command::Key { code, .. } = &cmd {
+            if self.display_trial.lock().unwrap().is_some() {
+                match code.as_str() {
+                    "Enter" | "NumpadEnter" => return self.keep_display_mode().await,
+                    "Escape" | "BrowserBack" => {
+                        self.end_display_trial().await;
+                        return Ok(());
+                    }
+                    _ => {}
+                }
             }
         }
         match cmd {

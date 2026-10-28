@@ -155,7 +155,8 @@ and your phone becomes the remote.
   remote's settings or on the TV. A new mode applies at once and goes back by
   itself after 15 seconds unless kept, so a mode the TV cannot show never
   leaves you with a black screen; only a kept mode is saved
-  (`display.mode`).
+  (`display.mode`). The prompt to keep it shows over open apps too, and OK
+  or Back answers it from any remote.
 - **Settings on the TV**: a Settings tile after the apps (or the Menu key)
   opens the settings on the TV itself, moved through with the arrows, for
   whoever has only the TV remote or a gamepad. The same changes as from the

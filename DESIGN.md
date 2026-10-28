@@ -60,7 +60,7 @@ plate; its switch swaps colors so it stays visible on the plate. A row that
 depends on a switch that is off is dimmed and skipped. What the focused row
 does is shown in the column to the right of the list, not under every row.
 
-## Over apps: keyboard, level bar, dimmer
+## Over apps: keyboard, level bar, prompt, dimmer
 
 `rustv-osd` (`crates/shell/src/bin/`) draws what tvd describes on sway's
 overlay layer, over any app, and never takes focus:
@@ -74,6 +74,9 @@ overlay layer, over any app, and never takes focus:
   volume overlay (surface-2 panel, muted label, metal fill on a surface-3
   track, the value in text), 230 px up from the bottom, gone 2.2 s after the
   last change.
+- The "keep this resolution?" prompt while an app is open: the home screen's
+  own prompt (the screen dimmed, a surface panel in the middle, key caps in
+  surface-2), redrawn every second for the countdown.
 - The dimmer draws nothing: it holds sway's gamma tables below full brightness.
 
 ## Type

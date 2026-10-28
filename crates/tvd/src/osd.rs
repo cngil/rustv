@@ -5,6 +5,7 @@
 //! covers the shell. `rustv-osd level` draws the same bar on sway's overlay
 //! layer, in the theme. `rustv-osd gamma` dims the screen for as long as it
 //! runs; when it ends, sway restores full brightness, so a crash fails bright.
+//! `rustv-osd prompt` shows the "keep this resolution?" prompt over an app.
 //! `rustv-osd type` types text through the Wayland virtual keyboard, so any
 //! character reaches the app, not only what a US layout has.
 
@@ -101,6 +102,38 @@ impl Osd {
                 }
             }
         });
+    }
+}
+
+/// A prompt over apps, shown for as long as tvd keeps sending it.
+#[derive(Default)]
+pub struct Prompt {
+    shown: Mutex<Option<Child>>,
+}
+
+impl Prompt {
+    /// Shows `line` (see `Prompt` in rustv-osd), or updates it.
+    pub fn show(&self, line: serde_json::Value) {
+        let mut shown = self.shown.lock().unwrap();
+        if shown.as_mut().is_some_and(|child| send(child, &line)) {
+            return;
+        }
+        if let Some(old) = shown.take() {
+            end(old);
+        }
+        match spawn("prompt") {
+            Ok(mut child) => {
+                send(&mut child, &line);
+                *shown = Some(child);
+            }
+            Err(err) => debug!("prompt over apps: {err:#}"),
+        }
+    }
+
+    pub fn hide(&self) {
+        if let Some(child) = self.shown.lock().unwrap().take() {
+            end(child);
+        }
     }
 }
 

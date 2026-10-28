@@ -1085,41 +1085,77 @@ code {
     gap: 24px;
   }
 
+  /* One grid for both columns, so every row on the left sits across from one
+     on the right: D-pad and touchpad, Back/Home/Play and the clicks, the
+     media keys and "Type on the TV", the volume and the text field, the
+     slider and Delete/Tab/Enter, now playing and the keyboard switch. The
+     views give their children to the grid. */
+  /* A short window scrolls the page; nothing is cut off. */
+  #app {
+    height: auto;
+    min-height: 100dvh;
+  }
+
   .views {
+    flex: 1 0 auto;
+    overflow: visible;
+    --pad-size: clamp(140px, calc(100dvh - 580px), 300px);
     display: grid;
     grid-template-columns: 380px 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "remote pad"
-      "remote keys";
+    grid-template-rows: var(--pad-size) repeat(5, auto);
     column-gap: 56px;
-    row-gap: 32px;
+    row-gap: 14px;
+    align-items: center;
+    align-content: safe center;
   }
 
   .view,
-  .view:not(.active) {
-    display: flex;
-    height: auto;
-    min-height: 0;
+  .view:not(.active),
+  .views .volume {
+    display: contents;
   }
 
-  [data-view="remote"] { grid-area: remote; }
-  [data-view="pad"] { grid-area: pad; }
-  [data-view="keys"] { grid-area: keys; }
+  .dpad,
+  .view:has(.playing:not([hidden])) .dpad {
+    --size: var(--pad-size);
+    grid-area: 1 / 1;
+    margin: 0 auto;
+  }
+  .pad {
+    grid-area: 1 / 2;
+    align-self: stretch;
+    min-height: 0;
+  }
+  .actions { grid-area: 2 / 1; }
+  [data-view="pad"] .segmented { grid-area: 2 / 2; }
+  .media-row { grid-area: 3 / 1; }
+  [data-view="keys"] h2 { grid-area: 3 / 2; margin: 0; }
+  .volume-head { grid-area: 4 / 1; margin: 0; }
+  .text { grid-area: 4 / 2; }
+  .volume-row { grid-area: 5 / 1; }
+  [data-view="keys"] .segmented { grid-area: 5 / 2; }
+  .playing { grid-area: 6 / 1; }
+  [data-view="keys"] .switch { grid-area: 6 / 2; }
 
-  .dpad { --size: clamp(200px, calc(100dvh - 430px), 300px); }
+  /* Every row of the left column spans it, like the rows on the right. */
+  .views .actions,
+  .views .media-row,
+  .views .playing {
+    width: 100%;
+  }
 
-  .pad { min-height: 120px; }
+  .views .action,
+  .views .segmented button {
+    height: 60px;
+  }
 
   .tabs {
     display: none;
   }
 
-  /* Safari sizes a shrink-to-fit scroll container too narrow, so size it to its icons. */
+  /* All the apps across the page, centered; it scrolls only on a narrow window. */
   .dock {
-    align-self: center;
-    width: max-content;
-    max-width: 100%;
+    width: 100%;
   }
 }
 

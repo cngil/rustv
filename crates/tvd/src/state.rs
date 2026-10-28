@@ -43,6 +43,8 @@ pub struct AppState {
     pub cec: crate::cec::Cec,
     lock: Lock,
     osd: Osd,
+    /// Holds the screen's gamma below full brightness (`display.brightness`).
+    dimmer: crate::osd::Dimmer,
     volumes: tokio::sync::Mutex<Volumes>,
     /// When the sleep timer fires (seconds since the epoch), and a counter that cancels older timers.
     sleep_at: std::sync::Mutex<Option<u64>>,
@@ -103,6 +105,7 @@ impl AppState {
             cec: crate::cec::Cec::default(),
             lock: Lock::load(),
             osd: Osd::default(),
+            dimmer: crate::osd::Dimmer::default(),
             volumes: tokio::sync::Mutex::new(Volumes::load()),
             sleep_at: std::sync::Mutex::new(None),
             sleep_timer: AtomicU64::new(0),
@@ -122,7 +125,6 @@ impl AppState {
         watch_volume(Arc::downgrade(&state));
         crate::gamepad::watch(Arc::downgrade(&state));
         crate::cec::watch(Arc::downgrade(&state));
-        state.restart_osd();
         state.apply_cast();
         if state.config().overlay.enabled {
             state.overlay.set_visible(true, Arc::downgrade(&state));
@@ -212,9 +214,9 @@ impl AppState {
             }
         })
         .await??;
-        let (overlay_moved, cast_changed, osd_changed) = {
+        let (overlay_moved, cast_changed, brightness_changed) = {
             let mut cfg = self.config.write().unwrap();
-            let osd_changed = cfg.theme != fresh.theme || cfg.audio.max_volume != fresh.audio.max_volume;
+            let brightness_changed = (cfg.display.brightness - fresh.display.brightness).abs() > f32::EPSILON;
             // The overlay reads position and locale when it starts, so either change restarts it.
             let moved = cfg.overlay.position != fresh.overlay.position || cfg.locale != fresh.locale;
             cfg.locale = fresh.locale;
@@ -233,11 +235,10 @@ impl AppState {
             cfg.keyboard = fresh.keyboard;
             cfg.cec = fresh.cec;
             cfg.wallpaper = fresh.wallpaper;
-            (moved, cast_changed, osd_changed)
+            (moved, cast_changed, brightness_changed)
         };
-        // The bar over apps is drawn in the theme colors, scaled to the volume limit.
-        if osd_changed {
-            self.restart_osd();
+        if brightness_changed {
+            self.show_brightness();
         }
         if cast_changed {
             self.apply_cast();
@@ -343,6 +344,7 @@ impl AppState {
             }
         }
         self.read_display().await;
+        self.dimmer.set(self.config().display.brightness);
         if let Some((id, _)) = self.apps.running().await {
             self.volumes.lock().await.current = id;
         }
@@ -491,13 +493,40 @@ impl AppState {
         self.cast.apply(&cast, Arc::downgrade(self));
     }
 
-    /// Starts the volume bar over apps, in the current theme and volume range.
-    fn restart_osd(self: &Arc<Self>) {
-        let (palette, max) = {
+    /// The volume bar over an open app (the shell draws its own on the home screen).
+    pub async fn show_volume(&self, volume: &audio::Volume) {
+        if !self.config().shell.volume_overlay || self.apps.running().await.is_none() {
+            return;
+        }
+        let (palette, lang, max) = {
             let cfg = self.config();
-            (crate::theme::resolve(&cfg.theme), (cfg.audio.max_volume * 100.0).round() as u32)
+            (crate::theme::resolve(&cfg.theme), crate::i18n::code(cfg.locale.language), cfg.audio.max_volume)
         };
-        self.osd.start(palette, max, Arc::downgrade(self));
+        let percent = (volume.level * 100.0).round().to_string();
+        let level = crate::osd::Level {
+            label: rustv_locales::text(lang, if volume.muted { "tv.muted" } else { "tv.volume" }).to_string(),
+            value: if volume.muted { 0.0 } else { volume.level / max.max(0.01) },
+            text: rustv_locales::format(lang, "unit.percent", &[("n", &percent)]),
+            muted: volume.muted,
+        };
+        self.osd.show(level, &palette);
+    }
+
+    /// Applies the brightness and shows it on the bar, over apps and the home screen alike.
+    fn show_brightness(&self) {
+        let (brightness, palette, lang) = {
+            let cfg = self.config();
+            (cfg.display.brightness, crate::theme::resolve(&cfg.theme), crate::i18n::code(cfg.locale.language))
+        };
+        self.dimmer.set(brightness);
+        let percent = (brightness * 100.0).round().to_string();
+        let level = crate::osd::Level {
+            label: rustv_locales::text(lang, "tv.brightness").to_string(),
+            value: brightness,
+            text: rustv_locales::format(lang, "unit.percent", &[("n", &percent)]),
+            muted: false,
+        };
+        self.osd.show(level, &palette);
     }
 
     /// When another app (or the home screen) comes up, keep the volume the last
@@ -646,10 +675,7 @@ impl AppState {
                 let audio = self.config().audio.clone();
                 audio::apply(action, level, &audio).await?;
                 if let Ok(volume) = audio::get().await {
-                    // The shell shows its own bar on the home screen; over an app, wob does.
-                    if self.config().shell.volume_overlay && self.apps.running().await.is_some() {
-                        self.osd.show(if volume.muted { 0 } else { (volume.level * 100.0).round() as u32 });
-                    }
+                    self.show_volume(&volume).await;
                     let mut saved = self.volumes.lock().await;
                     if audio.per_app_volume {
                         let current = saved.current.clone();
@@ -743,9 +769,7 @@ fn watch_volume(state: std::sync::Weak<AppState>) {
             let Some(state) = state.upgrade() else { return };
             let Ok(volume) = audio::get().await else { continue };
             if last.is_some_and(|last| last != volume) {
-                if state.config().shell.volume_overlay && state.apps.running().await.is_some() {
-                    state.osd.show(if volume.muted { 0 } else { (volume.level * 100.0).round() as u32 });
-                }
+                state.show_volume(&volume).await;
                 state.notify().await;
             }
             last = Some(volume);

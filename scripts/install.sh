@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 cargo build --release
 install -Dm755 target/release/tvd "$HOME/.local/bin/tvd"
 install -Dm755 target/release/rustv-shell "$HOME/.local/bin/rustv-shell"
-install -Dm755 target/release/rustv-keyboard "$HOME/.local/bin/rustv-keyboard"
+install -Dm755 target/release/rustv-osd "$HOME/.local/bin/rustv-osd"
 install -Dm644 packaging/systemd/tvd.service "$HOME/.config/systemd/user/tvd.service"
 
 config="${XDG_CONFIG_HOME:-$HOME/.config}/rustv/config.toml"

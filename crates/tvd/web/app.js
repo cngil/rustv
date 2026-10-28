@@ -668,11 +668,17 @@ function choiceRow(label, hint, options, current, pick) {
 
 function displayRows() {
   const display = settings.display || { modes: [] };
+  const brightness = settingRow({
+    key: "display.brightness",
+    label: label("display.brightness"),
+    hint: hint("display.brightness"),
+    options: [[0.4, pct(40)], [0.6, pct(60)], [0.8, pct(80)], [1, pct(100)]],
+  });
   if (!display.modes || !display.modes.length) {
     const note = document.createElement("p");
     note.className = "setting-hint";
     note.textContent = t("remote.display.unavailable");
-    return [note];
+    return [brightness, note];
   }
   const modes = display.modes.map(splitMode);
   const on = splitMode(display.current || (display.mode !== "auto" ? display.mode : display.modes[0]));
@@ -694,7 +700,7 @@ function displayRows() {
   const refresh = choiceRow(t("setting.display.refresh.label"), "", rates.map((hz) => [hz, `${hz} Hz`]), on.hz, (hz) =>
     tryMode(`${on.size}@${hz}`),
   );
-  return [resolution, refresh];
+  return [brightness, resolution, refresh];
 }
 
 /** The "keep this resolution?" prompt, while a mode is on trial. */

@@ -245,6 +245,8 @@ setting.cec.power_tv.hint = "Uyanınca TV açılır ve rustv'ye geçer; uykuda T
 setting.cec.power_tv.label = "TV'yi aç ve kapat"
 setting.cec.remote_keys.hint = "Yön, OK, Geri, oynat ve ses tuşları rustv'yi kontrol eder."
 setting.cec.remote_keys.label = "TV kumandasını kullan"
+setting.display.brightness.hint = "Görüntüyü yazılımla karartır; TV'nin kendi ayarından daha parlak yapamaz."
+setting.display.brightness.label = "Parlaklık"
 setting.display.refresh.label = "Yenileme hızı"
 setting.display.resolution.hint = "Yeni bir mod, korumazsan 15 saniye sonra kendiliğinden geri döner."
 setting.display.resolution.label = "Çözünürlük"
@@ -310,6 +312,7 @@ setting.wallpaper.slide_seconds.label = "Ekran koruyucu: her resim"
 
 # ---- tv ----
 tv.am = "ÖÖ"
+tv.brightness = "Parlaklık"
 tv.connecting = "tvd'ye bağlanılıyor…"
 tv.date = "{weekday}, {day} {month}"
 tv.day.friday = "Cuma"

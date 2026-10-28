@@ -154,11 +154,14 @@ pub struct Display {
     /// `auto` leaves it to sway's config; otherwise a mode such as `1920x1080@60`,
     /// written here only after someone kept it on screen.
     pub mode: String,
+    /// 0.2..1: below 1 the picture is dimmed in software (sway's gamma); it
+    /// cannot go brighter than the TV's own backlight.
+    pub brightness: f32,
 }
 
 impl Default for Display {
     fn default() -> Self {
-        Self { mode: "auto".into() }
+        Self { mode: "auto".into(), brightness: 1.0 }
     }
 }
 
@@ -576,6 +579,9 @@ impl Config {
         }
         if !(1.0..=1440.0).contains(&self.sleep.after_minutes) {
             bail!("sleep.after_minutes must be between 1 and 1440");
+        }
+        if !(0.2..=1.0).contains(&self.display.brightness) {
+            bail!("display.brightness must be between 0.2 and 1");
         }
         if self.display.mode != "auto" {
             crate::display::Mode::parse(&self.display.mode)

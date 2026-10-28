@@ -99,8 +99,10 @@ and your phone becomes the remote.
   to the player over MPRIS (Firefox, Jellyfin, VLC…) or as keys otherwise.
 - **Sleep timer** from the remote: 15 minutes to 2 hours.
 - **Volume per app**: each app and the home screen keep their own level, and
-  a volume bar shows over apps too (with [wob](https://github.com/francma/wob)
-  installed).
+  the home screen's volume bar shows over apps too.
+- **Brightness**, from the remote or the TV's settings: dims the picture in
+  software (sway's gamma), handy in the evening. It cannot go brighter than
+  the TV's own backlight setting; if rustv stops, full brightness comes back.
 - **Gamepads as remotes**: pair one over Bluetooth (or plug it in) and move
   around the home screen with it; the Guide button closes the open app.
 - **Wi-Fi and Bluetooth** in the remote's settings: join a network, pair
@@ -238,7 +240,6 @@ remote, so a crashed screen never takes the remote down.
 - PipeWire (`wpctl`, `pw-dump`) for audio
 - Write access to `/dev/uinput` (see below)
 - Flatpak for Flatpak apps, Firefox (Flatpak) for web apps by default
-- For a volume bar over apps (optional): `wob`
 - For HDMI-CEC (optional): a CEC adapter at `/dev/cec*` and your user in the
   group that owns it (usually `video`)
 - For AirPlay (optional): `uxplay` and `avahi-daemon`

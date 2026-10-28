@@ -202,8 +202,20 @@ const SECTIONS: &[Section] = &[
     Section {
         title: "section.display",
         pictures: false,
-        display: true,
+        display: false,
         items: &[
+            Item {
+                key: "display.brightness",
+                label: "setting.display.brightness.label",
+                hint: Some("setting.display.brightness.hint"),
+                kind: Kind::Choice(&[
+                    (Lit::Num(0.4), Unit("unit.percent", 40.0)),
+                    (Lit::Num(0.6), Unit("unit.percent", 60.0)),
+                    (Lit::Num(0.8), Unit("unit.percent", 80.0)),
+                    (Lit::Num(1.0), Unit("unit.percent", 100.0)),
+                ]),
+                needs: None,
+            },
             Item {
                 key: "",
                 label: "setting.display.resolution.label",
@@ -527,6 +539,11 @@ impl Menu {
         }
     }
 
+    /// Resolution and refresh rate only once tvd reports the TV's modes.
+    fn shown(&self, item: &Item) -> bool {
+        !matches!(item.kind, Kind::Resolution | Kind::Refresh) || !self.modes().is_empty()
+    }
+
     fn enabled(&self, item: &Item) -> bool {
         item.needs.map_or(true, |key| self.get(key) == &Value::Bool(true))
     }
@@ -539,7 +556,10 @@ impl Menu {
     }
 
     fn focusable(&self) -> Vec<&'static Item> {
-        self.sections().flat_map(|section| section.items).filter(|item| self.enabled(item)).collect()
+        self.sections()
+            .flat_map(|section| section.items)
+            .filter(|item| self.shown(item) && self.enabled(item))
+            .collect()
     }
 
     /// The list as the UI draws it, with the focused row kept in view.
@@ -563,7 +583,8 @@ impl Menu {
                 after: false,
             });
             y += HEADER;
-            for item in section.items {
+            let items: Vec<&'static Item> = section.items.iter().filter(|item| self.shown(item)).collect();
+            for item in items {
                 let options = self.options(item);
                 let current = self.get(item.key);
                 let at = options.iter().position(|(lit, _)| lit.matches(current));
@@ -808,6 +829,8 @@ mod tests {
     #[test]
     fn display_modes_are_tried_not_set() {
         let mut menu = menu();
+        // Brightness is always there; resolution only with the TV's modes.
+        assert!(menu.rows().iter().any(|row| row.label == "Brightness"));
         assert!(!menu.rows().iter().any(|row| row.label == "Resolution"));
         let mut settings = menu.settings.clone();
         settings["display"] = json!({

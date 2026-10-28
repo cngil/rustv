@@ -1,17 +1,23 @@
-//! `rustv-keyboard`, the on-screen keyboard for the TV remote and gamepads.
+//! `rustv-osd`: what rustv shows over everything on the TV, apps included.
 //!
-//! Only a renderer. tvd starts it when the keyboard opens and writes the whole
-//! keyboard as one JSON line on stdin after every change: the keys, which one
-//! has the focus, what was typed so far and the theme colors. tvd moves the
-//! focus and types the letters into the app; this process never takes input
-//! or focus. It draws on sway's overlay layer, so it shows over full screen
-//! apps, and quits when tvd closes its stdin.
+//! Only a renderer: tvd starts it, writes one JSON line on stdin per change and
+//! closes stdin to end it. It draws on sway's overlay layer, so it shows over
+//! full screen apps, and never takes input or focus. The first argument picks
+//! what it is:
+//!
+//! - `keyboard`: the on-screen keyboard (the keys, the focus, what was typed).
+//!   tvd moves the focus and types into the app.
+//! - `level`: a volume or brightness bar, drawn like the home screen's.
+//! - `gamma`: no picture; holds sway's gamma tables to dim the screen. When it
+//!   ends, by design or by a crash, sway puts full brightness back.
 
-use std::io::BufRead;
+use std::io::{BufRead, Seek, Write};
+use std::os::fd::AsFd;
 
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use smithay_client_toolkit::{compositor::Region, reexports::client::Dispatch};
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
     delegate_compositor, delegate_layer, delegate_output, delegate_registry, delegate_shm,
@@ -20,6 +26,10 @@ use smithay_client_toolkit::{
         globals::registry_queue_init,
         protocol::{wl_output, wl_shm, wl_surface},
         Connection, QueueHandle,
+    },
+    reexports::protocols_wlr::gamma_control::v1::client::{
+        zwlr_gamma_control_manager_v1::ZwlrGammaControlManagerV1,
+        zwlr_gamma_control_v1::{self, ZwlrGammaControlV1},
     },
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
@@ -36,6 +46,42 @@ use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Transform};
 const FONT: &[u8] = include_bytes!("../../ui/fonts/HankenGrotesk-Medium.ttf");
 /// At 1920 wide: the typed line, five rows of keys and the hints, with room around them.
 const PANEL_HEIGHT: f32 = 32.0 + 64.0 + 22.0 + 5.0 * (72.0 + 10.0) + 60.0;
+/// At 1920 wide: the level bar's strip along the bottom, with the bar where the
+/// home screen draws its own (230 px up from the bottom).
+const LEVEL_HEIGHT: f32 = 230.0;
+
+#[derive(Clone, Copy, PartialEq)]
+enum Mode {
+    Keyboard,
+    Level,
+}
+
+/// What a surface shows.
+enum Scene {
+    Board(Board),
+    Level(Level),
+}
+
+/// A volume or brightness level.
+#[derive(Debug, Deserialize)]
+struct Level {
+    /// "Volume", "Muted", "Brightness": already in the TV's language.
+    label: String,
+    /// 0..1 of the bar.
+    value: f32,
+    /// The number shown at the end, such as "45%".
+    text: String,
+    /// A muted volume: the bar in the quiet color.
+    #[serde(default)]
+    muted: bool,
+    palette: Palette,
+}
+
+/// For `gamma`: how bright the screen is, 0..1.
+#[derive(Debug, Deserialize)]
+struct Dim {
+    brightness: f32,
+}
 
 /// One update from tvd.
 #[derive(Debug, Default, Deserialize)]
@@ -87,6 +133,15 @@ fn color(hex: &str) -> Color {
 }
 
 fn main() -> Result<()> {
+    match std::env::args().nth(1).as_deref() {
+        Some("keyboard") => surface(Mode::Keyboard),
+        Some("level") => surface(Mode::Level),
+        Some("gamma") => gamma(),
+        _ => anyhow::bail!("usage: rustv-osd keyboard|level|gamma (tvd starts it; JSON lines on stdin)"),
+    }
+}
+
+fn surface(mode: Mode) -> Result<()> {
     let conn = Connection::connect_to_env().context("connecting to the Wayland display")?;
     let (globals, mut queue) = registry_queue_init(&conn)?;
     let qh = queue.handle();
@@ -95,8 +150,11 @@ fn main() -> Result<()> {
     let shm = Shm::bind(&globals, &qh).context("no wl_shm")?;
 
     // Along the bottom, over everything, and never focused: the app keeps the keyboard.
+    // An empty input region lets pointer events through to the app as well.
     let surface = compositor.create_surface(&qh);
-    let layer = layer_shell.create_layer_surface(&qh, surface, Layer::Overlay, Some("rustv-keyboard"), None);
+    let region = Region::new(&compositor)?;
+    surface.set_input_region(Some(region.wl_region()));
+    let layer = layer_shell.create_layer_surface(&qh, surface, Layer::Overlay, Some("rustv-osd"), None);
     layer.set_anchor(Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
     layer.set_keyboard_interactivity(KeyboardInteractivity::None);
     layer.set_exclusive_zone(-1);
@@ -113,7 +171,8 @@ fn main() -> Result<()> {
         height: 0,
         closed: false,
         font: FontRef::try_from_slice(FONT)?,
-        board: Board::default(),
+        mode,
+        scene: None,
     };
     // Wait for the first size from sway.
     while app.width == 0 && !app.closed {
@@ -121,8 +180,13 @@ fn main() -> Result<()> {
     }
 
     for line in std::io::stdin().lock().lines() {
-        let Ok(board) = serde_json::from_str::<Board>(&line?) else { continue };
-        app.board = board;
+        let line = line?;
+        let scene = match mode {
+            Mode::Keyboard => serde_json::from_str(&line).map(Scene::Board),
+            Mode::Level => serde_json::from_str(&line).map(Scene::Level),
+        };
+        let Ok(scene) = scene else { continue };
+        app.scene = Some(scene);
         app.draw(&qh)?;
         // Handles buffer releases and resizes, and notices a closed surface.
         queue.roundtrip(&mut app)?;
@@ -143,17 +207,22 @@ struct App {
     height: u32,
     closed: bool,
     font: FontRef<'static>,
-    board: Board,
+    mode: Mode,
+    scene: Option<Scene>,
 }
 
 impl App {
     fn draw(&mut self, _qh: &QueueHandle<Self>) -> Result<()> {
         let (width, height) = (self.width, self.height);
-        if width == 0 || height == 0 || self.board.rows.is_empty() {
+        let Some(scene) = &self.scene else { return Ok(()) };
+        if width == 0 || height == 0 {
             return Ok(());
         }
         let mut pixmap = Pixmap::new(width, height).context("pixmap")?;
-        paint(&mut pixmap, &self.board, &self.font);
+        match scene {
+            Scene::Board(board) => paint(&mut pixmap, board, &self.font),
+            Scene::Level(level) => paint_level(&mut pixmap, level, &self.font),
+        }
 
         let stride = width as i32 * 4;
         let (buffer, canvas) =
@@ -220,6 +289,41 @@ fn paint(pixmap: &mut Pixmap, board: &Board, font: &FontRef) {
     }
     if !board.hint.is_empty() {
         text(pixmap, font, 22.0 * s, &board.hint, left, y + 26.0 * s, color(&palette.muted), false);
+    }
+}
+
+/// The level bar: a graphite panel with the label, a metal fill and the value,
+/// the same as the home screen's volume overlay, centered over a clear strip.
+fn paint_level(pixmap: &mut Pixmap, level: &Level, font: &FontRef) {
+    let palette = &level.palette;
+    let w = pixmap.width() as f32;
+    let s = w / 1920.0;
+    let (panel_w, panel_h) = (620.0 * s, 96.0 * s);
+    let (x, y) = ((w - panel_w) / 2.0, 0.0);
+    // A soft shadow under it, as for every floating panel.
+    for (spread, alpha) in [(18.0, 0.10), (10.0, 0.14), (4.0, 0.18)] {
+        let grow = spread * s;
+        let mut shade = Color::BLACK;
+        shade.set_alpha(alpha);
+        fill(pixmap, rounded(x - grow / 2.0, y + 16.0 * s, panel_w + grow, panel_h + grow / 2.0, 34.0 * s), shade);
+    }
+    fill(pixmap, rounded(x, y, panel_w, panel_h, 28.0 * s), color(&palette.surface_2));
+
+    let middle = y + panel_h / 2.0;
+    let pad = 36.0 * s;
+    text(pixmap, font, 26.0 * s, &level.label, x + pad, middle, color(&palette.muted), false);
+    let value_w = text_width(font, 28.0 * s, &level.text);
+    text(pixmap, font, 28.0 * s, &level.text, x + panel_w - pad - value_w, middle, color(&palette.text), false);
+
+    let track_x = x + pad + 120.0 * s + 28.0 * s;
+    let track_w = (x + panel_w - pad - 90.0 * s - 28.0 * s) - track_x;
+    let track_h = 10.0 * s;
+    let track_y = middle - track_h / 2.0;
+    fill(pixmap, rounded(track_x, track_y, track_w, track_h, track_h / 2.0), color(&palette.surface_3));
+    let filled = track_w * level.value.clamp(0.0, 1.0);
+    if filled >= track_h {
+        let ink = if level.muted { &palette.muted } else { &palette.accent };
+        fill(pixmap, rounded(track_x, track_y, filled, track_h, track_h / 2.0), color(ink));
     }
 }
 
@@ -316,8 +420,9 @@ impl LayerShellHandler for App {
         _: u32,
     ) {
         let width = if c.new_size.0 == 0 { 1920 } else { c.new_size.0 };
-        // The height follows the width, so the keys keep their shape on any screen.
-        let height = (PANEL_HEIGHT * width as f32 / 1920.0).round() as u32;
+        // The height follows the width, so it keeps its shape on any screen.
+        let tall = if self.mode == Mode::Keyboard { PANEL_HEIGHT } else { LEVEL_HEIGHT };
+        let height = (tall * width as f32 / 1920.0).round() as u32;
         if (width, height) != (self.width, self.height) {
             self.width = width;
             self.height = height;
@@ -385,6 +490,113 @@ delegate_shm!(App);
 delegate_layer!(App);
 delegate_registry!(App);
 
+/// Holds the gamma tables of every output for as long as it runs.
+struct Gamma {
+    registry: RegistryState,
+    outputs: OutputState,
+    /// Each output's gamma control and its table size, once sway sent it.
+    controls: Vec<(ZwlrGammaControlV1, Option<u32>)>,
+}
+
+/// One ramp for each of red, green and blue: a straight line from black to
+/// `brightness` of full, the way a dimmer would.
+fn ramps(size: u32, brightness: f32) -> Vec<u16> {
+    let top = f32::from(u16::MAX) * brightness.clamp(0.0, 1.0);
+    let ramp: Vec<u16> = (0..size).map(|i| (top * i as f32 / (size.max(2) - 1) as f32).round() as u16).collect();
+    [ramp.as_slice(), ramp.as_slice(), ramp.as_slice()].concat()
+}
+
+fn gamma() -> Result<()> {
+    let conn = Connection::connect_to_env().context("connecting to the Wayland display")?;
+    let (globals, mut queue) = registry_queue_init(&conn)?;
+    let qh = queue.handle();
+    let manager: ZwlrGammaControlManagerV1 =
+        globals.bind(&qh, 1..=1, ()).context("the compositor does not offer gamma control (wlr-gamma-control)")?;
+    let mut app = Gamma {
+        registry: RegistryState::new(&globals),
+        outputs: OutputState::new(&globals, &qh),
+        controls: Vec::new(),
+    };
+    // The outputs, then each one's table size.
+    queue.roundtrip(&mut app)?;
+    let outputs: Vec<wl_output::WlOutput> = app.outputs.outputs().collect();
+    for (index, output) in outputs.iter().enumerate() {
+        app.controls.push((manager.get_gamma_control(output, &qh, index), None));
+    }
+    queue.roundtrip(&mut app)?;
+
+    let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    for line in std::io::stdin().lock().lines() {
+        let Ok(dim) = serde_json::from_str::<Dim>(&line?) else { continue };
+        for (control, size) in &app.controls {
+            let Some(size) = size else { continue };
+            // sway reads the table from a file descriptor; an unlinked file is enough.
+            let path = runtime.join(format!("rustv-gamma-{}", std::process::id()));
+            let mut file =
+                std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&path)?;
+            std::fs::remove_file(&path)?;
+            let table: Vec<u8> = ramps(*size, dim.brightness).iter().flat_map(|v| v.to_ne_bytes()).collect();
+            file.write_all(&table)?;
+            file.rewind()?;
+            control.set_gamma(file.as_fd());
+        }
+        queue.roundtrip(&mut app)?;
+    }
+    Ok(())
+}
+
+impl Dispatch<ZwlrGammaControlManagerV1, ()> for Gamma {
+    fn event(
+        _: &mut Self,
+        _: &ZwlrGammaControlManagerV1,
+        _: <ZwlrGammaControlManagerV1 as smithay_client_toolkit::reexports::client::Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+    }
+}
+
+impl Dispatch<ZwlrGammaControlV1, usize> for Gamma {
+    fn event(
+        state: &mut Self,
+        _: &ZwlrGammaControlV1,
+        event: zwlr_gamma_control_v1::Event,
+        index: &usize,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            zwlr_gamma_control_v1::Event::GammaSize { size } => state.controls[*index].1 = Some(size),
+            // Another program holds this output's gamma (a night light, say).
+            zwlr_gamma_control_v1::Event::Failed => {
+                eprintln!("rustv-osd: gamma control of an output failed (is another program dimming it?)");
+                state.controls[*index].1 = None;
+            }
+            _ => {}
+        }
+    }
+}
+
+impl OutputHandler for Gamma {
+    fn output_state(&mut self) -> &mut OutputState {
+        &mut self.outputs
+    }
+    fn new_output(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_output::WlOutput) {}
+    fn update_output(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_output::WlOutput) {}
+    fn output_destroyed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_output::WlOutput) {}
+}
+
+impl ProvidesRegistryState for Gamma {
+    fn registry(&mut self) -> &mut RegistryState {
+        &mut self.registry
+    }
+    registry_handlers![OutputState];
+}
+
+delegate_output!(Gamma);
+delegate_registry!(Gamma);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,5 +616,31 @@ mod tests {
         assert_eq!(pixmap.pixel(960, PANEL_HEIGHT as u32 - 2).unwrap().alpha(), 255);
         let plate = color("#c9ced4").to_color_u8();
         assert!(pixmap.pixels().iter().any(|p| p.red() == plate.red() && p.green() == plate.green()));
+    }
+
+    #[test]
+    fn paints_a_level_over_a_clear_strip() {
+        let level: Level = serde_json::from_str(
+            r##"{"label":"Volume","value":0.5,"text":"50%",
+                 "palette":{"background":"#0e1013","surface":"#1d1f22","surface_2":"#242629","surface_3":"#2e3032",
+                            "accent":"#c9ced4","on_accent":"#0b0d0f","text":"#f2f3f3","muted":"#9d9e9f"}}"##,
+        )
+        .unwrap();
+        let mut pixmap = Pixmap::new(1920, LEVEL_HEIGHT as u32).unwrap();
+        paint_level(&mut pixmap, &level, &FontRef::try_from_slice(FONT).unwrap());
+        // The app shows through beside the panel; the panel is opaque.
+        assert_eq!(pixmap.pixel(20, 40).unwrap().alpha(), 0);
+        assert_eq!(pixmap.pixel(960, 20).unwrap().alpha(), 255);
+    }
+
+    #[test]
+    fn gamma_ramps_dim_in_a_straight_line() {
+        let full = ramps(4, 1.0);
+        assert_eq!(full.len(), 12);
+        assert_eq!((full[0], full[3]), (0, u16::MAX));
+        let half = ramps(4, 0.5);
+        assert_eq!(half[3], 32768);
+        // Red, green and blue alike.
+        assert_eq!(half[..4], half[4..8]);
     }
 }

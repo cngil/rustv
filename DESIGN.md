@@ -60,14 +60,21 @@ plate; its switch swaps colors so it stays visible on the plate. A row that
 depends on a switch that is off is dimmed and skipped. What the focused row
 does is shown in the column to the right of the list, not under every row.
 
-## On-screen keyboard
+## Over apps: keyboard, level bar, dimmer
 
-`rustv-keyboard` (`crates/shell/src/bin/`) draws the keyboard tvd describes
-(`crates/tvd/src/keyboard.rs`) on sway's overlay layer, over any app: a
-graphite panel rising from the bottom edge (top corners rounded), a recessed
-line with what was typed so far, keys in surface-2 with the focused key as the
-lit plate, an active Shift in the metal on surface-3. Special keys are words,
-not symbols, so they stay in the bundled face.
+`rustv-osd` (`crates/shell/src/bin/`) draws what tvd describes on sway's
+overlay layer, over any app, and never takes focus:
+
+- The on-screen keyboard (`crates/tvd/src/keyboard.rs`): a graphite panel
+  rising from the bottom edge (top corners rounded), a recessed line with what
+  was typed so far, keys in surface-2 with the focused key as the lit plate, an
+  active Shift in the metal on surface-3. Special keys are words, not symbols,
+  so they stay in the bundled face.
+- The level bar for volume over apps and for brightness: the home screen's own
+  volume overlay (surface-2 panel, muted label, metal fill on a surface-3
+  track, the value in text), 230 px up from the bottom, gone 2.2 s after the
+  last change.
+- The dimmer draws nothing: it holds sway's gamma tables below full brightness.
 
 ## Type
 

@@ -13,7 +13,7 @@ rustv-locales = { path = "../locales" }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 # Already in the tree through Slint; decodes and scales wallpapers.
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
-# The on-screen keyboard (src/bin/rustv-keyboard.rs), all already in the tree through
+# rustv-osd (src/bin/rustv-osd.rs: on-screen keyboard, level bar, dimmer), all already in the tree through
 # Slint's Wayland backend: a layer-shell client, a 2D painter and a glyph rasterizer.
 smithay-client-toolkit = { version = "0.19", default-features = false, features = ["calloop"] }
 tiny-skia = { version = "0.11", default-features = false, features = ["std", "simd"] }

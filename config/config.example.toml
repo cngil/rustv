@@ -47,6 +47,10 @@ date = true
 # Pick it in the remote's settings or on the TV instead: a new mode goes back
 # by itself after 15 seconds unless you keep it, and only then is it saved here.
 mode = "auto"
+# 0.2 to 1. Below 1 the picture is dimmed in software (sway's gamma tables); it
+# cannot go brighter than the TV's own backlight. If rustv stops, full
+# brightness comes back.
+brightness = 1.0
 
 [wallpaper]
 # Your own pictures (JPEG or PNG), files or folders of them. They show behind
@@ -105,7 +109,7 @@ close_apps = true   # frees the app's memory and CPU
 [keyboard]
 # On-screen keyboard, for typing a search or an address with the TV remote or
 # a gamepad. While it is open, the arrows move over it, OK types the key into
-# the app and Back closes it; Enter sends and closes. Drawn by rustv-keyboard
+# the app and Back closes it; Enter sends and closes. Drawn by rustv-osd
 # on sway's overlay layer, so it shows over full screen apps. US layout keys.
 enabled = true
 hold_ok = true      # hold OK on the TV remote (HDMI-CEC) to open it

@@ -52,6 +52,7 @@ pub const EDITABLE: &[&str] = &[
     "wallpaper.change_minutes",
     "wallpaper.slide_seconds",
     "wallpaper.shuffle",
+    "display.brightness",
     "keyboard.enabled",
     "keyboard.hold_ok",
     "keyboard.hold_guide",

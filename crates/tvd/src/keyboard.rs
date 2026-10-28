@@ -4,16 +4,16 @@
 //! tvd holds the keyboard: while it is open, the arrows, OK and Back move over
 //! it instead of reaching the app, and the chosen keys are typed into the app
 //! through the virtual keyboard, the same way the phone remote types. The app
-//! keeps its focus. `rustv-keyboard` only draws what it is told, on sway's
+//! keeps its focus. `rustv-osd keyboard` only draws what it is told, on sway's
 //! overlay layer, so it shows over full screen apps too.
 //!
 //! The virtual keyboard types the US layout, so the keys are ASCII only.
 
 use std::io::Write;
-use std::process::{Child, Command, Stdio};
+use std::process::Child;
 use std::sync::Mutex;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde_json::json;
 use tracing::{debug, warn};
 
@@ -193,7 +193,7 @@ impl Board {
         }
     }
 
-    /// What `rustv-keyboard` draws.
+    /// What `rustv-osd keyboard` draws.
     fn render(&self, palette: &Palette, lang: &str) -> serde_json::Value {
         let word = |key: &str| rustv_locales::text(lang, key).to_string();
         let label = |key: Key| -> String {
@@ -265,11 +265,8 @@ impl Keyboard {
     }
 
     pub fn close(&self) {
-        if let Some((_, Some(mut child))) = self.open.lock().unwrap().take() {
-            // Closing stdin ends it; kill in case it is stuck.
-            drop(child.stdin.take());
-            let _ = child.kill();
-            std::thread::spawn(move || child.wait());
+        if let Some((_, Some(child))) = self.open.lock().unwrap().take() {
+            crate::osd::end(child);
         }
     }
 
@@ -283,16 +280,9 @@ impl Keyboard {
     }
 }
 
-/// `rustv-keyboard` from next to tvd (as installed), else from the PATH.
+/// `rustv-osd keyboard`, the renderer.
 fn spawn() -> Result<Child> {
-    let beside = std::env::current_exe().ok().and_then(|exe| Some(exe.parent()?.join("rustv-keyboard")));
-    let program = beside.filter(|path| path.is_file()).unwrap_or_else(|| "rustv-keyboard".into());
-    Command::new(&program)
-        .envs(crate::apps::session_env()?)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .spawn()
-        .with_context(|| format!("starting {}", program.display()))
+    crate::osd::spawn("keyboard")
 }
 
 fn send(entry: &mut (Board, Option<Child>), palette: &Palette, lang: &str) {

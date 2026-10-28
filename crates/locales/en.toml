@@ -246,6 +246,8 @@ setting.cec.power_tv.hint = "Waking turns the TV on and switches it to rustv; sl
 setting.cec.power_tv.label = "Turn the TV on and off"
 setting.cec.remote_keys.hint = "Arrows, OK, Back, play and volume buttons control rustv."
 setting.cec.remote_keys.label = "Use the TV remote"
+setting.display.brightness.hint = "Dims the picture in software; it cannot go brighter than the TV's own setting."
+setting.display.brightness.label = "Brightness"
 setting.display.refresh.label = "Refresh rate"
 setting.display.resolution.hint = "A new mode goes back by itself after 15 seconds unless you keep it."
 setting.display.resolution.label = "Resolution"
@@ -311,6 +313,7 @@ setting.wallpaper.slide_seconds.label = "Screensaver: each picture for"
 
 # ---- tv ----
 tv.am = "AM"
+tv.brightness = "Brightness"
 tv.connecting = "Connecting to tvd…"
 tv.date = "{weekday}, {day} {month}"
 tv.day.friday = "Friday"

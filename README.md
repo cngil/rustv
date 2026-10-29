@@ -284,6 +284,34 @@ remote, so a crashed screen never takes the remote down.
 
 ## Install
 
+On Debian, Ubuntu, Fedora or Arch, as the user who will watch TV:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/cngil/rustv/main/scripts/get.sh | sh
+```
+
+It installs the packages listed above (and Rust, if yours is missing or older
+than 1.80), allows virtual input devices, builds rustv into `~/.local/bin`,
+starts `tvd`, sets up the TV session and prints the pairing link. It asks
+before each system change, and running it again updates rustv. Read
+[`scripts/get.sh`](scripts/get.sh) first if you like; options go after
+`sh -s --`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/cngil/rustv/main/scripts/get.sh | sh -s -- --no-session
+```
+
+`--yes` accepts every question, `--no-packages` leaves your packages alone,
+`--no-session` skips the TV session (for a box that already has a desktop),
+`--ref` installs another branch or tag, and `--dry-run` prints the steps
+without changing anything. The source stays in `~/.local/src/rustv`
+(`--dir` to change it). Reboot once afterwards, so the new group memberships
+apply.
+
+### Manual install
+
+The same steps by hand:
+
 ```sh
 git clone https://github.com/cngil/rustv && cd rustv
 

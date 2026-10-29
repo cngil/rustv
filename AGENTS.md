@@ -31,7 +31,8 @@ on-screen shell (`rustv-shell`) is a thin client of the same API.
 - `config/config.example.toml`: documented example config
 - `packaging/`: systemd units (tvd user service, TV session), sway kiosk
   config, udev rule, xdg-desktop-portal config
-- `scripts/install.sh`: build and install
+- `scripts/install.sh`: build and install; `scripts/get.sh`: one-line install
+  (system setup, then `install.sh`), shellcheck-clean POSIX sh
 
 ## Commands
 

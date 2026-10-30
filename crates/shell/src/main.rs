@@ -4,6 +4,8 @@
 //! commands over the same WebSocket the web remote uses. All state lives in
 //! the daemon, so the shell can crash or restart without losing anything.
 
+mod controls;
+mod dialog;
 mod locale;
 mod menu;
 mod net;
@@ -39,22 +41,29 @@ const ANIMATION_FRAME: Duration = Duration::from_millis(33);
 const CLOCK_FRAME: Duration = Duration::from_millis(100);
 
 thread_local! {
+    static FEEDBACK_TIMER: Timer = Timer::default();
+    static ACTIVE_PANEL: RefCell<String> = const { RefCell::new(String::new()) };
     static OSD_TIMER: Timer = Timer::default();
     static OPENING_TIMER: Timer = Timer::default();
     static LAST_ACTIVITY: Cell<Instant> = Cell::new(Instant::now());
+    static RUNNING_ID: RefCell<Option<String>> = const { RefCell::new(None) };
     static APP_RUNNING: Cell<bool> = const { Cell::new(false) };
     static ASLEEP: Cell<bool> = const { Cell::new(false) };
     static SCREENSAVER: RefCell<net::ScreensaverConfig> = RefCell::new(net::ScreensaverConfig::default());
     static SCREENSAVER_COUNT: Cell<usize> = const { Cell::new(0) };
     static FRAME_TIMER: Timer = Timer::default();
     static LOCALE: RefCell<locale::Locale> = RefCell::new(locale::Locale::default());
+    static PIN: RefCell<Option<dialog::Dialog>> = const { RefCell::new(None) };
+    static PIN_COMMANDS: RefCell<Option<mpsc::UnboundedSender<String>>> = const { RefCell::new(None) };
     static MENU: RefCell<menu::Menu> = RefCell::new(menu::Menu::default());
     /// The apps as tvd sent them, so the Settings tile can be added or taken away later.
     static APPS: RefCell<Vec<AppEntry>> = const { RefCell::new(Vec::new()) };
+    static POWER_TILE: Cell<bool> = const { Cell::new(true) };
     static SETTINGS_TILE: Cell<bool> = const { Cell::new(true) };
 }
 
 /// Launching this id opens the settings; app ids cannot contain `*`.
+const POWER_ID: &str = "*power";
 const SETTINGS_ID: &str = "*settings";
 
 /// App data sent from the network thread. `Image` is not `Send`, so icons travel as paths.
@@ -62,6 +71,7 @@ const SETTINGS_ID: &str = "*settings";
 pub struct AppEntry {
     pub id: String,
     pub name: String,
+    pub details: String,
     pub icon: Option<PathBuf>,
 }
 
@@ -81,6 +91,13 @@ fn main() -> Result<()> {
     });
 
     ui.on_activity(touch);
+    ui.on_return_app(|| {
+        PIN_COMMANDS.with(|sender| {
+            if let Some(sender) = sender.borrow().as_ref() {
+                let _ = sender.send(serde_json::json!({"type":"shell_controls","open":false}).to_string());
+            }
+        });
+    });
     ui.on_sound(|name| sounds::PLAYER.with(|player| player.borrow_mut().play_named(&name)));
     let idle = Timer::default();
     let weak = ui.as_weak();
@@ -91,12 +108,20 @@ fn main() -> Result<()> {
     });
 
     let (commands, command_rx) = mpsc::unbounded_channel::<String>();
+    PIN_COMMANDS.with(|sender| *sender.borrow_mut() = Some(commands.clone()));
+    let weak_pin = ui.as_weak();
+    ui.on_pin_key(move |key| {
+        pin_key(&key);
+        if let Some(ui) = weak_pin.upgrade() {
+            render_pin(&ui);
+        }
+    });
     let weak = ui.as_weak();
     let to_tvd = commands.clone();
     ui.on_launch(move |id| {
-        if id == SETTINGS_ID {
+        if id == SETTINGS_ID || id == POWER_ID {
             if let Some(ui) = weak.upgrade() {
-                open_settings(&ui);
+                open_menu(&ui, id == POWER_ID);
             }
             return;
         }
@@ -109,6 +134,40 @@ fn main() -> Result<()> {
         if let Some(ui) = weak.upgrade() {
             open_settings(&ui);
         }
+    });
+    let weak = ui.as_weak();
+    ui.on_context(move |id| {
+        let Some(ui) = weak.upgrade() else { return };
+        let apps = APPS.with(|apps| apps.borrow().clone());
+        let Some(at) = apps.iter().position(|app| app.id == id.as_str()) else { return };
+        let app = &apps[at];
+        let label = |key| LOCALE.with(|locale| rustv_locales::text(&locale.borrow().language, key).to_string());
+        let running = RUNNING_ID.with(|id| id.borrow().as_deref() == Some(app.id.as_str()));
+        let mut rows = vec![
+            (label("common.settings"), serde_json::json!({"type":"_settings"})),
+            (
+                label(if running { "remote.app.menu.close" } else { "remote.app.menu.open" }),
+                if running {
+                    serde_json::json!({"type":"stop"})
+                } else {
+                    serde_json::json!({"type":"launch","id":app.id})
+                },
+            ),
+            (format!("{}: {}", label("remote.app.menu.info"), app.details), serde_json::Value::Null),
+            (label("remote.app.menu.remove"), serde_json::json!({"type":"hide_app","id":app.id,"hidden":true})),
+        ];
+        for (offset, key) in [(-1isize, "tv.app.move_left"), (1, "tv.app.move_right")] {
+            let next = at as isize + offset;
+            if next >= 0 && next < apps.len() as isize {
+                let mut ids: Vec<_> = apps.iter().map(|a| a.id.clone()).collect();
+                ids.swap(at, next as usize);
+                rows.push((label(key), serde_json::json!({"type":"reorder","ids":ids})));
+            }
+        }
+        MENU.with(|menu| menu.borrow_mut().open_context(rows));
+        render_menu(&ui);
+        ui.set_menu_title(app.name.clone().into());
+        ui.set_settings_open(true);
     });
     let to_tvd = commands.clone();
     ui.on_trial_key(move |keep| {
@@ -126,15 +185,59 @@ fn main() -> Result<()> {
             menu::Outcome::Nothing => ui.invoke_sound("move".into()),
             menu::Outcome::Send(msg) => {
                 send(&msg);
+                if msg["type"] == "set" && msg["key"] == "theme.preset" {
+                    for key in ["theme.accent", "theme.accent_2", "theme.background"] {
+                        send(&serde_json::json!({"type":"set","key":key,"value":null}));
+                    }
+                }
                 ui.invoke_sound("select".into());
             }
             menu::Outcome::Close => ui.set_settings_open(false),
             menu::Outcome::SendAndClose(msg) => {
-                send(&msg);
+                match msg["type"].as_str() {
+                    Some("_pin") => {
+                        let mode = MENU.with(|menu| if menu.borrow().has_pin() { "change" } else { "set" });
+                        PIN.with(|pin| *pin.borrow_mut() = Some(dialog::Dialog::new(mode)));
+                        render_pin(&ui);
+                    }
+                    Some("_volume") => {
+                        PIN.with(|pin| *pin.borrow_mut() = Some(dialog::Dialog::new("volume")));
+                    }
+                    Some("_remove_pin") => {
+                        PIN.with(|pin| *pin.borrow_mut() = Some(dialog::Dialog::new("remove")));
+                        render_pin(&ui);
+                    }
+                    Some(kind) if kind.starts_with("_panel_") => {
+                        open_panel(&ui, &kind[7..]);
+                        return;
+                    }
+                    Some("_screenshot") => send(&msg),
+                    Some(kind) if kind.starts_with("_color_") => {
+                        let mut dialog = dialog::Dialog::new("color");
+                        dialog.target = format!("theme.{}", &kind[7..]);
+                        PIN.with(|pin| *pin.borrow_mut() = Some(dialog));
+                    }
+                    Some("_settings") => {
+                        open_settings(&ui);
+                        return;
+                    }
+                    Some("_wifi") => {
+                        let ssid = msg["ssid"].as_str().unwrap_or("").to_string();
+                        if msg["secure"] == true {
+                            let mut dialog = dialog::Dialog::new("wifi");
+                            dialog.target = ssid;
+                            PIN.with(|pin| *pin.borrow_mut() = Some(dialog));
+                        } else {
+                            send(&serde_json::json!({"type":"wifi_connect","ssid":ssid}));
+                        }
+                    }
+                    _ => send(&msg),
+                }
                 ui.set_settings_open(false);
             }
         }
         render_menu(&ui);
+        render_pin(&ui);
     });
 
     let weak = ui.as_weak();
@@ -252,7 +355,16 @@ fn display_url(url: &str) -> String {
 }
 
 pub fn set_locked(ui: &Weak<Shell>, locked: bool) {
-    let _ = ui.upgrade_in_event_loop(move |ui| ui.set_locked(locked));
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        if locked && !ui.get_locked() {
+            ui.set_settings_open(false);
+            PIN.with(|pin| *pin.borrow_mut() = Some(dialog::Dialog::new("unlock")));
+        } else if !locked && ui.get_locked() {
+            PIN.with(|pin| *pin.borrow_mut() = None);
+        }
+        ui.set_locked(locked);
+        render_pin(&ui);
+    });
 }
 
 /// The now playing card: title, "artist · 1:23 / 4:05", progress and cover.
@@ -371,7 +483,12 @@ fn parse_hex(hex: &str) -> Option<Color> {
 }
 
 fn open_settings(ui: &Shell) {
-    MENU.with(|menu| menu.borrow_mut().reset());
+    open_menu(ui, false);
+}
+
+fn open_menu(ui: &Shell, power: bool) {
+    ACTIVE_PANEL.with(|active| active.borrow_mut().clear());
+    MENU.with(|menu| menu.borrow_mut().open(power));
     render_menu(ui);
     ui.set_settings_open(true);
     ui.invoke_sound("select".into());
@@ -381,6 +498,15 @@ fn open_settings(ui: &Shell) {
 fn render_menu(ui: &Shell) {
     MENU.with(|menu| {
         let mut menu = menu.borrow_mut();
+        let title = LOCALE.with(|locale| {
+            rustv_locales::text(
+                &locale.borrow().language,
+                if menu.is_power() { "common.power" } else { "common.settings" },
+            )
+        });
+        if !menu.is_context() {
+            ui.set_menu_title(title.into());
+        }
         let rows: Vec<SettingRow> = menu
             .rows()
             .into_iter()
@@ -484,6 +610,10 @@ fn show_apps(ui: &Shell) {
         let name = LOCALE.with(|locale| locale.borrow().strings().settings);
         tiles.push(AppTile { id: SETTINGS_ID.into(), name: name.into(), settings: true, ..Default::default() });
     }
+    if POWER_TILE.with(Cell::get) {
+        let name = LOCALE.with(|locale| rustv_locales::text(&locale.borrow().language, "common.power"));
+        tiles.push(AppTile { id: POWER_ID.into(), name: name.into(), power: true, ..Default::default() });
+    }
     let count = tiles.len() as i32;
     ui.set_apps(ModelRc::new(VecModel::from(tiles)));
     if ui.get_selected() >= count {
@@ -500,16 +630,24 @@ fn tile(app: AppEntry) -> AppTile {
         id: app.id.into(),
         name: app.name.into(),
         settings: false,
+        power: false,
     }
+}
+
+pub fn set_running_id(ui: &Weak<Shell>, id: Option<String>) {
+    let _ = ui.upgrade_in_event_loop(move |_| RUNNING_ID.with(|stored| *stored.borrow_mut() = id));
 }
 
 pub fn set_running(ui: &Weak<Shell>, running: bool) {
     let _ = ui.upgrade_in_event_loop(move |ui| {
-        if running {
+        if running && !APP_RUNNING.with(Cell::get) {
             ui.set_opening_id(SharedString::new());
             ui.set_screensaver_active(false);
             // An app started from the phone; the menu would wait behind it otherwise.
             ui.set_settings_open(false);
+        }
+        if !running {
+            ui.set_controls_active(false);
         }
         if APP_RUNNING.with(|r| r.replace(running)) != running {
             touch();
@@ -566,9 +704,241 @@ pub fn set_visibility(ui: &Weak<Shell>, v: net::Visibility) {
         if SETTINGS_TILE.with(|tile| tile.replace(v.settings)) != v.settings {
             show_apps(&ui);
         }
-        if !v.settings {
+        ui.set_power_enabled(v.power);
+        if POWER_TILE.with(|tile| tile.replace(v.power)) != v.power {
+            show_apps(&ui);
+        }
+        if MENU.with(|menu| if menu.borrow().is_power() { !v.power } else { !v.settings }) {
             ui.set_settings_open(false);
         }
+    });
+}
+
+/// Show the daemon's pending power action using the existing full-screen sleep cover.
+pub fn set_power(ui: &Weak<Shell>, power: Option<String>) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        ui.set_power_message(
+            LOCALE
+                .with(|locale| {
+                    power
+                        .as_ref()
+                        .map(|action| {
+                            rustv_locales::text(&locale.borrow().language, &format!("power.going.{action}")).to_string()
+                        })
+                        .unwrap_or_default()
+                })
+                .into(),
+        );
+    });
+}
+
+pub fn show_controls(ui: &Weak<Shell>, open: bool) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        ui.set_controls_active(open);
+        if open {
+            open_settings(&ui);
+        } else {
+            ui.set_settings_open(false);
+        }
+    });
+}
+
+fn open_panel(ui: &Shell, panel: &str) {
+    ACTIVE_PANEL.with(|active| *active.borrow_mut() = panel.into());
+    if matches!(panel, "controls" | "timer") {
+        show_panel(ui, panel, serde_json::Value::Null);
+    } else {
+        let text = LOCALE.with(|locale| rustv_locales::text(&locale.borrow().language, "common.checking"));
+        MENU.with(|menu| menu.borrow_mut().open_context(vec![(text.into(), serde_json::Value::Null)]));
+        render_menu(ui);
+        ui.set_settings_open(true);
+        PIN_COMMANDS.with(|sender| {
+            if let Some(sender) = sender.borrow().as_ref() {
+                let _ = sender.send(serde_json::json!({"type":"_get","panel":panel}).to_string());
+            }
+        });
+    }
+}
+
+fn show_panel(ui: &Shell, panel: &str, data: serde_json::Value) {
+    let rows = LOCALE.with(|locale| controls::rows(panel, &data, &locale.borrow().language));
+    MENU.with(|menu| menu.borrow_mut().open_context(rows));
+    render_menu(ui);
+    let title_key = match panel {
+        "audio" => "remote.output.title",
+        "wifi" => "section.wifi",
+        "bluetooth" => "section.bluetooth",
+        "network" => "remote.network.title",
+        "system" => "section.system",
+        "apps" => "tv.controls.restore",
+        "timer" => "remote.timer.title",
+        _ => "tv.controls.media",
+    };
+    ui.set_menu_title(LOCALE.with(|locale| rustv_locales::text(&locale.borrow().language, title_key)).into());
+    ui.set_settings_open(true);
+}
+
+pub fn panel_result(ui: &Weak<Shell>, panel: String, result: Result<serde_json::Value, String>) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        if ui.get_locked() || !ui.get_settings_open() || ACTIVE_PANEL.with(|active| *active.borrow() != panel) {
+            return;
+        }
+        match result {
+            Ok(data) => show_panel(&ui, &panel, data),
+            Err(error) => {
+                let error = LOCALE.with(|locale| rustv_locales::text(&locale.borrow().language, &error).to_string());
+                MENU.with(|menu| menu.borrow_mut().open_context(vec![(error, serde_json::Value::Null)]));
+                render_menu(&ui);
+            }
+        }
+    });
+}
+
+fn pin_key(key: &str) {
+    PIN.with(|pin| {
+        let mut pin = pin.borrow_mut();
+        let Some(dialog) = pin.as_mut() else { return };
+        if key == "back" {
+            if dialog.mode != "unlock" {
+                *pin = None;
+            } else {
+                dialog.text.clear();
+            }
+            return;
+        }
+        if let Some(mut command) = dialog.key(key) {
+            if command["type"] == "_cancel" {
+                *pin = None;
+                return;
+            }
+            command["_dialog_id"] = serde_json::json!(dialog.id);
+            PIN_COMMANDS.with(|sender| {
+                if let Some(sender) = sender.borrow().as_ref() {
+                    let _ = sender.send(command.to_string());
+                }
+            });
+        }
+    });
+}
+
+fn render_pin(ui: &Shell) {
+    PIN.with(|pin| {
+        let pin = pin.borrow();
+        ui.set_pin_open(pin.is_some());
+        let Some(dialog) = pin.as_ref() else { return };
+        let text = |key| LOCALE.with(|locale| rustv_locales::text(&locale.borrow().language, key).to_string());
+        ui.set_pin_prompt(text(dialog.prompt()).into());
+        ui.set_pin_digits(
+            if matches!(dialog.mode.as_str(), "color" | "volume") {
+                dialog.text.clone()
+            } else {
+                "●".repeat(dialog.text.chars().count())
+            }
+            .into(),
+        );
+        ui.set_pin_selected(dialog.selected as i32);
+        ui.set_pin_text_mode(matches!(dialog.mode.as_str(), "wifi" | "color"));
+        ui.set_pin_columns(if matches!(dialog.mode.as_str(), "wifi" | "color") { 10 } else { 3 });
+        let keys = LOCALE.with(|locale| dialog.keys(&locale.borrow().language));
+        ui.set_pin_keys(ModelRc::new(VecModel::from(keys.into_iter().map(SharedString::from).collect::<Vec<_>>())));
+        ui.set_pin_error(
+            if dialog.error.starts_with("remote.")
+                || dialog.error.starts_with("tv.")
+                || dialog.error.starts_with("common.")
+            {
+                text(&dialog.error)
+            } else {
+                dialog.error.clone()
+            }
+            .into(),
+        );
+        ui.set_pin_confirm(text("remote.pin.confirm").into());
+        ui.set_pin_delete(text("remote.key.delete").into());
+    });
+}
+
+pub fn screenshot_result(ui: &Weak<Shell>, result: Result<PathBuf, String>) {
+    match result {
+        Err(error) => command_error(ui, error),
+        Ok(path) => {
+            let _ = ui.upgrade_in_event_loop(move |ui| {
+                if ui.get_locked() {
+                    return;
+                }
+                match Image::load_from_path(&path) {
+                    Ok(image) => {
+                        ui.set_shot_image(image);
+                        ui.set_shot_open(true);
+                    }
+                    Err(_) => return,
+                }
+                ui.set_feedback(path.display().to_string().into());
+            });
+        }
+    }
+}
+
+pub fn command_error(ui: &Weak<Shell>, message: String) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        let message = if message.starts_with("tv.") || message.starts_with("common.") {
+            LOCALE.with(|locale| rustv_locales::text(&locale.borrow().language, &message).to_string())
+        } else {
+            message
+        };
+        ui.set_feedback(message.into());
+        let weak = ui.as_weak();
+        FEEDBACK_TIMER.with(|timer| {
+            timer.start(TimerMode::SingleShot, Duration::from_secs(8), move || {
+                if let Some(ui) = weak.upgrade() {
+                    ui.set_feedback("".into());
+                }
+            })
+        });
+    });
+}
+
+pub fn pin_result(ui: &Weak<Shell>, id: Option<u64>, error: Option<String>) {
+    if id.is_none() {
+        if let Some(error) = error {
+            command_error(ui, error);
+        }
+        return;
+    }
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        PIN.with(|pin| {
+            let mut pin = pin.borrow_mut();
+            if pin.as_ref().map(|dialog| dialog.id) != id {
+                return;
+            }
+            if let Some(error) = error {
+                if let Some(dialog) = pin.as_mut() {
+                    dialog.failed(error);
+                }
+            } else {
+                *pin = None;
+            }
+        });
+        render_pin(&ui);
+    });
+}
+
+pub fn lock_key(ui: &Weak<Shell>, code: String) {
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        if !ui.get_locked() {
+            return;
+        }
+        let key = match code.as_str() {
+            "ArrowUp" => "up",
+            "ArrowDown" => "down",
+            "ArrowLeft" => "left",
+            "ArrowRight" => "right",
+            "Enter" => "ok",
+            "Escape" => "back",
+            "Backspace" => "delete",
+            code => code.strip_prefix("Digit").unwrap_or(""),
+        };
+        pin_key(key);
+        render_pin(&ui);
     });
 }
 

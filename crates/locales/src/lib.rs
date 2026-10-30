@@ -148,8 +148,8 @@ mod tests {
     fn every_key_used_in_the_code_exists() {
         // Distinct from config sections (`audio.step`, `keyboard.enabled`), which look alike.
         const GROUPS: &[&str] = &[
-            "common", "error", "network", "option", "osk", "output", "remote", "section", "setting", "stats", "tv",
-            "unit",
+            "common", "error", "network", "option", "osk", "output", "power", "remote", "section", "setting", "stats",
+            "tv", "unit",
         ];
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
         let mut files = Vec::new();

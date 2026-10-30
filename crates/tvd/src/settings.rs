@@ -24,6 +24,7 @@ pub const EDITABLE: &[&str] = &[
     "shell.sounds",
     "shell.sound_volume",
     "shell.settings",
+    "shell.power",
     "shell.now_playing",
     "screensaver.enabled",
     "screensaver.idle_minutes",

@@ -45,6 +45,7 @@ export struct AppTile {
     has-icon: bool,
     // The Settings tile at the end of the row, drawn with a gear.
     settings: bool,
+    power: bool,
 }
 
 component Card inherits Rectangle {
@@ -83,7 +84,7 @@ component Card inherits Rectangle {
 
         HorizontalLayout {
             alignment: center;
-            if tile.settings: Rectangle {
+            if tile.settings || tile.power: Rectangle {
                 width: 112px * s;
                 height: 112px * s;
                 border-radius: 28px * s;
@@ -97,7 +98,7 @@ component Card inherits Rectangle {
                     fill: transparent;
                     stroke: focused ? Palette.on-accent : Palette.accent;
                     stroke-width: 1.6px * s;
-                    commands: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z";
+                    commands: tile.power ? "M12 2v10 M6 5a9 9 0 1 0 12 0" : "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z";
                 }
             }
             if tile.has-icon: Image {
@@ -107,7 +108,7 @@ component Card inherits Rectangle {
                 image-fit: contain;
             }
             // No icon: the initial, engraved in graphite (and in the plate's ink when focused).
-            if !tile.has-icon && !tile.settings: Rectangle {
+            if !tile.has-icon && !tile.settings && !tile.power: Rectangle {
                 width: 112px * s;
                 height: 112px * s;
                 border-radius: 28px * s;
@@ -196,9 +197,28 @@ export component Shell inherits Window {
 
     // Locked with the PIN: the home screen is hidden and keys do nothing.
     in property <bool> locked;
+    in property <bool> controls-active;
+    callback return-app();
+    in property <bool> pin-open;
+    in property <string> pin-prompt;
+    in property <string> pin-digits;
+    in property <string> pin-error;
+    in property <string> pin-confirm;
+    in property <string> pin-delete;
+    in property <int> pin-selected;
+    in property <bool> pin-text-mode;
+    in property <int> pin-columns: 3;
+    in property <[string]> pin-keys;
+    callback pin-key(string);
 
     // Settings on the TV, drawn from rows the shell works out (menu.rs).
     in-out property <bool> settings-open;
+    in property <string> menu-title;
+    in property <string> power-message;
+    in property <string> feedback;
+    in-out property <bool> shot-open;
+    in property <image> shot-image;
+    in property <bool> power-enabled: true;
     in property <bool> settings-enabled: true;
     in property <[SettingRow]> settings-rows;
     in property <float> settings-scroll;
@@ -206,6 +226,18 @@ export component Shell inherits Window {
     // "up", "down", "left", "right", "ok" or "back".
     callback settings-key(string);
     callback open-settings();
+    callback context(string);
+    private property <bool> holding;
+    private property <bool> held;
+    Timer {
+        interval: 600ms;
+        running: root.holding;
+        triggered => {
+            root.holding = false;
+            root.held = true;
+            if root.selected < root.apps.length { root.context(root.apps[root.selected].id); }
+        }
+    }
 
     // A display mode on trial: OK keeps it, Back goes back; tvd reverts it by itself otherwise.
     in property <bool> trial-open;
@@ -346,7 +378,7 @@ export component Shell inherits Window {
     }
 
     // Only the Settings tile, or nothing at all: no apps configured yet.
-    if apps.length - (root.settings-enabled ? 1 : 0) <= 0 && root.connected: Text {
+    if apps.length - (root.settings-enabled ? 1 : 0) - (root.power-enabled ? 1 : 0) <= 0 && root.connected: Text {
         y: root.height / 2 - 230px * s;
         width: root.width;
         horizontal-alignment: center;
@@ -512,11 +544,15 @@ export component Shell inherits Window {
         }
     }
 
+    if root.power-message != "": Rectangle {
+        background: Palette.surface-3;
+        Text { text: root.power-message; color: Palette.accent; horizontal-alignment: center; vertical-alignment: center; font-size: 40px; }
+    }
     if root.settings-open: SettingsView {
         rows: root.settings-rows;
         scroll: root.settings-scroll;
         hint: root.settings-hint;
-        title: Strings.settings;
+        title: root.menu-title;
         hint-move: Strings.hint-move;
         hint-change: Strings.hint-change;
         hint-select: Strings.hint-select;
@@ -698,13 +734,77 @@ export component Shell inherits Window {
         }
     }
 
+    if root.shot-open && !root.locked: Rectangle {
+        background: Palette.surface-3;
+        Image { source: root.shot-image; image-fit: contain; width: parent.width; height: parent.height; }
+    }
+
+    if root.pin-open: Rectangle {
+        background: Palette.surface-3;
+        VerticalLayout {
+            padding: 100px * root.s;
+            spacing: 20px * root.s;
+            Text { text: root.pin-prompt; color: Palette.text; font-size: 36px * root.s; horizontal-alignment: center; }
+            Text { text: root.pin-digits; color: Palette.text; font-size: 40px * root.s; horizontal-alignment: center; }
+            for row in 4: HorizontalLayout {
+                spacing: 20px * root.s;
+                for col in root.pin-columns: Rectangle {
+                    property <int> index: row * root.pin-columns + col;
+                    background: root.pin-selected == self.index ? Palette.accent : Palette.surface-2;
+                    border-radius: 12px * root.s;
+                    Text {
+                        text: root.pin-keys[parent.index];
+                        color: root.pin-selected == parent.index ? Palette.on-accent : Palette.text;
+                        font-size: 30px * root.s;
+                        horizontal-alignment: center; vertical-alignment: center;
+                    }
+                }
+            }
+            Text { text: root.pin-error; color: Palette.text; font-size: 24px * root.s; horizontal-alignment: center; }
+        }
+    }
+
+    if root.feedback != "": Rectangle {
+        x: 100px * root.s; y: parent.height - 130px * root.s;
+        width: parent.width - 200px * root.s; height: 90px * root.s;
+        background: Palette.surface-3;
+        Text { text: root.feedback; color: Palette.text; font-size: 24px * root.s; wrap: word-wrap; horizontal-alignment: center; vertical-alignment: center; }
+    }
     FocusScope {
         init => { self.focus(); }
+        key-released(event) => {
+            if event.text == Key.Return || event.text == " " {
+                if root.holding && !root.held && !root.locked { root.activate(root.selected); }
+                root.holding = false;
+                root.held = false;
+                return accept;
+            }
+            reject
+        }
         key-pressed(event) => {
+            if event.text != Key.Return && event.text != " " { root.holding = false; }
             root.activity();
             // The key that wakes the screen does nothing else.
             if root.screensaver-active {
                 root.screensaver-active = false;
+                return accept;
+            }
+            if root.shot-open && !root.locked {
+                if event.text == Key.Escape || event.text == Key.Backspace {
+                    root.shot-open = false;
+                }
+                return accept;
+            }
+            if root.pin-open {
+                if event.repeat && event.text != Key.UpArrow && event.text != Key.DownArrow && event.text != Key.LeftArrow && event.text != Key.RightArrow { return accept; }
+                if event.text == Key.UpArrow { root.pin-key("up"); }
+                else if event.text == Key.DownArrow { root.pin-key("down"); }
+                else if event.text == Key.LeftArrow { root.pin-key("left"); }
+                else if event.text == Key.RightArrow { root.pin-key("right"); }
+                else if event.text == Key.Return || (event.text == " " && !root.pin-text-mode) { root.pin-key("ok"); }
+                else if event.text == Key.Backspace { root.pin-key("delete"); }
+                else if event.text == Key.Escape { root.pin-key("back"); }
+                else { root.pin-key(event.text); }
                 return accept;
             }
             if root.locked {
@@ -732,8 +832,10 @@ export component Shell inherits Window {
                 return accept;
             }
             // The Menu key (the TV remote's Setup button over CEC) opens settings from the home screen.
-            if event.text == Key.Menu && root.settings-enabled {
-                root.open-settings();
+            if event.text == Key.Menu {
+                if root.selected < root.apps.length && !root.apps[root.selected].settings && !root.apps[root.selected].power {
+                    root.context(root.apps[root.selected].id);
+                } else if root.settings-enabled { root.open-settings(); }
                 return accept;
             }
             if event.text == Key.LeftArrow {
@@ -745,8 +847,12 @@ export component Shell inherits Window {
                 return accept;
             }
             if event.text == Key.Return || event.text == " " {
-                root.activate(root.selected);
+                root.held = false;
+                root.holding = true;
                 return accept;
+            }
+            if (event.text == Key.Escape || event.text == Key.Backspace) && root.controls-active {
+                root.return-app(); return accept;
             }
             if event.text == Key.Home {
                 root.move(-root.apps.length);

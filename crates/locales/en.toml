@@ -19,6 +19,7 @@ common.home = "Home"
 common.keep = "Keep"
 common.searching = "Searching…"
 common.settings = "Settings"
+common.power = "Power"
 common.something_went_wrong = "Something went wrong"
 common.undo = "Undo"
 
@@ -30,6 +31,10 @@ error.pin.not_set = "Set a PIN in the settings first"
 error.pin.too_many = "Too many wrong PINs; try again in {seconds} s"
 error.pin.wrong = "Wrong PIN"
 error.pin.wrong_blocked = "Wrong PIN. Entry is blocked for {seconds} s"
+error.power.no_app = "No app is open"
+error.power.no_shell = "The home screen is not running"
+error.power.not_allowed = "Not allowed to restart or shut down the box; install the polkit rule from packaging/polkit"
+error.power.off = "This is switched off in the config (system.power)"
 error.system.screenshot_off = "Screenshots are switched off in the settings."
 error.system.info_off = "System information is switched off in the settings."
 error.wifi.not_allowed = "Not allowed to change Wi-Fi; install the polkit rule from packaging/polkit"
@@ -90,6 +95,30 @@ stats.unit.hours = "h"
 stats.unit.minutes = "m"
 stats.up = "up"
 stats.volume = "Vol"
+
+# ---- power ----
+power.confirm = "Press OK again"
+power.done.restart_app = "Restarting {name}"
+power.done.restart_shell = "Restarting the home screen"
+power.going.reboot = "Restarting…"
+power.going.restart_session = "Restarting the TV session…"
+power.going.shutdown = "Shutting down…"
+power.going_hint.reboot = "This takes about a minute. The remote reconnects by itself."
+power.going_hint.restart_session = "Back in a few seconds."
+power.going_hint.shutdown = "To turn it on again, press the power button on the box."
+power.reboot.hint = "Takes about a minute; the remote reconnects by itself."
+power.reboot.label = "Restart the box"
+power.restart_app.hint = "Closes the open app and opens it again."
+power.restart_app.label = "Restart the app"
+power.restart_session.hint = "For a black or garbled picture. Closes the open app."
+power.restart_session.label = "Restart the TV session"
+power.restart_shell.hint = "For a home screen that stopped responding. An open app stays open."
+power.restart_shell.label = "Restart the home screen"
+power.shutdown.hint = "Turns the box off completely. The remote cannot turn it back on: someone has to press the power button on the box."
+power.shutdown.label = "Shut down"
+power.sleep.hint = "Screen off; the box stays on. Any button on the remote wakes it."
+power.sleep.label = "Sleep"
+power.tap_again = "Tap again to confirm"
 
 # ---- remote ----
 remote.app.already_open = "{name} is already on the TV"
@@ -351,6 +380,8 @@ setting.shell.pairing_qr.hint = "QR code on the TV until a phone pairs, and when
 setting.shell.pairing_qr.label = "Pairing code"
 setting.shell.settings.hint = "A Settings tile after the apps, for whoever has only the TV remote. Only the phone can turn it back on."
 setting.shell.settings.label = "Settings on the TV"
+setting.shell.power.hint = "A Power tile after the apps: sleep, restart and shut down with the TV remote."
+setting.shell.power.label = "Power on the TV"
 setting.shell.sound_volume.label = "Sound level"
 setting.shell.sounds.hint = "Soft clicks when moving between apps and opening one."
 setting.shell.sounds.label = "Sounds"
@@ -410,7 +441,7 @@ tv.pair.title = "Use your phone as the remote"
 tv.pm = "PM"
 tv.subtitle = "What would you like to watch?"
 tv.trial.countdown = "Going back in {seconds} s"
-tv.unlock_hint = "Enter the PIN on your phone to unlock."
+tv.unlock_hint = "Enter your PIN to unlock."
 tv.volume = "Volume"
 
 # ---- unit ----
@@ -422,3 +453,48 @@ unit.hours = "{n} h"
 unit.minutes = "{n} min"
 unit.percent = "{n}%"
 unit.seconds = "{n} s"
+
+tv.app.move_left = "Move left"
+tv.app.move_right = "Move right"
+
+power.lock.needs_pin = "PIN required"
+power.lock.setup_hint = "Set a PIN in Settings → Lock and PIN to enable Lock."
+
+tv.pin.setup = "Set up PIN on phone"
+tv.pin.setup_hint = "Scan the pairing QR code, then on your phone open Settings → Lock and PIN → PIN → Set PIN."
+
+tv.controls.title = "Controls and connections"
+
+tv.controls.media = "Playback and volume"
+
+tv.controls.restore = "Restore hidden apps"
+
+tv.controls.no_hidden = "No hidden apps"
+
+tv.controls.bluetooth_on = "Turn Bluetooth on"
+
+tv.controls.bluetooth_off = "Turn Bluetooth off"
+
+tv.controls.volume_up = "Volume up"
+
+tv.controls.volume_down = "Volume down"
+
+tv.controls.wifi_password = "Wi-Fi password (leave empty for a saved network)"
+
+tv.controls.more_keys = "More"
+
+tv.controls.pointer = "Mouse control (Back exits)"
+
+tv.controls.screenshot = "Take and save screenshot"
+
+tv.controls.screenshot_hint = "Saves to Pictures/rustv. Back closes the preview."
+
+tv.controls.color_hint = "Enter #RRGGBB, or leave empty to use the preset color."
+
+tv.controls.volume_value = "Volume percentage (0–150)"
+
+tv.controls.screenshot_failed = "Could not save screenshot. Check System screenshot settings."
+
+tv.controls.load_failed = "Could not load data. Go back and try again."
+
+tv.controls.connection_failed = "Connection failed. Try again."

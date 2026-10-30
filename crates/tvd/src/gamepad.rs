@@ -10,6 +10,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
+use std::sync::atomic::Ordering;
+
 use evdev::{AbsoluteAxisType, Device, InputEventKind, Key};
 use tokio::time::Instant;
 use tracing::{debug, info};
@@ -51,6 +53,7 @@ impl Dir {
 enum Action {
     Move(Dir),
     Open,
+    Context,
     Back,
     VolumeUp,
     VolumeDown,
@@ -153,6 +156,8 @@ async fn read(device: Device, state: &Weak<AppState>) {
                 (Key::BTN_DPAD_RIGHT, v) => press(Dir::Right, v == 1, &mut held),
                 (Key::BTN_SOUTH, 1) => Some(Action::Open),
                 (Key::BTN_EAST, 1) => Some(Action::Back),
+                (Key::BTN_NORTH, 1) => Some(Action::Context),
+                (Key::BTN_START, 1) => Some(Action::Context),
                 (Key::BTN_TR, 1) => Some(Action::VolumeUp),
                 (Key::BTN_TL, 1) => Some(Action::VolumeDown),
                 // Guide acts when let go, so holding it can mean something else.
@@ -227,11 +232,24 @@ async fn act(state: &Weak<AppState>, action: Action) {
     if !cfg.enabled {
         return;
     }
+    if crate::shell_controls::POINTER.load(Ordering::Relaxed) {
+        let code = match action {
+            Action::Move(dir) => dir.key(),
+            Action::Open => "Enter",
+            Action::Context => "ContextMenu",
+            Action::VolumeUp => "PageUp",
+            Action::VolumeDown => "PageDown",
+            _ => "Escape",
+        };
+        let _ = state.execute(key(code)).await;
+        return;
+    }
     // The on-screen keyboard takes the gamepad wherever it is open, inside apps too.
     if state.keyboard.is_open() {
         let command = match action {
             Action::Move(dir) => Some(key(dir.key())),
             Action::Open => Some(key("Enter")),
+            Action::Context => Some(key("ContextMenu")),
             Action::Back | Action::Keyboard | Action::Guide => Some(key("Escape")),
             Action::VolumeUp | Action::VolumeDown => None,
         };
@@ -253,9 +271,13 @@ async fn act(state: &Weak<AppState>, action: Action) {
     } else {
         match action {
             Action::Guide if in_app && cfg.guide_closes_app => Some(Command::Stop),
-            _ if in_app => None,
+            Action::Context if in_app && !crate::shell_controls::active() => {
+                Some(Command::ShellControls { open: true })
+            }
+            _ if in_app && !crate::shell_controls::active() => None,
             Action::Move(dir) => Some(key(dir.key())),
             Action::Open => Some(key("Enter")),
+            Action::Context => Some(key("ContextMenu")),
             Action::Back => Some(key("Escape")),
             Action::VolumeUp => Some(Command::Volume { action: VolumeAction::Up, level: None }),
             Action::VolumeDown => Some(Command::Volume { action: VolumeAction::Down, level: None }),

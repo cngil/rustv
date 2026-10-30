@@ -11,6 +11,14 @@ use crate::input::{Button, ButtonAction};
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Command {
+    /// Interpret controller navigation as pointer movement until Back.
+    PointerMode {
+        enabled: bool,
+    },
+    /// Focus the shell controls without closing the running application.
+    ShellControls {
+        open: bool,
+    },
     /// Press a key. `code` is a DOM `KeyboardEvent.code`, such as `ArrowUp` or `KeyA`.
     Key {
         code: String,
@@ -115,6 +123,11 @@ pub enum Command {
     },
     /// Turn the screen off now (and close the app if `sleep.close_apps`); any input wakes it.
     Sleep,
+    /// Restart the open app, the home screen, the TV session or the box, or shut it
+    /// down; only what `system.power` lists.
+    Power {
+        action: crate::power::Action,
+    },
     /// Show or hide the debug overlay; without `visible` it toggles.
     Overlay {
         #[serde(default)]
@@ -150,6 +163,7 @@ impl Command {
                 | Command::WifiConnect { .. }
                 | Command::Bluetooth { .. }
                 | Command::Sleep
+                | Command::Power { .. }
                 | Command::DisplayMode { .. }
                 | Command::DisplayKeep
                 | Command::DisplayRevert
@@ -172,6 +186,13 @@ impl Command {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMsg {
+    ShellControls {
+        open: bool,
+    },
+    /// Navigation for the shell lock screen; never injected into applications.
+    ShellKey {
+        code: String,
+    },
     State(StateSnapshot),
     Apps {
         apps: Vec<AppInfo>,
@@ -283,6 +304,9 @@ pub struct StateSnapshot {
     pub remotes: usize,
     /// Connected WebSocket clients (remotes, the shell).
     pub clients: usize,
+    /// The TV is going away for a power action (`restart_session`, `reboot` or
+    /// `shutdown`); the screens say so until it is back.
+    pub power: Option<crate::power::Action>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -333,6 +357,9 @@ mod tests {
         assert!(matches!(cmd, Command::HideApp { hidden: true, .. }));
         let cmd: Command = serde_json::from_str(r#"{"type":"stop"}"#).unwrap();
         assert!(cmd.is_slow());
+        let cmd: Command = serde_json::from_str(r#"{"type":"power","action":"reboot"}"#).unwrap();
+        assert!(matches!(cmd, Command::Power { action: crate::power::Action::Reboot }));
+        assert!(serde_json::from_str::<Command>(r#"{"type":"power","action":"format_disk"}"#).is_err());
         assert!(serde_json::from_str::<Command>(r#"{"type":"format_disk"}"#).is_err());
     }
 
@@ -351,10 +378,11 @@ mod tests {
             keyboard: false,
             remotes: 0,
             clients: 1,
+            power: None,
         });
         assert_eq!(
             serde_json::to_string(&msg).unwrap(),
-            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"show_pairing":false,"locked":false,"sleep_in":null,"display_trial":null,"keyboard":false,"remotes":0,"clients":1}"#
+            r#"{"type":"state","running":null,"volume":null,"idle_seconds":3,"overlay":false,"asleep":false,"show_pairing":false,"locked":false,"sleep_in":null,"display_trial":null,"keyboard":false,"remotes":0,"clients":1,"power":null}"#
         );
         let cmd: Command = serde_json::from_str(r#"{"type":"overlay"}"#).unwrap();
         assert!(matches!(cmd, Command::Overlay { visible: None }));

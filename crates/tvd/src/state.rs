@@ -20,6 +20,7 @@ use crate::media;
 use crate::osd::Osd;
 use crate::overlay::Overlay;
 use crate::pairing;
+use crate::power::{self, Action as PowerAction};
 use crate::protocol::{AppInfo, AudioInfo, Command, LockInfo, RunningInfo, ServerMsg, SettingsInfo, StateSnapshot};
 use crate::settings;
 use crate::sleep;
@@ -29,6 +30,23 @@ use crate::volumes::{self, Volumes};
 const MAX_DELTA: i32 = 1000;
 /// How long the pairing code stays on the TV when a remote asks for it.
 const PAIRING_TIME: Duration = Duration::from_secs(120);
+/// How long the screens show that the TV is going away before it goes.
+const GOODBYE: Duration = Duration::from_secs(2);
+/// How long a new sway session gets before tvd sets the display up again.
+const SESSION_BACK: Duration = Duration::from_secs(5);
+
+/// Only plain keypad navigation is routed as data to the locked shell.
+fn lock_navigation(command: &Command) -> Option<&str> {
+    let Command::Key { code, action, shift: false, ctrl: false, alt: false, meta: false } = command else {
+        return None;
+    };
+    if matches!(action, KeyAction::Up) {
+        return None;
+    }
+    (matches!(code.as_str(), "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" | "Enter" | "Escape" | "Backspace")
+        || (code.starts_with("Digit") && code.len() == 6 && code.as_bytes()[5].is_ascii_digit()))
+    .then_some(code)
+}
 
 pub struct AppState {
     pub token: String,
@@ -77,6 +95,8 @@ pub struct AppState {
     display_trial: std::sync::Mutex<Option<Trial>>,
     display_trial_id: AtomicU64,
     pub keyboard: crate::keyboard::Keyboard,
+    /// A power action that takes the TV away, while it does.
+    power: std::sync::Mutex<Option<PowerAction>>,
 }
 
 /// A display mode being tried, and the one to go back to.
@@ -130,6 +150,7 @@ impl AppState {
             display_trial: std::sync::Mutex::new(None),
             display_trial_id: AtomicU64::new(0),
             keyboard: crate::keyboard::Keyboard::default(),
+            power: std::sync::Mutex::new(None),
         });
         sleep::watch(Arc::downgrade(&state));
         watch_volume(Arc::downgrade(&state));
@@ -357,6 +378,7 @@ impl AppState {
             keyboard: self.keyboard.is_open(),
             remotes: self.remotes.load(Ordering::Relaxed),
             clients: self.clients.load(Ordering::Relaxed),
+            power: *self.power.lock().unwrap(),
         }
     }
 
@@ -371,17 +393,7 @@ impl AppState {
     /// the config may ask for a display mode, and an app adopted at startup is
     /// the one whose volume counts.
     pub async fn after_start(self: &Arc<Self>) {
-        if let Err(err) = sleep::display_power(true).await {
-            tracing::debug!("turning the screen on at start: {err:#}");
-        }
-        let wanted = self.config().display.mode.clone();
-        if let Ok(mode) = crate::display::Mode::parse(&wanted) {
-            if let Err(err) = self.set_display_mode(mode).await {
-                warn!("display.mode {wanted}: {err:#}");
-            }
-        }
-        self.read_display().await;
-        self.apply_screen();
+        self.set_up_display().await;
         self.apply_night_audio(true).await;
         // A held key whose `up` never came is let go.
         let state = Arc::clone(self);
@@ -413,8 +425,89 @@ impl AppState {
         }
     }
 
+    /// Screen on, in the configured mode, brightness and warmth: at start and
+    /// after a new sway session.
+    async fn set_up_display(&self) {
+        if let Err(err) = sleep::display_power(true).await {
+            tracing::debug!("turning the screen on: {err:#}");
+        }
+        let wanted = self.config().display.mode.clone();
+        if let Ok(mode) = crate::display::Mode::parse(&wanted) {
+            if let Err(err) = self.set_display_mode(mode).await {
+                warn!("display.mode {wanted}: {err:#}");
+            }
+        }
+        self.read_display().await;
+        self.apply_screen();
+    }
+
+    /// One of the power menu's actions, if `system.power` offers it.
+    async fn power(self: &Arc<Self>, action: PowerAction) -> Result<()> {
+        if !self.config().system.power.contains(&action) {
+            return Err(crate::i18n::error("error.power.off", &[]));
+        }
+        match action {
+            PowerAction::RestartApp => {
+                let (id, _) = self.apps.running().await.ok_or_else(|| crate::i18n::error("error.power.no_app", &[]))?;
+                info!(app = %id, "restarting the app");
+                // Launching closes the open app first.
+                self.apps.launch(&id).await
+            }
+            PowerAction::RestartShell => power::restart_shell().await,
+            _ => self.take_tv_away(action).await,
+        }
+    }
+
+    /// Restarts the TV session or the box, or shuts it down: the screens say
+    /// so first, and the open app gets to close on its own terms.
+    async fn take_tv_away(self: &Arc<Self>, action: PowerAction) -> Result<()> {
+        {
+            let mut going = self.power.lock().unwrap();
+            if going.is_some() {
+                return Ok(());
+            }
+            *going = Some(action);
+        }
+        info!(action = action.name(), "the TV is going away");
+        self.notify().await;
+        if !power::dry_run() {
+            self.apps.stop().await;
+        }
+        if action == PowerAction::Shutdown && self.config().cec.power_tv && !power::dry_run() {
+            self.cec.tv_standby().await;
+        }
+        tokio::time::sleep(GOODBYE).await;
+        let done = match action {
+            PowerAction::RestartSession => power::end_session().await,
+            _ => power::system(action).await,
+        };
+        if let Err(err) = done {
+            *self.power.lock().unwrap() = None;
+            self.notify().await;
+            return Err(err);
+        }
+        // A reboot or shutdown ends tvd too; a new session (or a dry run) comes back.
+        if matches!(action, PowerAction::Reboot | PowerAction::Shutdown) && !power::dry_run() {
+            return Ok(());
+        }
+        let state = Arc::clone(self);
+        tokio::spawn(async move {
+            tokio::time::sleep(SESSION_BACK).await;
+            if action == PowerAction::RestartSession && !power::dry_run() {
+                state.set_up_display().await;
+            }
+            *state.power.lock().unwrap() = None;
+            info!("the TV is back");
+            state.notify().await;
+        });
+        Ok(())
+    }
+
     /// Opens or closes the on-screen keyboard, in the theme's colors and the TV's language.
     pub async fn set_keyboard(&self, open: bool) {
+        if open && self.lock.is_locked() {
+            return;
+        }
         if open == self.keyboard.is_open() {
             return;
         }
@@ -734,6 +827,8 @@ impl AppState {
 
     /// Screen off, and the open app closed if the config says so.
     pub async fn go_to_sleep(self: &Arc<Self>) {
+        crate::shell_controls::clear();
+        self.set_keyboard(false).await;
         // Whatever put the TV to sleep, a pending timer has nothing left to do.
         self.sleep_timer.fetch_add(1, Ordering::Relaxed);
         *self.sleep_at.lock().unwrap() = None;
@@ -798,8 +893,40 @@ impl AppState {
         if !matches!(cmd, Command::Sleep) && self.wake().await && cmd.is_input() {
             return Ok(());
         }
+        if self.lock.is_locked() {
+            if let Some(code) = lock_navigation(&cmd) {
+                let _ = self.events.send(ServerMsg::ShellKey { code: code.into() });
+                return Ok(());
+            }
+        }
         if self.lock.is_locked() && !matches!(cmd, Command::Unlock { .. } | Command::Sleep) {
             return Err(crate::i18n::error("error.locked", &[]));
+        }
+        if crate::shell_controls::POINTER.load(Ordering::Relaxed) {
+            if let Command::Key { code, .. } = &cmd {
+                match code.as_str() {
+                    "ArrowLeft" => self.input.motion(-30, 0)?,
+                    "ArrowRight" => self.input.motion(30, 0)?,
+                    "ArrowUp" => self.input.motion(0, -30)?,
+                    "ArrowDown" => self.input.motion(0, 30)?,
+                    "PageUp" => self.input.scroll(0, 1)?,
+                    "PageDown" => self.input.scroll(0, -1)?,
+                    "Enter" => self.input.button(crate::input::Button::Left, Default::default()).await?,
+                    "ContextMenu" => self.input.button(crate::input::Button::Right, Default::default()).await?,
+                    "Escape" => {
+                        crate::shell_controls::POINTER.store(false, Ordering::Relaxed);
+                    }
+                    _ => {}
+                }
+                return Ok(());
+            }
+        }
+        if let Command::Key { code, .. } = &cmd {
+            if code == "ContextMenu" && self.apps.running().await.is_some() && !crate::shell_controls::active() {
+                crate::shell_controls::show(true).await?;
+                let _ = self.events.send(ServerMsg::ShellControls { open: true });
+                return Ok(());
+            }
         }
         // While the on-screen keyboard is open, the arrows, OK and Back move over it.
         if let Command::Key { code, .. } = &cmd {
@@ -837,8 +964,14 @@ impl AppState {
             }
             Command::Scroll { dx, dy } => self.input.scroll(dx.clamp(-50, 50), dy.clamp(-50, 50))?,
             Command::Button { button, action } => self.input.button(button, action).await?,
-            Command::Launch { id } => self.apps.launch(&id).await?,
-            Command::Stop => self.apps.stop().await,
+            Command::Launch { id } => {
+                crate::shell_controls::clear();
+                self.apps.launch(&id).await?;
+            }
+            Command::Stop => {
+                crate::shell_controls::clear();
+                self.apps.stop().await;
+            }
             Command::Volume { action, level } => {
                 let audio = self.config().audio.clone();
                 audio::apply(action, level, &audio).await?;
@@ -890,12 +1023,29 @@ impl AppState {
             Command::DisplayKeep => self.keep_display_mode().await?,
             Command::DisplayRevert => self.end_display_trial().await,
             Command::Keyboard { open } => {
+                if crate::shell_controls::active() && open != Some(false) {
+                    crate::shell_controls::show(false).await?;
+                }
                 let open = open.unwrap_or(!self.keyboard.is_open());
                 self.set_keyboard(open).await;
             }
             Command::Sleep => self.go_to_sleep().await,
+            Command::Power { action } => self.power(action).await?,
+            Command::PointerMode { enabled } => {
+                if enabled && crate::shell_controls::active() {
+                    crate::shell_controls::show(false).await?;
+                    let _ = self.events.send(ServerMsg::ShellControls { open: false });
+                }
+                crate::shell_controls::POINTER.store(enabled, Ordering::Relaxed);
+            }
+            Command::ShellControls { open } => {
+                crate::shell_controls::show(open).await?;
+                let _ = self.events.send(ServerMsg::ShellControls { open });
+            }
             Command::Lock => {
                 self.lock.lock()?;
+                crate::shell_controls::clear();
+                self.set_keyboard(false).await;
                 info!("locked");
                 self.apps.stop().await;
                 self.apply_cast();
@@ -953,4 +1103,31 @@ fn watch_volume(state: std::sync::Weak<AppState>) {
 
 fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+#[cfg(test)]
+mod lock_navigation_tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn only_plain_navigation_reaches_the_lock_screen() {
+        for code in
+            ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", "Escape", "Backspace", "Digit0", "Digit9"]
+        {
+            let command: Command = serde_json::from_value(json!({"type":"key","code":code})).unwrap();
+            assert_eq!(lock_navigation(&command), Some(code));
+        }
+        for value in [
+            json!({"type":"key","code":"KeyA"}),
+            json!({"type":"key","code":"Enter","ctrl":true}),
+            json!({"type":"key","code":"Enter","meta":true}),
+            json!({"type":"key","code":"Digit1","action":"up"}),
+            json!({"type":"key","code":"DigitX"}),
+            json!({"type":"text","text":"1234"}),
+            json!({"type":"pointer_mode","enabled":true}),
+        ] {
+            let command: Command = serde_json::from_value(value).unwrap();
+            assert_eq!(lock_navigation(&command), None);
+        }
+    }
 }

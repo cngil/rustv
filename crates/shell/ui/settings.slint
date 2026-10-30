@@ -108,10 +108,19 @@ export component SettingsView inherits Rectangle {
                 Text {
                     x: 28px * s;
                     text: row.label;
+                    width: parent.width - 56px * s - (row.value != "" || row.kind == "toggle" ? 280px * s : 0px);
+                    overflow: elide;
                     color: row.focused ? Palette.on-accent : Palette.text;
                     font-size: 30px * s;
                     font-weight: row.focused ? 600 : 400;
                     vertical-alignment: center;
+                }
+                if row.kind == "action" && row.value != "": Text {
+                    x: parent.width - self.width - 28px * s;
+                    text: row.value;
+                    font-size: 24px * s;
+                    vertical-alignment: center;
+                    color: row.focused ? Palette.on-accent : Palette.muted;
                 }
                 if row.kind == "toggle": Switch {
                     x: parent.width - self.width - 28px * s;

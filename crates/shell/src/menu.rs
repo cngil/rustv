@@ -72,6 +72,9 @@ enum Kind {
     Choice(&'static [(Lit, Words)]),
     /// Sends this command, then closes the menu so its result shows.
     Action(&'static str),
+    /// A `power` action (or `sleep`), shown only when `system.power` offers it.
+    /// With `confirm`, the first OK only asks for a second one.
+    Power(&'static str, bool),
     /// Shows or hides the debug overlay now; not saved.
     Overlay,
     /// The TV output's resolution and refresh rate, from the modes tvd reports.
@@ -121,6 +124,10 @@ const fn choice(
 
 const fn section(title: &'static str, items: &'static [Item]) -> Section {
     Section { title, items, pictures: false, display: false }
+}
+
+const fn power(action: &'static str, label: &'static str, hint: &'static str, confirm: bool) -> Item {
+    Item { key: "", label, hint: Some(hint), kind: Kind::Power(action, confirm), needs: None }
 }
 
 use Words::{Key, Time, Unit};
@@ -183,6 +190,94 @@ const SECTIONS: &[Section] = &[
                 Some("setting.shell.now_playing.hint"),
                 None,
             ),
+            toggle("shell.settings", "setting.shell.settings.label", Some("setting.shell.settings.hint"), None),
+            toggle("shell.power", "setting.shell.power.label", Some("setting.shell.power.hint"), None),
+        ],
+    ),
+    section(
+        "tv.controls.title",
+        &[
+            Item {
+                key: "theme.accent",
+                label: "remote.theme.accent",
+                hint: Some("tv.controls.color_hint"),
+                kind: Kind::Action("_color_accent"),
+                needs: None,
+            },
+            Item {
+                key: "theme.accent_2",
+                label: "remote.theme.pressed",
+                hint: Some("tv.controls.color_hint"),
+                kind: Kind::Action("_color_accent_2"),
+                needs: None,
+            },
+            Item {
+                key: "theme.background",
+                label: "remote.theme.background",
+                hint: Some("tv.controls.color_hint"),
+                kind: Kind::Action("_color_background"),
+                needs: None,
+            },
+            Item {
+                key: "",
+                label: "tv.controls.media",
+                hint: None,
+                kind: Kind::Action("_panel_controls"),
+                needs: None,
+            },
+            Item { key: "", label: "remote.output.title", hint: None, kind: Kind::Action("_panel_audio"), needs: None },
+            Item { key: "", label: "remote.timer.title", hint: None, kind: Kind::Action("_panel_timer"), needs: None },
+            Item { key: "", label: "tv.controls.restore", hint: None, kind: Kind::Action("_panel_apps"), needs: None },
+            Item { key: "", label: "section.wifi", hint: None, kind: Kind::Action("_panel_wifi"), needs: None },
+            Item {
+                key: "",
+                label: "section.bluetooth",
+                hint: None,
+                kind: Kind::Action("_panel_bluetooth"),
+                needs: None,
+            },
+            Item {
+                key: "",
+                label: "remote.network.title",
+                hint: None,
+                kind: Kind::Action("_panel_network"),
+                needs: None,
+            },
+            toggle("system.info", "setting.system.info.label", Some("setting.system.info.hint"), None),
+            toggle(
+                "system.screenshot",
+                "setting.system.screenshot.label",
+                Some("setting.system.screenshot.hint"),
+                None,
+            ),
+            Item {
+                key: "",
+                label: "tv.controls.screenshot",
+                hint: Some("tv.controls.screenshot_hint"),
+                kind: Kind::Action("_screenshot"),
+                needs: Some("system.screenshot"),
+            },
+            Item { key: "", label: "section.system", hint: None, kind: Kind::Action("_panel_system"), needs: None },
+        ],
+    ),
+    section(
+        "section.lock",
+        &[
+            Item {
+                key: "",
+                label: "setting.lock.pin.label",
+                hint: Some("setting.lock.pin.hint"),
+                kind: Kind::Action("_pin"),
+                needs: None,
+            },
+            Item {
+                key: "",
+                label: "setting.lock.remove_pin.label",
+                hint: None,
+                kind: Kind::Action("_remove_pin"),
+                needs: Some("lock.pin_set"),
+            },
+            toggle("lock.on_sleep", "setting.lock.on_sleep.label", None, Some("lock.pin_set")),
         ],
     ),
     section(
@@ -322,6 +417,17 @@ const SECTIONS: &[Section] = &[
                     (Lit::Num(1440.0), Unit("unit.days", 1.0)),
                 ],
                 Some("wallpaper.home"),
+            ),
+            choice(
+                "wallpaper.slide_seconds",
+                "setting.wallpaper.slide_seconds.label",
+                &[
+                    (Lit::Num(10.0), Unit("unit.seconds", 10.0)),
+                    (Lit::Num(30.0), Unit("unit.seconds", 30.0)),
+                    (Lit::Num(60.0), Unit("unit.minutes", 1.0)),
+                    (Lit::Num(300.0), Unit("unit.minutes", 5.0)),
+                ],
+                None,
             ),
             toggle("wallpaper.shuffle", "setting.wallpaper.shuffle.label", None, None),
         ],
@@ -463,6 +569,7 @@ const SECTIONS: &[Section] = &[
     section(
         "section.overlay",
         &[
+            toggle("overlay.enabled", "setting.overlay.enabled.label", None, None),
             Item {
                 key: "",
                 label: "setting.overlay.live.label",
@@ -482,6 +589,26 @@ const SECTIONS: &[Section] = &[
         ],
     ),
 ];
+
+/// The Power tile's list, mildest first. Restarting an app is not here: with
+/// the home screen on the TV, no app is in front.
+const POWER: &[Section] = &[section(
+    "",
+    &[
+        Item {
+            key: "",
+            label: "setting.lock.lock_now.label",
+            hint: Some("setting.lock.lock_now.hint"),
+            kind: Kind::Action("lock"),
+            needs: None,
+        },
+        power("sleep", "power.sleep.label", "power.sleep.hint", false),
+        power("restart_shell", "power.restart_shell.label", "power.restart_shell.hint", false),
+        power("restart_session", "power.restart_session.label", "power.restart_session.hint", true),
+        power("reboot", "power.reboot.label", "power.reboot.hint", true),
+        power("shutdown", "power.shutdown.label", "power.shutdown.hint", true),
+    ],
+)];
 
 /// Heights in the 1920×1080 layout the shell scales from.
 const HEADER: f32 = 92.0;
@@ -522,10 +649,15 @@ pub enum Outcome {
 pub struct Menu {
     /// The last `settings` message from tvd.
     settings: Value,
+    context: Vec<(String, Value)>,
     overlay: bool,
     /// Index into the items that can take focus.
     selected: usize,
     scroll: f32,
+    /// Showing the Power tile's list instead of the settings.
+    power: bool,
+    /// The power row waiting for its second OK.
+    armed: Option<usize>,
 }
 
 impl Menu {
@@ -538,10 +670,17 @@ impl Menu {
         self.overlay = visible;
     }
 
-    /// Opening starts at the top.
-    pub fn reset(&mut self) {
+    /// Opening starts at the top; `power` picks the Power tile's list.
+    pub fn open(&mut self, power: bool) {
+        self.context.clear();
+        self.power = power;
         self.selected = 0;
         self.scroll = 0.0;
+        self.armed = None;
+    }
+
+    pub fn is_power(&self) -> bool {
+        self.power
     }
 
     /// The catalog's code for the TV's language.
@@ -558,7 +697,8 @@ impl Menu {
     fn sections(&self) -> impl Iterator<Item = &'static Section> + '_ {
         let pictures = self.settings["wallpaper"]["count"].as_u64().unwrap_or(0) > 0;
         let display = !self.modes().is_empty();
-        SECTIONS.iter().filter(move |section| (pictures || !section.pictures) && (display || !section.display))
+        let sections = if self.power { POWER } else { SECTIONS };
+        sections.iter().filter(move |section| (pictures || !section.pictures) && (display || !section.display))
     }
 
     /// The TV's modes as `(size, hz)`, such as `("1920x1080", "59.94")`.
@@ -620,10 +760,20 @@ impl Menu {
 
     /// Resolution and refresh rate only once tvd reports the TV's modes.
     fn shown(&self, item: &Item) -> bool {
-        !matches!(item.kind, Kind::Resolution | Kind::Refresh) || !self.modes().is_empty()
+        match item.kind {
+            Kind::Resolution | Kind::Refresh => !self.modes().is_empty(),
+            Kind::Power("sleep", _) => true,
+            Kind::Power(action, _) => {
+                self.settings["system"]["power"].as_array().is_some_and(|offered| offered.iter().any(|a| a == action))
+            }
+            _ => true,
+        }
     }
 
     fn enabled(&self, item: &Item) -> bool {
+        if matches!(item.kind, Kind::Action("lock")) && self.settings["lock"]["pin_set"] != true {
+            return false;
+        }
         item.needs.map_or(true, |key| self.get(key) == &Value::Bool(true))
     }
 
@@ -637,32 +787,78 @@ impl Menu {
     fn focusable(&self) -> Vec<&'static Item> {
         self.sections()
             .flat_map(|section| section.items)
-            .filter(|item| self.shown(item) && self.enabled(item))
+            .filter(|item| self.shown(item) && (self.enabled(item) || matches!(item.kind, Kind::Action("lock"))))
             .collect()
     }
 
     /// The list as the UI draws it, with the focused row kept in view.
+    pub fn has_pin(&self) -> bool {
+        self.settings["lock"]["pin_set"] == true
+    }
+
+    pub fn is_context(&self) -> bool {
+        !self.context.is_empty()
+    }
+
+    pub fn open_context(&mut self, rows: Vec<(String, Value)>) {
+        self.open(false);
+        self.context = rows;
+    }
+
     pub fn rows(&mut self) -> Vec<Row> {
+        if !self.context.is_empty() {
+            let top = self.selected as f32 * ROW;
+            if top < self.scroll {
+                self.scroll = top;
+            }
+            if top + ROW > self.scroll + VIEW {
+                self.scroll = top + ROW - VIEW;
+            }
+            return self
+                .context
+                .iter()
+                .enumerate()
+                .map(|(i, (label, _))| Row {
+                    header: false,
+                    label: label.clone(),
+                    value: String::new(),
+                    kind: "action",
+                    on: false,
+                    enabled: true,
+                    focused: i == self.selected,
+                    y: i as f32 * ROW,
+                    before: false,
+                    after: false,
+                })
+                .collect();
+        }
         let lang = self.lang();
         let twelve_hour = self.settings["locale"]["clock"] == "12h";
-        let focused = self.focusable().get(self.selected).map(|item| *item as *const Item);
+        let focusable = self.focusable();
+        let focused = focusable.get(self.selected).map(|item| *item as *const Item);
+        let armed = self.armed.and_then(|i| focusable.get(i)).map(|item| *item as *const Item);
         let mut rows = Vec::new();
         let mut y = 0.0;
         let sections: Vec<&'static Section> = self.sections().collect();
         for section in sections {
-            rows.push(Row {
-                header: true,
-                label: rustv_locales::text(lang, section.title).into(),
-                value: String::new(),
-                kind: "header",
-                on: false,
-                enabled: true,
-                focused: false,
-                y,
-                before: false,
-                after: false,
-            });
-            y += HEADER;
+            // The Power list is one group under the title, without a header of its own.
+            if section.title.is_empty() {
+                y += HEADER / 2.0;
+            } else {
+                rows.push(Row {
+                    header: true,
+                    label: rustv_locales::text(lang, section.title).into(),
+                    value: String::new(),
+                    kind: "header",
+                    on: false,
+                    enabled: true,
+                    focused: false,
+                    y,
+                    before: false,
+                    after: false,
+                });
+                y += HEADER;
+            }
             let items: Vec<&'static Item> = section.items.iter().filter(|item| self.shown(item)).collect();
             for item in items {
                 let options = self.options(item);
@@ -671,7 +867,14 @@ impl Menu {
                 let (choices, chosen) = self.mode_choices(&item.kind);
                 let (kind, value) = match item.kind {
                     Kind::Toggle | Kind::Overlay => ("toggle", String::new()),
+                    Kind::Action("lock") if !self.enabled(item) => {
+                        ("action", rustv_locales::text(lang, "power.lock.needs_pin").into())
+                    }
                     Kind::Action(_) => ("action", String::new()),
+                    Kind::Power(..) if armed == Some(item as *const Item) => {
+                        ("action", rustv_locales::text(lang, "power.confirm").into())
+                    }
+                    Kind::Power(..) => ("action", String::new()),
                     Kind::Choice(_) => {
                         ("choice", at.map_or_else(|| shown(current), |i| options[i].1.read(lang, twelve_hour)))
                     }
@@ -723,20 +926,46 @@ impl Menu {
 
     /// The explanation for the focused row, if it has one.
     pub fn hint(&self) -> String {
+        if !self.context.is_empty() {
+            return self.context.get(self.selected).map(|(label, _)| label.clone()).unwrap_or_default();
+        }
         let item = self.focusable().get(self.selected).copied();
+        if item.is_some_and(|item| matches!(item.kind, Kind::Action("lock")) && !self.enabled(item)) {
+            return rustv_locales::text(self.lang(), "power.lock.setup_hint").into();
+        }
         item.and_then(|item| item.hint).map_or_else(String::new, |hint| rustv_locales::text(self.lang(), hint).into())
     }
 
     /// "up", "down", "left", "right", "ok" or "back".
     pub fn key(&mut self, key: &str) -> Outcome {
+        if !self.context.is_empty() {
+            match key {
+                "up" => self.selected = self.selected.saturating_sub(1),
+                "down" => self.selected = (self.selected + 1).min(self.context.len() - 1),
+                "back" => return Outcome::Close,
+                "ok" if !self.context[self.selected].1.is_null() => {
+                    let command = self.context[self.selected].1.clone();
+                    return if matches!(command["type"].as_str(), Some("volume" | "media")) {
+                        Outcome::Send(command)
+                    } else {
+                        Outcome::SendAndClose(command)
+                    };
+                }
+                _ => {}
+            }
+            return Outcome::Nothing;
+        }
         let items = self.focusable();
         let Some(item) = items.get(self.selected).copied() else {
             return if key == "back" { Outcome::Close } else { Outcome::Nothing };
         };
+        // Anything but the second OK takes the question back.
+        let armed = self.armed.take() == Some(self.selected);
         match key {
             "up" => self.selected = self.selected.saturating_sub(1),
             "down" => self.selected = (self.selected + 1).min(items.len() - 1),
             "back" => return Outcome::Close,
+            "ok" if armed => return self.change(item, "confirm"),
             "left" | "right" | "ok" => return self.change(item, key),
             _ => {}
         }
@@ -744,6 +973,9 @@ impl Menu {
     }
 
     fn change(&mut self, item: &Item, key: &str) -> Outcome {
+        if !self.enabled(item) {
+            return Outcome::Nothing;
+        }
         match item.kind {
             Kind::Toggle if key == "ok" => {
                 let value = json!(self.get(item.key) != &Value::Bool(true));
@@ -754,7 +986,16 @@ impl Menu {
                 self.overlay = !self.overlay;
                 Outcome::Send(json!({ "type": "overlay", "visible": self.overlay }))
             }
-            Kind::Action(command) if key == "ok" => Outcome::SendAndClose(json!({ "type": command })),
+            Kind::Action(command) | Kind::Power(command @ "sleep", _) if key == "ok" => {
+                Outcome::SendAndClose(json!({ "type": command }))
+            }
+            Kind::Power(_, true) if key == "ok" => {
+                self.armed = Some(self.selected);
+                Outcome::Nothing
+            }
+            Kind::Power(action, _) if key == "ok" || key == "confirm" => {
+                Outcome::SendAndClose(json!({ "type": "power", "action": action }))
+            }
             Kind::Resolution | Kind::Refresh => {
                 let (choices, at) = self.mode_choices(&item.kind);
                 if choices.is_empty() {
@@ -833,7 +1074,8 @@ mod tests {
             "cec": { "enabled": false },
             "gamepad": { "enabled": true, "guide_closes_app": true },
             "cast": { "airplay": false },
-            "overlay": { "position": "top" }
+            "overlay": { "position": "top" },
+            "system": { "power": ["restart_app", "restart_shell", "reboot", "shutdown"] }
         }));
         menu
     }
@@ -851,6 +1093,54 @@ mod tests {
             menu.key("down");
         }
         panic!("no row {label:?}");
+    }
+
+    #[test]
+    fn every_remote_setting_has_a_shell_entry() {
+        let web = include_str!("../../tvd/web/app.js");
+        let keys: Vec<_> = SECTIONS.iter().flat_map(|s| s.items).map(|i| i.key).collect();
+        for part in web.split("key: \"").skip(1) {
+            let key = part.split('"').next().unwrap();
+            if key.contains('.') && key.chars().all(|c| c.is_ascii_lowercase() || c == '_' || c == '.') {
+                assert!(keys.contains(&key), "remote-only setting: {key}");
+            }
+        }
+        for key in ["theme.accent", "theme.accent_2", "theme.background"] {
+            assert!(keys.contains(&key));
+        }
+    }
+
+    #[test]
+    fn pin_setup_opens_local_entry() {
+        let mut menu = menu();
+        go_to(&mut menu, "PIN");
+        assert!(menu.hint().contains("PIN"));
+        assert_eq!(menu.key("ok"), Outcome::SendAndClose(json!({"type":"_pin"})));
+    }
+
+    #[test]
+    fn lock_requires_a_pin_and_context_dispatches_selected_action() {
+        let mut menu = menu();
+        menu.open(true);
+        let row = focused(&mut menu);
+        assert_eq!(row.label, "Lock the TV now");
+        assert!(!row.enabled);
+        assert_eq!(row.value, "PIN required");
+        assert!(menu.hint().contains("Settings"));
+        assert_eq!(menu.key("ok"), Outcome::Nothing);
+        menu.settings["lock"] = json!({"pin_set": true});
+        menu.open(true);
+        assert_eq!(menu.key("ok"), Outcome::SendAndClose(json!({"type":"lock"})));
+        menu.open_context(vec![
+            ("Info".into(), Value::Null),
+            ("Remove".into(), json!({"type":"hide_app","id":"test"})),
+        ]);
+        assert_eq!(menu.key("ok"), Outcome::Nothing);
+        menu.key("down");
+        assert_eq!(menu.key("ok"), Outcome::SendAndClose(json!({"type":"hide_app","id":"test"})));
+        assert_eq!(menu.key("back"), Outcome::Close);
+        menu.open(false);
+        assert!(!menu.is_context());
     }
 
     #[test]
@@ -956,6 +1246,31 @@ mod tests {
     }
 
     #[test]
+    fn power_lists_what_is_offered_and_asks_twice_before_going() {
+        let mut menu = menu();
+        menu.open(true);
+        let labels: Vec<String> = menu.rows().into_iter().map(|row| row.label).collect();
+        assert_eq!(labels, ["Lock the TV now", "Sleep", "Restart the home screen", "Restart the box", "Shut down"]);
+        go_to(&mut menu, "Sleep");
+        assert_eq!(menu.key("ok"), Outcome::SendAndClose(json!({ "type": "sleep" })));
+        menu.open(true);
+        go_to(&mut menu, "Restart the home screen");
+        assert_eq!(menu.key("ok"), Outcome::SendAndClose(json!({ "type": "power", "action": "restart_shell" })));
+        menu.open(true);
+        go_to(&mut menu, "Shut down");
+        assert_eq!(menu.key("ok"), Outcome::Nothing);
+        assert_eq!(focused(&mut menu).value, "Press OK again");
+        // Moving away takes the question back.
+        menu.key("up");
+        menu.key("down");
+        assert_eq!(focused(&mut menu).value, "");
+        assert_eq!(menu.key("ok"), Outcome::Nothing);
+        assert_eq!(menu.key("ok"), Outcome::SendAndClose(json!({ "type": "power", "action": "shutdown" })));
+        menu.open(false);
+        assert_eq!(focused(&mut menu).label, "Greeting");
+    }
+
+    #[test]
     fn the_focus_stays_in_view_and_turkish_works() {
         let mut menu = menu();
         for _ in 0..40 {
@@ -966,7 +1281,7 @@ mod tests {
         let mut settings = menu.settings.clone();
         settings["locale"]["language"] = json!("tr");
         menu.set_settings(settings);
-        menu.reset();
+        menu.open(false);
         assert_eq!(focused(&mut menu).label, "Karşılama");
         assert_eq!(menu.scroll(), 0.0);
     }

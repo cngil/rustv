@@ -422,7 +422,12 @@ async fn handle(app: &Arc<AppState>, adapter: &Arc<Adapter>, frame: &[u8]) {
 /// Whether OK has to wait to see if it is held: only where holding it opens the keyboard.
 fn ok_can_hold(app: &AppState) -> bool {
     let cfg = app.config().keyboard.clone();
-    cfg.enabled && cfg.hold_ok && !app.keyboard.is_open() && !app.is_asleep()
+    cfg.enabled
+        && cfg.hold_ok
+        && !app.keyboard.is_open()
+        && !app.is_asleep()
+        && !app.is_locked()
+        && !crate::shell_controls::POINTER.load(Ordering::Relaxed)
 }
 
 /// OK went down, or the TV repeated it because it is still down.

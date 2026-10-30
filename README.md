@@ -536,3 +536,59 @@ npx playwright test
 [Hanken Grotesk](https://github.com/marcologous/hanken-grotesk) typeface, licensed
 under the [SIL Open Font License](crates/shell/ui/fonts/OFL.txt); the remote serves
 it from the box, so nothing loads from the internet.
+
+
+### Power menu
+
+The home screen has a separate Power tile, controlled by `shell.power`.
+It offers sleep and the restart/shutdown actions allowed by `system.power`.
+Restarting the TV session, rebooting and shutting down require pressing OK
+twice; moving away cancels confirmation. Sleep turns the display off while
+keeping the box running. Shut down requires the box's physical power button
+to turn it back on. `TVD_POWER_DRY_RUN=1` logs shell/session/system actions
+without executing them during local development.
+
+
+Development safety: debug builds always simulate shell restart, session restart,
+reboot and shutdown, even when launched directly with Cargo. The dev runner also
+exports `TVD_POWER_DRY_RUN=1` for both desktop and nested sway runs. Simulated
+session/system actions leave the running app and HDMI-CEC power state untouched.
+Real system power actions require a release build without that environment flag.
+
+The Power menu always shows Lock. Without a PIN it is greyed out, with a PIN-required label and setup instructions. Unlock using the on-screen keypad, a gamepad, a TV remote or a physical keyboard.
+On the home screen, hold OK for 600 ms on an app to open its context menu:
+open/close, app info, remove from home, and move left/right. A short OK launches
+on release; Back closes the menu. Removed apps remain in the config and can be
+restored through the remote's Settings.
+
+Shell Settings includes Lock and PIN → PIN for local setup or change, and Remove PIN.
+Use arrows and OK to enter digits; the new PIN must be confirmed. Back cancels.
+Incorrect PINs and lockout errors are displayed; success is confirmed by the daemon.
+Gamepad Y/Triangle or the remote Menu button opens the selected app's context menu.
+Controls and connections includes playback/volume, audio outputs, sleep timers,
+hidden-app restoration, Wi-Fi, Bluetooth, network exposure and system/log information.
+Wi-Fi passwords can be entered with the on-screen keyboard; More cycles character
+pages, including capitals and punctuation. Physical keyboards work too.
+
+
+### Shell controls without a phone
+
+PIN setup, change, removal and unlocking use a local keypad. Wi-Fi passwords
+and custom theme colors use a controller-operated keyboard. Remote settings
+have matching shell entries; a regression test checks setting-key coverage.
+
+In the Sway TV session, press the gamepad Menu/Start or Y/Triangle button, or
+the TV remote's Menu button, to bring up Settings without closing the app.
+Back closes the menu; Back again returns to the app. Playback and volume
+controls stay open for repeated adjustments. Opening the on-screen keyboard
+returns focus to the app first.
+
+Mouse control maps arrows to movement, OK to left click, Menu/Y to right click,
+and shoulder buttons or Page Up/Down to scrolling. Back exits mouse control.
+Screenshot controls save PNGs in `~/Pictures/rustv` and show a preview.
+Back closes the preview. Development power-action simulation remains enabled.
+
+Focusing controls over an app requires Sway IPC. Direct desktop development
+on another compositor can exercise the shell menus, but cannot use that Sway
+focus shortcut. Physical gamepad, HDMI-CEC and compositor interaction still
+need validation on the TV hardware.

@@ -16,6 +16,15 @@ use crate::{AppEntry, Shell};
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum Incoming {
+    ShellControls {
+        open: bool,
+    },
+    Error {
+        message: String,
+    },
+    ShellKey {
+        code: String,
+    },
     Apps {
         apps: Vec<AppInfo>,
     },
@@ -32,6 +41,9 @@ enum Incoming {
         overlay: bool,
         #[serde(default)]
         display_trial: Option<Trial>,
+        /// A power action taking the TV away: `restart_session`, `reboot` or `shutdown`.
+        #[serde(default)]
+        power: Option<String>,
     },
     Pairing {
         url: String,
@@ -69,6 +81,8 @@ pub struct Visibility {
     pub sound_volume: f32,
     /// The Settings tile at the end of the app row.
     pub settings: bool,
+    /// The Power tile after it.
+    pub power: bool,
 }
 
 impl Default for Visibility {
@@ -82,6 +96,7 @@ impl Default for Visibility {
             sounds: true,
             sound_volume: 0.5,
             settings: true,
+            power: true,
         }
     }
 }
@@ -130,6 +145,10 @@ pub struct Trial {
 
 #[derive(Debug, Deserialize)]
 struct AppInfo {
+    #[serde(default)]
+    kind: String,
+    #[serde(default)]
+    source: String,
     id: String,
     name: String,
     #[serde(default)]
@@ -175,7 +194,63 @@ async fn session(settings: &Settings, ui: &Weak<Shell>, commands: &mut mpsc::Unb
                 Some(Ok(_)) => {}
             },
             command = commands.recv() => match command {
-                Some(command) => sink.send(Message::Text(command)).await?,
+                Some(command) => {
+                    let mut value: serde_json::Value = serde_json::from_str(&command)?;
+                    let dialog_id = value.as_object_mut().and_then(|value| value.remove("_dialog_id")).and_then(|value| value.as_u64());
+                    let command = value.to_string();
+                    if value["type"] == "_screenshot" {
+                        let (addr, token, ui) = (settings.addr.clone(), token.clone(), ui.clone());
+                        tokio::task::spawn_blocking(move || {
+                            let result = (|| -> Result<PathBuf> {
+                                let response = ureq::get(&format!("http://{addr}/api/v1/screenshot"))
+                                    .set("Authorization", &format!("Bearer {token}"))
+                                    .timeout(Duration::from_secs(15)).call()?;
+                                let base = std::env::var_os("HOME").map(PathBuf::from).context("No home directory")?.join("Pictures/rustv");
+                                std::fs::create_dir_all(&base)?;
+                                let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos();
+                                let path = base.join(format!("screenshot-{stamp}.png"));
+                                let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path)?;
+                                std::io::copy(&mut response.into_reader(), &mut file)?;
+                                Ok(path)
+                            })();
+                            crate::screenshot_result(&ui, result.map_err(|_| "tv.controls.screenshot_failed".into()));
+                        });
+                    } else if value["type"] == "_get" {
+                        let panel = value["panel"].as_str().unwrap_or("").to_string();
+                        if !matches!(panel.as_str(), "apps" | "audio" | "wifi" | "bluetooth" | "network" | "system") { continue; }
+                        let (addr, token, ui) = (settings.addr.clone(), token.clone(), ui.clone());
+                        tokio::task::spawn_blocking(move || {
+                            let result = (|| -> Result<serde_json::Value> {
+                                let response = ureq::get(&format!("http://{addr}/api/v1/{panel}{}", if panel == "wifi" { "?rescan=true" } else { "" }))
+                                    .set("Authorization", &format!("Bearer {token}"))
+                                    .timeout(Duration::from_secs(20)).call()?;
+                                Ok(serde_json::from_reader(response.into_reader())?)
+                            })();
+                            crate::panel_result(&ui, panel, result.map_err(|_| "tv.controls.load_failed".into()));
+                        });
+                    } else if dialog_id.is_some() || matches!(value["type"].as_str(), Some("set_pin" | "unlock" | "wifi_connect")) {
+                        let (addr, token, ui) = (settings.addr.clone(), token.clone(), ui.clone());
+                        tokio::task::spawn_blocking(move || {
+                            let result = ureq::post(&format!("http://{addr}/api/v1/command"))
+                                .set("Authorization", &format!("Bearer {token}"))
+                                .set("Content-Type", "application/json")
+                                .timeout(Duration::from_secs(15)).send_string(&command);
+                            let error = match result {
+                                Ok(_) => None,
+                                Err(ureq::Error::Status(_, response)) => {
+                                    let mut body = String::new();
+                                    let _ = std::io::Read::read_to_string(&mut response.into_reader(), &mut body);
+                                    let body: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+                                    Some(body["error"].as_str().unwrap_or("common.something_went_wrong").to_string())
+                                }
+                                Err(_) => Some("tv.controls.connection_failed".to_string()),
+                            };
+                            crate::pin_result(&ui, dialog_id, error);
+                        });
+                    } else {
+                        sink.send(Message::Text(command)).await?;
+                    }
+                },
                 None => return Ok(()),
             },
         }
@@ -185,6 +260,9 @@ async fn session(settings: &Settings, ui: &Weak<Shell>, commands: &mut mpsc::Unb
 async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, volume: &mut Option<Volume>) {
     let Ok(msg) = serde_json::from_str::<Incoming>(text) else { return };
     match msg {
+        Incoming::ShellControls { open } => crate::show_controls(ui, open),
+        Incoming::Error { message } => crate::command_error(ui, message),
+        Incoming::ShellKey { code } => crate::lock_key(ui, code),
         Incoming::Apps { apps } => {
             let addr = settings.addr.clone();
             let token = token.to_string();
@@ -195,6 +273,7 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
                         icon: if app.icon { fetch_icon(&addr, &token, &app.id).ok() } else { None },
                         id: app.id,
                         name: app.name,
+                        details: format!("{} · {}", app.kind, app.source),
                     })
                     .collect::<Vec<_>>()
             })
@@ -202,10 +281,21 @@ async fn handle(settings: &Settings, token: &str, ui: &Weak<Shell>, text: &str, 
             .unwrap_or_default();
             crate::set_apps(ui, entries);
         }
-        Incoming::State { running, volume: new_volume, asleep, show_pairing, locked, overlay, display_trial } => {
+        Incoming::State {
+            running,
+            volume: new_volume,
+            asleep,
+            show_pairing,
+            locked,
+            overlay,
+            display_trial,
+            power,
+        } => {
             crate::set_overlay(ui, overlay);
+            crate::set_power(ui, power);
             crate::set_trial(ui, display_trial);
             crate::set_locked(ui, locked);
+            crate::set_running_id(ui, running.as_ref().and_then(|app| app["id"].as_str()).map(str::to_owned));
             crate::set_running(ui, running.is_some());
             crate::set_asleep(ui, asleep);
             crate::set_show_pairing(ui, show_pairing);

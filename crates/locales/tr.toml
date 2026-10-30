@@ -18,6 +18,7 @@ common.home = "Ana ekran"
 common.keep = "Koru"
 common.searching = "Aranıyor…"
 common.settings = "Ayarlar"
+common.power = "Güç"
 common.something_went_wrong = "Bir şeyler ters gitti"
 common.undo = "Geri al"
 
@@ -29,6 +30,10 @@ error.pin.not_set = "Önce ayarlardan bir PIN belirle"
 error.pin.too_many = "Çok fazla yanlış PIN; {seconds} sn sonra tekrar dene"
 error.pin.wrong = "Yanlış PIN"
 error.pin.wrong_blocked = "Yanlış PIN. Giriş {seconds} sn engellendi"
+error.power.no_app = "Açık uygulama yok"
+error.power.no_shell = "Ana ekran çalışmıyor"
+error.power.not_allowed = "Kutuyu yeniden başlatma veya kapatma izni yok; packaging/polkit içindeki polkit kuralını kurun"
+error.power.off = "Bu, yapılandırmada kapatılmış (system.power)"
 error.system.screenshot_off = "Ekran görüntüleri ayarlardan kapatılmış."
 error.system.info_off = "Sistem bilgisi ayarlardan kapatılmış."
 error.wifi.not_allowed = "Wi-Fi değiştirme izni yok; packaging/polkit içindeki polkit kuralını kur"
@@ -89,6 +94,30 @@ stats.unit.hours = "sa"
 stats.unit.minutes = "dk"
 stats.up = "açık"
 stats.volume = "Ses"
+
+# ---- power ----
+power.confirm = "Onaylamak için tekrar OK"
+power.done.restart_app = "{name} yeniden başlatılıyor"
+power.done.restart_shell = "Ana ekran yeniden başlatılıyor"
+power.going.reboot = "Yeniden başlatılıyor…"
+power.going.restart_session = "TV oturumu yeniden başlatılıyor…"
+power.going.shutdown = "Kapatılıyor…"
+power.going_hint.reboot = "Yaklaşık bir dakika sürer. Kumanda kendiliğinden yeniden bağlanır."
+power.going_hint.restart_session = "Birkaç saniyede geri gelir."
+power.going_hint.shutdown = "Yeniden açmak için kutunun güç düğmesine basın."
+power.reboot.hint = "Yaklaşık bir dakika sürer; kumanda kendiliğinden yeniden bağlanır."
+power.reboot.label = "Kutuyu yeniden başlat"
+power.restart_app.hint = "Açık uygulamayı kapatır ve yeniden açar."
+power.restart_app.label = "Uygulamayı yeniden başlat"
+power.restart_session.hint = "Görüntü kararır veya bozulursa. Açık uygulama kapanır."
+power.restart_session.label = "TV oturumunu yeniden başlat"
+power.restart_shell.hint = "Ana ekran yanıt vermiyorsa. Açık uygulama açık kalır."
+power.restart_shell.label = "Ana ekranı yeniden başlat"
+power.shutdown.hint = "Kutuyu tamamen kapatır. Kumanda yeniden açamaz: birinin kutunun güç düğmesine basması gerekir."
+power.shutdown.label = "Kapat"
+power.sleep.hint = "Ekran kapanır, kutu açık kalır. Kumandada herhangi bir tuş uyandırır."
+power.sleep.label = "Uyku"
+power.tap_again = "Onaylamak için tekrar dokunun"
 
 # ---- remote ----
 remote.app.already_open = "{name} zaten TV'de açık"
@@ -350,6 +379,8 @@ setting.shell.pairing_qr.hint = "Bir telefon eşleşene kadar ve sen istediğind
 setting.shell.pairing_qr.label = "Eşleştirme kodu"
 setting.shell.settings.hint = "Uygulamaların sonunda bir Ayarlar kutucuğu, yalnızca TV kumandası olanlar için. Yeniden yalnızca telefondan açılabilir."
 setting.shell.settings.label = "TV'de ayarlar"
+setting.shell.power.hint = "Uygulamaların sonunda bir Güç kutucuğu: TV kumandasıyla uyku, yeniden başlatma ve kapatma."
+setting.shell.power.label = "TV'de güç menüsü"
 setting.shell.sound_volume.label = "Ses düzeyi"
 setting.shell.sounds.hint = "Uygulamalar arasında gezinirken ve açarken yumuşak tıklamalar."
 setting.shell.sounds.label = "Sesler"
@@ -421,3 +452,48 @@ unit.hours = "{n} sa"
 unit.minutes = "{n} dk"
 unit.percent = "%{n}"
 unit.seconds = "{n} sn"
+
+tv.app.move_left = "Sola taşı"
+tv.app.move_right = "Sağa taşı"
+
+power.lock.needs_pin = "PIN gerekli"
+power.lock.setup_hint = "Kilidi etkinleştirmek için Ayarlar → Kilit ve PIN bölümünden PIN belirleyin."
+
+tv.pin.setup = "Telefondan PIN ayarla"
+tv.pin.setup_hint = "Eşleştirme QR kodunu tarayın; telefonda Ayarlar → Kilit ve PIN → PIN → PIN belirle yolunu açın."
+
+tv.controls.title = "Kontroller ve bağlantılar"
+
+tv.controls.media = "Oynatma ve ses"
+
+tv.controls.restore = "Gizli uygulamaları geri getir"
+
+tv.controls.no_hidden = "Gizli uygulama yok"
+
+tv.controls.bluetooth_on = "Bluetooth aç"
+
+tv.controls.bluetooth_off = "Bluetooth kapat"
+
+tv.controls.volume_up = "Sesi artır"
+
+tv.controls.volume_down = "Sesi azalt"
+
+tv.controls.wifi_password = "Wi-Fi parolası (kayıtlı ağ için boş bırakın)"
+
+tv.controls.more_keys = "Diğer"
+
+tv.controls.pointer = "Fare kontrolü (Geri ile çıkış)"
+
+tv.controls.screenshot = "Ekran görüntüsü al ve kaydet"
+
+tv.controls.screenshot_hint = "Pictures/rustv klasörüne kaydeder. Geri ile önizlemeyi kapatın."
+
+tv.controls.color_hint = "#RRGGBB girin veya hazır tema rengini kullanmak için boş bırakın."
+
+tv.controls.volume_value = "Ses yüzdesi (0–150)"
+
+tv.controls.screenshot_failed = "Ekran görüntüsü kaydedilemedi. Sistem ekran görüntüsü ayarını kontrol edin."
+
+tv.controls.load_failed = "Veriler yüklenemedi. Geri dönüp tekrar deneyin."
+
+tv.controls.connection_failed = "Bağlantı kurulamadı. Tekrar deneyin."

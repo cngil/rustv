@@ -83,6 +83,8 @@ pub struct Shell {
     pub sound_volume: f32,
     /// A Settings tile at the end of the app row, for whoever has only the TV remote.
     pub settings: bool,
+    /// A Power tile after it: sleep, restart and shut down from the TV remote.
+    pub power: bool,
     /// What a media player plays (MPRIS), on the home screen and the remote.
     pub now_playing: bool,
 }
@@ -99,6 +101,7 @@ impl Default for Shell {
             sounds: true,
             sound_volume: 0.5,
             settings: true,
+            power: true,
             now_playing: true,
         }
     }
@@ -182,11 +185,13 @@ pub struct System {
     pub screenshot: bool,
     /// Temperatures, memory, disk and tvd's log.
     pub info: bool,
+    /// What the power menus offer; an action left out is refused.
+    pub power: Vec<crate::power::Action>,
 }
 
 impl Default for System {
     fn default() -> Self {
-        Self { screenshot: true, info: true }
+        Self { screenshot: true, info: true, power: crate::power::Action::ALL.to_vec() }
     }
 }
 

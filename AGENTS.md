@@ -44,7 +44,8 @@ cargo fmt --check
 RUST_LOG=debug cargo run -p tvd -- --config config/config.example.toml
 ```
 
-Run test, clippy and fmt before declaring a task done.
+Run test, clippy and fmt before declaring a task done. `scripts/check.sh`
+runs all of CI locally; `scripts/check.sh --remote` adds the browser tests.
 
 ## Rules
 
@@ -54,6 +55,9 @@ Run test, clippy and fmt before declaring a task done.
 - Everything user-facing is configurable in TOML. Do not hardcode apps,
   limits or promoted content.
 - New displayed information or features must be user-toggleable.
+- Keep the web remote and TV shell functionally equivalent. A phone must not be
+  required: provide TV-remote/gamepad navigation and local text/PIN entry.
+  Keep unavailable actions visible but disabled with an explanation.
 - Every API endpoint except `/api/v1/health` requires the bearer token. Do
   not weaken auth or log the token.
 - The web remote has no build step. Do not introduce a bundler or framework.

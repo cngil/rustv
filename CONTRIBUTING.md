@@ -26,6 +26,10 @@ RUST_LOG=debug cargo run -p tvd -- --config config/config.example.toml
 Requirements are listed in the [README](README.md#requirements). Rust 1.80+
 is needed.
 
+To try tvd and the shell together on a desktop, `scripts/dev.sh` runs both
+from the checkout with their own config in `target/dev`; `scripts/dev.sh --sway`
+runs them in a nested sway kiosk, like on a TV.
+
 ## Before you open a pull request
 
 All three must pass:
@@ -37,6 +41,10 @@ cargo fmt --check
 ```
 
 Formatting follows [`rustfmt.toml`](rustfmt.toml).
+
+`scripts/check.sh` runs these together with shellcheck, the same checks as CI.
+Add `--remote` to also run the web remote's browser tests (Node.js and write
+access to `/dev/uinput` needed).
 
 ## Workflow
 
